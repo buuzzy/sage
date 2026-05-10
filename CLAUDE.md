@@ -146,6 +146,7 @@ export const API_BASE_URL = isTauri
 - API Key 不要硬编码在源码中。公共仓库 + 硬编码 = 立即泄露。用 `.env` + gitignore。清理 git 历史用 `git-filter-repo --replace-text`。
 - **Phase 2 调试**：定位「记忆工具没被调用」的根因花了多轮假设（context 污染 / sampling 抖动 / 模型 judgment）。最终对照测试 E（MiniMax，0 次工具调用）vs F+G（Sonnet，每次 3 次工具调用）才证实是模型差异而非代码问题。教训：**遇到「时灵时不灵」时，先把变量列清楚（模型/prompt/输入）做一次干净对照实验，比连续猜代码逻辑高效**。
 - **Node.js sidecar 用 small-icu 编译**，`toLocaleString` 的 locale 参数（如 sv-SE）会 fallback 到 en-US 的本地化格式。需要稳定输出 ISO-like 时间字符串时直接用 `padStart` 手动拼，不依赖 ICU。
+- **Dockerfile 不要用 `pnpm@latest`**：上游升级会让"昨天还能 build"的镜像第二天炸（pnpm 11 要求 Node ≥ 22.13，引入 `node:sqlite` 内置模块，Node 20 镜像直接 `ERR_UNKNOWN_BUILTIN_MODULE`）。规范：基镜像选 `node:22-alpine`，pnpm 用 `corepack prepare pnpm@<exact-version>`，并在根 `package.json` 加 `packageManager: pnpm@<same-version>` 让本地 corepack 也固定，避免本地与云端漂移。
 
 ## 待办事项
 
@@ -169,8 +170,16 @@ export const API_BASE_URL = isTauri
 |-----|------|----------|
 | `IWENCAI_API_KEY` | 11 个 iwencai 技能 | `~/.sage/.env` → Tauri sidecar 注入 |
 | `WESTOCK_API_KEY` | 4 个 westock 技能 | 同上 |
+| `MIMO_API_KEY` | Phase 3 persona 蒸馏（Railway 凌晨 2 点 cron） | Railway env only |
+| `MIMO_BASE_URL` | MiMo 入口（默认官方 `api.xiaomimimo.com/v1`，Coding Plan 用 `token-plan-sgp.xiaomimimo.com/v1`） | Railway env only |
+| `MIMO_MODEL` | 蒸馏模型（默认 `mimo-v2-flash`，但 Coding Plan 没该模型，必须显式设为 `mimo-v2-pro` / `mimo-v2.5` / `mimo-v2.5-pro`，否则 400） | Railway env only |
+| `SAGE_ENABLE_BACKGROUND_JOBS` | 设 `true` 才注册 cron。本地桌面端不设（避免双跑） | Railway env only |
+| `SAGE_API_TOKEN` | 云端 Bearer 鉴权（设了走 token check，未设走 loopback IP 白名单） | Railway env only |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | 云端数据 + RLS user-scoped 客户端 | Railway env (service role 仅云端) |
 
 Tauri 启动 sidecar 时从 `~/.sage/.env` 读取并传递环境变量（`src-tauri/src/lib.rs` 中的 `load_dotenv()`）。
 Railway 部署需在环境变量中单独配置。
+
+**Railway 当前部署**：URL `https://sage-production-28e1.up.railway.app`（旧 `sage-production` 子域被占用，加了 `-28e1` 后缀），项目名 `sage`，service 名 `sage`。Builder 强制走 Dockerfile（`RAILWAY_DOCKERFILE_PATH=Dockerfile`），不要让 Railpack 自动检测。
 
 签名密钥：`TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，本地构建时手动 export，密钥文件存放于 `~/Documents/Projects/sage-tauri-signing-key-v2.txt`。

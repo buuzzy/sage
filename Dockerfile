@@ -2,9 +2,11 @@
 # Build context: project root (needs pnpm workspace files)
 
 # ── Stage 1: Build bundle.cjs ─────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# Node 22 because pnpm 11+ requires Node ≥ 22.13 (uses node:sqlite builtin).
+# pnpm version pinned to keep cloud build identical to local dev.
+FROM node:22-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
 WORKDIR /build
 
@@ -26,7 +28,7 @@ RUN pnpm install --frozen-lockfile --filter sage-api...
 RUN cd src-api && pnpm bundle
 
 # ── Stage 2: Production image ────────────────────────────────────────────────
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
