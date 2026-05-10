@@ -182,4 +182,17 @@ Railway 部署需在环境变量中单独配置。
 
 **Railway 当前部署**：URL `https://sage-production-28e1.up.railway.app`（旧 `sage-production` 子域被占用，加了 `-28e1` 后缀），项目名 `sage`，service 名 `sage`。Builder 强制走 Dockerfile（`RAILWAY_DOCKERFILE_PATH=Dockerfile`），不要让 Railpack 自动检测。
 
-签名密钥：`TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，本地构建时手动 export，密钥文件存放于 `~/Documents/Projects/sage-tauri-signing-key-v2.txt`。
+## 敏感凭证保险库
+
+所有 macOS 签名 / Mac App Store 发布相关的私钥与证书统一收纳在 `~/Documents/Projects/项目/.env/` 目录里（命名为 `.env` 是为了天然规避 git 跟踪）。当前清单：
+
+| 文件 | 用途 |
+|------|------|
+| `sage-tauri-signing-key-v2.txt` | Tauri 自动更新签名私钥（对应 env: `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，本地构建前手动 export） |
+| `AuthKey_*.p8` | Apple Developer Auth Key（App Store Connect API / push） |
+| `mac_app.cer` / `mac_installer.cer` | Mac App / Installer distribution 证书 |
+| `Sage_Mac_App_Store.provisionprofile` | Mac App Store provisioning profile |
+| `CertificateSigningRequest.certSigningRequest` | Apple CSR |
+| `github-recovery-codes.txt` | GitHub 账户恢复码 |
+
+新增任何敏感文件都放进这个目录，不要散落在仓库根或 `~/Documents/Projects/`。
