@@ -71,14 +71,6 @@ src-api/dist/bundle.cjs
 # Tauri sidecar binaries (build output)
 src-tauri/binaries/
 
-# Local-only UI research docs (kept on disk, not tracked)
-# These files have been moved to docs/design/ but remain untracked
-/DESIGN_TOKENS.md
-/LOGIN_PAGE_EXAMPLE.tsx
-/README_UI_ANALYSIS.md
-/UI_QUICK_REFERENCE.md
-/UI_STYLE_GUIDE.md
-
 # Supabase CLI local state (project ref / credentials cache)
 supabase/.temp/
 
@@ -92,3 +84,12 @@ supabase/.temp/
 
 *.pkg
 *.provisionprofile
+
+# Secrets / signing material — must never be tracked
+# (Tauri 签名私钥按规范放在 ~/Documents/Projects/，此处兜底防误提交)
+sage-tauri-signing-key*.txt
+github-recovery-codes*.txt
+*.certSigningRequest
+*.p12
+*.cer
+*.mobileprovision
