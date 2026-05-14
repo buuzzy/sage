@@ -255,7 +255,13 @@ export const defaultProviders: AIProvider[] = [
     apiKey: '',
     baseUrl: 'https://api.minimaxi.com/anthropic',
     enabled: true,
-    models: ['MiniMax-M2', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
+    models: [
+      'MiniMax-M2',
+      'MiniMax-M2.5',
+      'MiniMax-M2.5-highspeed',
+      'MiniMax-M2.7',
+      'MiniMax-M2.7-highspeed',
+    ],
     defaultModel: 'MiniMax-M2',
     apiType: 'anthropic-messages',
     icon: 'M',
@@ -424,6 +430,38 @@ export const defaultSettings: Settings = {
   language: '', // Empty string triggers system language detection on first run
 };
 
+const MINIMAX_ANTHROPIC_CONFIG: Pick<
+  AIProvider,
+  'baseUrl' | 'apiType' | 'models' | 'defaultModel'
+> = {
+  baseUrl: 'https://api.minimaxi.com/anthropic',
+  apiType: 'anthropic-messages',
+  models: [
+    'MiniMax-M2',
+    'MiniMax-M2.5',
+    'MiniMax-M2.5-highspeed',
+    'MiniMax-M2.7',
+    'MiniMax-M2.7-highspeed',
+  ],
+  defaultModel: 'MiniMax-M2',
+};
+
+function normalizeSettingsProviders(settings: Settings): void {
+  for (const defaultProvider of defaultProviders) {
+    if (!settings.providers.find((p) => p.id === defaultProvider.id)) {
+      settings.providers.push(defaultProvider);
+    }
+  }
+
+  const minimaxProvider = settings.providers.find((p) => p.id === 'minimax');
+  if (!minimaxProvider) return;
+
+  // MiniMax's Anthropic endpoint supports native tool_use. Keep every storage
+  // path on the same protocol so older OpenAI-format migrations cannot regress
+  // into fake tool-call text leaks.
+  Object.assign(minimaxProvider, MINIMAX_ANTHROPIC_CONFIG);
+}
+
 // Legacy shared-DB connection string — kept here only as a reference constant,
 // no longer used to open connections directly (settings reuse the user-scoped
 // connection from database.ts via getDatabase()).
@@ -510,22 +548,7 @@ export async function getSettingsAsync(): Promise<Settings> {
             // Skip invalid JSON values
           }
         }
-        // Migration: Add missing default providers
-        for (const defaultProvider of defaultProviders) {
-          if (!settings.providers.find((p) => p.id === defaultProvider.id)) {
-            settings.providers.push(defaultProvider);
-          }
-        }
-        // Migration: Update MiniMax provider to Anthropic-compatible endpoint
-        // MiniMax officially supports Anthropic API (streaming, tool_use, thinking).
-        // This eliminates all dual-protocol bugs (plan failures, <think> leaks, fast chat bypass).
-        const minimaxProvider = settings.providers.find((p) => p.id === 'minimax');
-        if (minimaxProvider && minimaxProvider.baseUrl !== 'https://api.minimaxi.com/anthropic') {
-          minimaxProvider.baseUrl = 'https://api.minimaxi.com/anthropic';
-          minimaxProvider.apiType = 'anthropic-messages';
-          minimaxProvider.models = ['MiniMax-M2', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'];
-          minimaxProvider.defaultModel = 'MiniMax-M2';
-        }
+        normalizeSettingsProviders(settings);
         // Debug: Log loaded settings
         console.log('[Settings] Loaded from database:', {
           defaultProvider: settings.defaultProvider,
@@ -550,24 +573,7 @@ export async function getSettingsAsync(): Promise<Settings> {
     const stored = localStorage.getItem('sage_settings');
     if (stored) {
       const loadedSettings = { ...defaultSettings, ...JSON.parse(stored) };
-      // Migration: Add missing default providers
-      for (const defaultProvider of defaultProviders) {
-        if (
-          !loadedSettings.providers.find(
-            (p: AIProvider) => p.id === defaultProvider.id
-          )
-        ) {
-          loadedSettings.providers.push(defaultProvider);
-        }
-      }
-      // Migration: Update MiniMax provider to new OpenAI-compatible endpoint
-      const minimaxProvider = loadedSettings.providers.find((p: AIProvider) => p.id === 'minimax');
-      if (minimaxProvider && minimaxProvider.baseUrl !== 'https://api.minimaxi.com/v1') {
-        minimaxProvider.baseUrl = 'https://api.minimaxi.com/v1';
-        minimaxProvider.apiType = 'openai-completions';
-        minimaxProvider.models = ['MiniMax-M2', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'];
-        minimaxProvider.defaultModel = 'MiniMax-M2';
-      }
+      normalizeSettingsProviders(loadedSettings);
       // Debug: Log loaded settings
       console.log('[Settings] Loaded from localStorage:', {
         defaultProvider: loadedSettings.defaultProvider,
@@ -604,16 +610,7 @@ export function getSettings(): Settings {
     const stored = localStorage.getItem('sage_settings');
     if (stored) {
       const loadedSettings = { ...defaultSettings, ...JSON.parse(stored) };
-      // Migration: Add missing default providers
-      for (const defaultProvider of defaultProviders) {
-        if (
-          !loadedSettings.providers.find(
-            (p: AIProvider) => p.id === defaultProvider.id
-          )
-        ) {
-          loadedSettings.providers.push(defaultProvider);
-        }
-      }
+      normalizeSettingsProviders(loadedSettings);
       settingsCache = loadedSettings;
       console.log('[Settings] getSettings loaded from localStorage:', {
         defaultProvider: loadedSettings.defaultProvider,

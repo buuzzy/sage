@@ -5,7 +5,6 @@
  * Runs entirely in-process — no external CLI binary required.
  */
 
-import { existsSync } from 'fs';
 import { mkdir, writeFile } from 'fs/promises';
 import { homedir, platform } from 'os';
 import { join } from 'path';
@@ -38,7 +37,6 @@ import type {
   ImageAttachment,
   McpConfig,
   PlanOptions,
-  SkillsConfig,
 } from '@/core/agent/types';
 import {
   DEFAULT_API_HOST,
@@ -974,7 +972,6 @@ export class CodeAnyAgent extends BaseAgent {
     // Detects westock API calls from command URL patterns + response structure,
     // queues artifact blocks for direct frontend rendering, and replaces the
     // LLM's tool_output with a concise summary (~200 chars vs ~10K chars).
-    const agent = this;
     sdkOpts.hooks = {
       ...((sdkOpts as any).hooks || {}),
       PostToolUse: [{
@@ -989,7 +986,7 @@ export class CodeAnyAgent extends BaseAgent {
           if (!result) return undefined;
 
           // Queue artifact block for frontend rendering
-          agent.pendingArtifacts.push(result.artifactBlock);
+          this.pendingArtifacts.push(result.artifactBlock);
 
           logger.info(`[PostToolUse] Intercepted → ${result.metadata.skill}/${result.metadata.action}, artifact queued, summary ${result.summary.length} chars`);
 
@@ -1056,15 +1053,21 @@ export class CodeAnyAgent extends BaseAgent {
   private sanitizeText(text: string): string {
     let sanitized = text;
 
-    // Strip reasoning tags emitted by MiniMax and other thinking models
-    // (e.g. <think>...</think>) — they should never be shown to the user.
+    // Reasoning tags are implementation details from thinking models and should
+    // never become user-visible assistant content.
     sanitized = sanitized.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
 
-    // Strip MiniMax fake tool-call text blocks that leak to UI.
-    // MiniMax sometimes "says" tool calls as text instead of using the API's
-    // tool_use mechanism, producing blocks like:
-    //   [TOOL_CALL] {tool => "Skill", args => { ... }} [/TOOL_CALL]
+    // Some OpenAI-compatible gateways can leak attempted tool invocations as
+    // ordinary assistant text instead of structured tool_use blocks. Keep this
+    // as a protocol hygiene guard, not as model-specific routing.
     sanitized = sanitized.replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]\s*/g, '');
+    sanitized = sanitized.replace(/<invoke\b[\s\S]*?<\/invoke>\s*/gi, '');
+    sanitized = sanitized.replace(
+      /\s*\[调用\s+[^\]]+\][\s\S]*?(?:<\/invoke>|<\/[^>\n]*DSML[^>\n]*tool_calls>)\s*/g,
+      ''
+    );
+    sanitized = sanitized.replace(/<\/?[^>\n]*DSML[^>\n]*tool_calls>\s*/g, '');
+    sanitized = sanitized.replace(/<\/(?:parameter|invoke)>\s*/gi, '');
 
     const apiKeyErrorPatterns = [
       /Invalid API key/i, /invalid_api_key/i, /API key.*invalid/i,
@@ -1099,7 +1102,7 @@ export class CodeAnyAgent extends BaseAgent {
         if ('text' in block) {
           const sanitizedText = this.sanitizeText(block.text as string);
           const textHash = sanitizedText.slice(0, 100);
-          if (!sentTextHashes.has(textHash)) {
+          if (sanitizedText.trim() && !sentTextHashes.has(textHash)) {
             sentTextHashes.add(textHash);
             yield { type: 'text', content: sanitizedText };
           }
