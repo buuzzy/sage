@@ -1069,6 +1069,22 @@ export class CodeAnyAgent extends BaseAgent {
     sanitized = sanitized.replace(/<\/?[^>\n]*DSML[^>\n]*tool_calls>\s*/g, '');
     sanitized = sanitized.replace(/<\/(?:parameter|invoke)>\s*/gi, '');
 
+    // Guard against the model echoing our prompt scaffolding. This has shown up
+    // as visible assistant text like "Current Request / LANGUAGE REQUIREMENT",
+    // which is never useful user-facing content.
+    sanitized = sanitized.replace(
+      /\s*#{1,6}\s*Current Request\s+#{1,6}\s*LANGUAGE REQUIREMENT[\s\S]*$/i,
+      ''
+    );
+    sanitized = sanitized.replace(
+      /^\s*Current Request\s+LANGUAGE REQUIREMENT[\s\S]*$/i,
+      ''
+    );
+    sanitized = sanitized.replace(
+      /\s*LANGUAGE REQUIREMENT\s*[-*]\s*Output language:[\s\S]*$/i,
+      ''
+    );
+
     const apiKeyErrorPatterns = [
       /Invalid API key/i, /invalid_api_key/i, /API key.*invalid/i,
       /authentication.*fail/i, /Unauthorized/i,

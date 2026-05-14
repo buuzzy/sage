@@ -60,6 +60,8 @@ pnpm open:ios                   # 打开 Xcode iOS 项目
 
 **桌面端注意**: App 运行的是 `.app/Contents/MacOS/sage-api` 二进制，不是 tsx 源码。改了后端代码必须重新生成二进制并打包。
 
+**桌面发布注意**: GitHub Release 里只有 `.dmg` / `.app.tar.gz` / `.sig` 不够，Tauri updater 还要求 release asset 里有真实文件名 `latest.json`，否则 About 页会报 `Could not fetch a valid release JSON from the remote`。完整手工发布、签名密钥解析、`latest.json` 生成和校验流程见 `docs/RELEASE.md`。
+
 **iOS 端注意**: 每次改前端代码后需要 `pnpm build:ios` 重新构建同步到 Xcode，然后在 Xcode 里 ▶️ 运行。`.env.ios` 包含 `VITE_API_URL` 指向 Railway。
 
 ## 平台差异处理
@@ -184,11 +186,11 @@ Railway 部署需在环境变量中单独配置。
 
 ## 敏感凭证保险库
 
-所有 macOS 签名 / Mac App Store 发布相关的私钥与证书统一收纳在 `~/Documents/Projects/项目/.env/` 目录里（命名为 `.env` 是为了天然规避 git 跟踪）。当前清单：
+所有 macOS 签名 / Mac App Store 发布相关的私钥与证书统一收纳在 `/Users/nakocai/Documents/Projects/项目/Sage/.env/` 目录里（命名为 `.env` 是为了天然规避 git 跟踪）。当前清单：
 
 | 文件 | 用途 |
 |------|------|
-| `sage-tauri-signing-key-v2.txt` | Tauri 自动更新签名私钥（对应 env: `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，本地构建前手动 export） |
+| `sage-tauri-signing-key-v2.txt` | Tauri 自动更新签名私钥（对应 env: `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；该文件是说明文档格式，不能直接 `source`，需按「【私钥 PRIVATE KEY】」和「【密码 PASSPHRASE】」段落抽取） |
 | `AuthKey_*.p8` | Apple Developer Auth Key（App Store Connect API / push） |
 | `mac_app.cer` / `mac_installer.cer` | Mac App / Installer distribution 证书 |
 | `Sage_Mac_App_Store.provisionprofile` | Mac App Store provisioning profile |

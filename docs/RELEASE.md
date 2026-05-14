@@ -10,6 +10,7 @@
 |---|---|---|
 | **GitHub Release（CI 自动）** | `git push --tags` | 老用户应用内更新的来源；公开版本归档 |
 | **本地手动打包** | `pnpm tauri:build:signed:<arch>` | 调试 / 内测期间私下分发完整安装包 |
+| **本地手动 GitHub Release** | `pnpm tauri:build:<arch>` + `gh release create/upload` | CI 不跑或需要立即补发包 / 补发 `latest.json` |
 | **Mac App Store** | 单独走 `tauri:build:mas`，详见 `docs/MAS.md`（如存在） | 正式公开后的主分发渠道 |
 
 > 内测期间以私下渠道分发完整 DMG；GitHub Release 主要作为已安装用户的应用内更新通道。
@@ -135,13 +136,15 @@ CI 会把 Tauri 默认产物重命名为 ASCII 兼容名（GitHub 不支持非 A
 
 ```bash
 # Apple Silicon
-pnpm tauri:build:signed:mac-arm
+pnpm tauri:build:mac-arm
 
 # Intel Mac
-pnpm tauri:build:signed:mac-intel
+pnpm tauri:build:mac-intel
 ```
 
-`tauri:build:signed:*` 等价于 `./scripts/build-signed.sh`，它会：
+当前推荐用 `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 环境变量显式注入签名密钥，再调用 `pnpm tauri:build:<arch>`。历史脚本 `tauri:build:signed:*` 等价于 `./scripts/build-signed.sh`，但它仍期望旧路径 `configs/env/.env.tauri-signing`，当前仓库没有该目录；除非先恢复该 gitignored env 文件，否则不要依赖它。
+
+`scripts/build-signed.sh` 的设计意图是：
 
 1. 自动加载 `configs/env/.env.tauri-signing`（签名密钥）
 2. 自动加载 `configs/env/.env.production`（前端 Supabase 配置）
@@ -158,6 +161,153 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/
 
 > macOS 上无法交叉编译 Windows（缺 MSVC 工具链），Windows 必须走 CI。
 
+### 本地手动 GitHub Release（CI 未跑时）
+
+当需要手动发一个完整 GitHub Release 时，必须完成四件事：
+
+1. 版本号同步并提交推送。
+2. 生成签名后的 `.app.tar.gz` 和 `.sig`。
+3. 创建 GitHub tag + Release 并上传 DMG / updater payload / 签名。
+4. 生成并上传 **真实文件名为 `latest.json` 的资产**，否则客户端 About 页会报：
+   `Could not fetch a valid release JSON from the remote`。
+
+推荐流程（以 `1.4.3` / mac-arm 为例）：
+
+```bash
+# 1. 同步版本
+./scripts/version.sh 1.4.3
+cargo metadata --manifest-path "src-tauri/Cargo.toml" --format-version 1 >/tmp/sage-cargo-metadata.json
+
+# 2. 验证
+pnpm build:api
+pnpm build
+
+# 3. 提交和推送
+git add package.json src-api/package.json src-tauri/tauri.conf.json \
+  src-tauri/Cargo.toml src-tauri/Cargo.lock <changed-files>
+git commit -m "fix(...): ..."
+git push origin main
+
+# 4. 打包。若 Cargo 报旧绝对路径缓存，可先 cargo clean。
+pnpm tauri:build:mac-arm
+```
+
+`pnpm tauri:build:mac-arm` 如果缺少 `TAURI_SIGNING_PRIVATE_KEY` 会先生成 `.app` / `.dmg` / `.app.tar.gz`，最后签名失败。此时需要按「签名密钥管理」章节设置环境变量后重跑。
+
+本地凭证文件 `sage-tauri-signing-key-v2.txt` 是说明文档格式，不是 `.env`，**不能直接 `source`**。临时注入方式：
+
+```bash
+TAURI_SIGNING_PRIVATE_KEY="$(python3 - <<'PY'
+from pathlib import Path
+import re
+lines = Path('/Users/nakocai/Documents/Projects/项目/Sage/.env/sage-tauri-signing-key-v2.txt').read_text().splitlines()
+in_private = False
+for line in lines:
+    if '【私钥 PRIVATE KEY】' in line:
+        in_private = True
+        continue
+    if in_private and line.startswith('【'):
+        break
+    value = line.strip()
+    if in_private and len(value) > 80 and re.fullmatch(r'[A-Za-z0-9+/=]+', value):
+        print(value)
+        raise SystemExit
+raise SystemExit('private key not found')
+PY
+)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(python3 - <<'PY'
+from pathlib import Path
+lines = Path('/Users/nakocai/Documents/Projects/项目/Sage/.env/sage-tauri-signing-key-v2.txt').read_text().splitlines()
+in_password = False
+for line in lines:
+    if '【密码 PASSPHRASE】' in line:
+        in_password = True
+        continue
+    if in_password and line.startswith('【'):
+        break
+    value = line.strip()
+    if in_password and value and all(ord(ch) < 128 for ch in value) and not set(value) <= {'═','─'}:
+        print(value)
+        raise SystemExit
+raise SystemExit('password not found')
+PY
+)" pnpm tauri:build:mac-arm
+```
+
+> 不要把私钥或密码打印到终端，不要提交任何 `.env/` 文件。
+
+手工创建 Release：
+
+```bash
+git tag v1.4.3
+git push origin v1.4.3
+
+gh release create v1.4.3 \
+  "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/Sage_1.4.3_aarch64.dmg" \
+  "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz" \
+  "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz.sig" \
+  --target main \
+  --latest \
+  --title "v1.4.3" \
+  --notes "Release notes here"
+```
+
+手工生成并上传 `latest.json`（单 mac-arm 包）：
+
+```bash
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+version = '1.4.3'
+signature = Path(
+    'src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz.sig'
+).read_text().strip()
+
+latest = {
+    'version': version,
+    'notes': 'See release notes.',
+    'pub_date': '2026-05-14T03:14:05Z',
+    'platforms': {
+        'darwin-aarch64': {
+            'signature': signature,
+            'url': f'https://github.com/buuzzy/sage/releases/download/v{version}/Sage.app.tar.gz',
+        },
+    },
+}
+
+Path('/tmp/latest.json').write_text(json.dumps(latest, indent=2) + '\n')
+PY
+
+gh release upload v1.4.3 /tmp/latest.json --clobber
+```
+
+注意：`gh release upload /tmp/latest.json#latest.json` 里的 `#latest.json` 只是 label，不会改资产真实文件名。Updater endpoint 访问的是：
+
+```text
+https://github.com/buuzzy/sage/releases/latest/download/latest.json
+```
+
+所以 Release 资产名必须真的叫 `latest.json`。
+
+发布后必须校验：
+
+```bash
+gh release view v1.4.3 --json assets,url
+
+python3 - <<'PY'
+import json, urllib.request
+url = 'https://github.com/buuzzy/sage/releases/latest/download/latest.json'
+with urllib.request.urlopen(url, timeout=20) as response:
+    data = json.loads(response.read().decode('utf-8'))
+    print('status', response.status)
+    print('version', data.get('version'))
+    print('platforms', ','.join(sorted((data.get('platforms') or {}).keys())))
+    print('has_signature', bool(data.get('platforms', {}).get('darwin-aarch64', {}).get('signature')))
+PY
+```
+
+`status 200` 且版本号正确后，旧客户端 About 页的「重试」才会检测到新版。
+
 ---
 
 ## 6. 签名密钥管理
@@ -165,10 +315,18 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/
 ### Tauri Updater 签名（必需）
 
 - **CI 用**：GitHub Secrets 里的 `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-- **本地用**：`configs/env/.env.tauri-signing`（已 gitignore，不入库）
-- **离线备份**：`~/Documents/Projects/sage-tauri-signing-key-v2.txt`
+- **本地用**：`/Users/nakocai/Documents/Projects/项目/Sage/.env/sage-tauri-signing-key-v2.txt`
+- **旧脚本期望**：`configs/env/.env.tauri-signing`，但当前仓库没有该目录；若要恢复 `scripts/build-signed.sh` 的一键体验，需要重新创建 gitignored env 文件或更新脚本读取当前保险库路径。
 
 公钥已固化在 `tauri.conf.json` 的 `updater.pubkey` 字段。私钥**永不能丢**——丢了就再也无法发布老客户端能验证通过的更新，所有现有用户必须手动重装。
+
+当前本机凭证保险库路径：
+
+```text
+/Users/nakocai/Documents/Projects/项目/Sage/.env/
+```
+
+里面的 `sage-tauri-signing-key-v2.txt` 是人工阅读格式，包含「【私钥 PRIVATE KEY】」和「【密码 PASSPHRASE】」两个段落。自动化脚本必须按段落抽取 base64 私钥和密码，不要直接 `source`。
 
 ### 重新生成签名密钥（紧急情况）
 
@@ -230,6 +388,33 @@ git tag -d v1.0.7
 2. `latest.json` URL 是否能匿名访问
 3. 客户端的 `tauri.conf.json` 里 `pubkey` 是否跟当前签名私钥配对
 4. 客户端版本号是否真的旧于 `latest.json` 里的版本
+
+### About 页显示：`Could not fetch a valid release JSON from the remote`
+
+→ 通常是 GitHub Release 有安装包，但缺少 updater manifest：
+
+1. 打开 `https://github.com/buuzzy/sage/releases/latest/download/latest.json`，必须返回 JSON，不是 404/500。
+2. `gh release view <tag> --json assets` 里必须有真实资产名 `latest.json`。
+3. 不要用 `gh release upload file#latest.json` 试图重命名；`#` 后面只是 label。
+4. `latest.json.platforms.darwin-aarch64.url` 必须指向 Release 里的 `Sage.app.tar.gz`，`signature` 必须来自同名 `.sig` 文件。
+5. GitHub CDN 偶发延迟时等几十秒再试，但如果资产名错误会一直失败。
+
+### 本地 Tauri build 失败：`failed to read plugin permissions`，路径指向旧目录
+
+→ `src-tauri/target` 中可能缓存了旧绝对路径。执行：
+
+```bash
+cargo clean --manifest-path "src-tauri/Cargo.toml"
+pnpm tauri:build:mac-arm
+```
+
+### 本地签名失败：`A public key has been found, but no private key`
+
+→ 没有设置 `TAURI_SIGNING_PRIVATE_KEY`。从 `/Users/nakocai/Documents/Projects/项目/Sage/.env/sage-tauri-signing-key-v2.txt` 按段落抽取后作为环境变量传给 `pnpm tauri:build:mac-arm`。
+
+### 本地签名失败：`Invalid symbol 226, offset 0`
+
+→ 把中文分隔线或说明文字误当成私钥了。私钥必须是 base64 长行，使用上文 Python 正则 `r'[A-Za-z0-9+/=]+'` 过滤。
 
 ### 用户安装后双击「无响应/闪退」
 
