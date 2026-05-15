@@ -1415,6 +1415,21 @@ export class CodeAnyAgent extends BaseAgent {
         }
       }
 
+      if (
+        !session.abortController.signal.aborted &&
+        fullResponse.trim().length === 0
+      ) {
+        logger.warn(
+          `[CodeAny ${session.id}] Planning finished with empty model response`
+        );
+        yield {
+          type: 'error',
+          message:
+            '模型没有返回有效内容。请检查当前模型配置、API Key 或切换到可用模型后重试。',
+        };
+        return;
+      }
+
       const planningResult = parsePlanningResponse(fullResponse);
 
       if (planningResult?.type === 'direct_answer') {

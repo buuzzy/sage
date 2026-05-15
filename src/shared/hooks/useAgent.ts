@@ -83,6 +83,9 @@ function getPreferredLanguage(): string | undefined {
   return lang && lang.trim() !== '' ? lang : undefined;
 }
 
+const MODEL_EMPTY_RESPONSE_MESSAGE =
+  '模型没有返回有效内容。本轮对话已经停止，请检查当前模型配置、API Key 或切换到可用模型后重试。';
+
 /**
  * Detect low-risk tool queries that should skip the explicit plan approval step
  * and go directly to execution.
@@ -1571,6 +1574,7 @@ export function useAgent(): UseAgentReturn {
       let finalResultSubtype: string | undefined;
       let sawTerminalError = false;
       let sawResultMessage = false;
+      let sawVisibleStreamOutput = false;
 
       // Helper to check if this stream is still for the active task
       const isActiveTask = () => activeTaskIdRef.current === currentTaskId;
@@ -1600,7 +1604,28 @@ export function useAgent(): UseAgentReturn {
                   sessionIdRef.current = data.sessionId || null;
                 }
               } else if (data.type === 'done') {
-                if (
+                if (!sawVisibleStreamOutput && !sawTerminalError) {
+                  const fallbackMessage: AgentMessage = {
+                    type: 'error',
+                    message: MODEL_EMPTY_RESPONSE_MESSAGE,
+                  };
+                  if (isActive) {
+                    setMessages((prev) => [...prev, fallbackMessage]);
+                  }
+                  try {
+                    await createMessage({
+                      task_id: currentTaskId,
+                      type: 'error',
+                      error_message: MODEL_EMPTY_RESPONSE_MESSAGE,
+                    });
+                    await updateTask(currentTaskId, { status: 'error' });
+                  } catch (dbError) {
+                    console.error(
+                      'Failed to save empty stream fallback:',
+                      dbError
+                    );
+                  }
+                } else if (
                   sawToolActivity &&
                   !sawFinalTextAfterTool &&
                   !sawTerminalError
@@ -1747,6 +1772,16 @@ export function useAgent(): UseAgentReturn {
                   sawResultMessage = true;
                 } else if (data.type === 'error') {
                   sawTerminalError = true;
+                }
+
+                if (
+                  (data.type === 'text' && Boolean(data.content?.trim())) ||
+                  data.type === 'tool_use' ||
+                  data.type === 'tool_result' ||
+                  data.type === 'permission_request' ||
+                  data.type === 'error'
+                ) {
+                  sawVisibleStreamOutput = true;
                 }
 
                 // UI update only for active task
@@ -2363,6 +2398,7 @@ export function useAgent(): UseAgentReturn {
 
         const decoder = new TextDecoder();
         let buffer = '';
+        let sawPlanningOutcome = false;
 
         // Helper to check if this stream is still for the active task
         const isActiveTask = () => activeTaskIdRef.current === currentTaskId;
@@ -2391,6 +2427,7 @@ export function useAgent(): UseAgentReturn {
                     sessionIdRef.current = data.sessionId || null;
                   }
                 } else if (data.type === 'direct_answer' && data.content) {
+                  sawPlanningOutcome = true;
                   // Simple question - direct answer, no plan needed
                   console.log(
                     '[useAgent] Received direct answer, no plan needed'
@@ -2432,6 +2469,7 @@ export function useAgent(): UseAgentReturn {
                     console.error('Failed to save direct answer:', dbError);
                   }
                 } else if (data.type === 'plan' && data.plan) {
+                  sawPlanningOutcome = true;
                   // Complex task - received the plan, wait for approval
                   // UI updates only for active task
                   if (isActive) {
@@ -2461,8 +2499,32 @@ export function useAgent(): UseAgentReturn {
                     setMessages((prev) => [...prev, data]);
                   }
                 } else if (data.type === 'done') {
-                  // Planning done
+                  if (!sawPlanningOutcome) {
+                    sawPlanningOutcome = true;
+                    const fallbackMessage: AgentMessage = {
+                      type: 'error',
+                      message: MODEL_EMPTY_RESPONSE_MESSAGE,
+                    };
+                    if (isActive) {
+                      setMessages((prev) => [...prev, fallbackMessage]);
+                      setPhase('idle');
+                    }
+                    try {
+                      await createMessage({
+                        task_id: currentTaskId,
+                        type: 'error',
+                        error_message: MODEL_EMPTY_RESPONSE_MESSAGE,
+                      });
+                      await updateTask(currentTaskId, { status: 'error' });
+                    } catch (dbError) {
+                      console.error(
+                        'Failed to save planning empty response fallback:',
+                        dbError
+                      );
+                    }
+                  }
                 } else if (data.type === 'error') {
+                  sawPlanningOutcome = true;
                   if (isActive) {
                     setMessages((prev) => [...prev, data]);
                     setPhase('idle');
