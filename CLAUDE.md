@@ -149,6 +149,7 @@ export const API_BASE_URL = isTauri
 - **Phase 2 调试**：定位「记忆工具没被调用」的根因花了多轮假设（context 污染 / sampling 抖动 / 模型 judgment）。最终对照测试 E（MiniMax，0 次工具调用）vs F+G（Sonnet，每次 3 次工具调用）才证实是模型差异而非代码问题。教训：**遇到「时灵时不灵」时，先把变量列清楚（模型/prompt/输入）做一次干净对照实验，比连续猜代码逻辑高效**。
 - **Node.js sidecar 用 small-icu 编译**，`toLocaleString` 的 locale 参数（如 sv-SE）会 fallback 到 en-US 的本地化格式。需要稳定输出 ISO-like 时间字符串时直接用 `padStart` 手动拼，不依赖 ICU。
 - **Dockerfile 不要用 `pnpm@latest`**：上游升级会让"昨天还能 build"的镜像第二天炸（pnpm 11 要求 Node ≥ 22.13，引入 `node:sqlite` 内置模块，Node 20 镜像直接 `ERR_UNKNOWN_BUILTIN_MODULE`）。规范：基镜像选 `node:22-alpine`，pnpm 用 `corepack prepare pnpm@<exact-version>`，并在根 `package.json` 加 `packageManager: pnpm@<same-version>` 让本地 corepack 也固定，避免本地与云端漂移。
+- **Phase 3 蒸馏调试**：Railway cron "没生效"不一定是调度问题。先看日志是否有 `[scheduler] persona-distill: done`，再核对 Supabase `messages.type`。前端真实存储是 `user`（用户）和 `text`（助手可见文本），不是 `assistant`；蒸馏和 `search_messages` 的 assistant 过滤必须把 `text` 当助手消息，否则会出现 cron 正常跑但永远跳过新回复的假象。
 
 ## 待办事项
 

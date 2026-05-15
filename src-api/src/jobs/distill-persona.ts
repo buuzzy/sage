@@ -219,10 +219,12 @@ interface MessageRow {
   id: string;
   user_id: string;
   task_id: string;
-  type: string; // 'user' | 'assistant'
+  type: string;
   content: string | null;
   created_at: string;
 }
+
+const CONVERSATIONAL_MESSAGE_TYPES = ['user', 'text', 'assistant'] as const;
 
 interface BehaviorRow {
   ts: string;
@@ -278,7 +280,7 @@ async function fetchNewMessagesForUser(
     .select('id, user_id, task_id, type, content, created_at')
     .eq('user_id', userId)
     .is('deleted_at', null)
-    .in('type', ['user', 'assistant'])
+    .in('type', CONVERSATIONAL_MESSAGE_TYPES)
     .order('created_at', { ascending: true })
     .limit(MAX_NEW_MESSAGES_PER_RUN);
 
@@ -605,6 +607,7 @@ async function listAllUsersWithMessages(): Promise<string[]> {
     .from('messages')
     .select('user_id')
     .is('deleted_at', null)
+    .in('type', CONVERSATIONAL_MESSAGE_TYPES)
     .limit(10000);
 
   if (error) {
