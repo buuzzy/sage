@@ -2190,7 +2190,7 @@ function MessageItem({
     return (
       <PlanApproval
         plan={message.plan}
-        isWaitingApproval={phase === 'awaiting_approval'}
+        isWaitingApproval={phase === 'awaiting_approval' && !isRunning}
         onApprove={onApprovePlan}
         onReject={onRejectPlan}
       />

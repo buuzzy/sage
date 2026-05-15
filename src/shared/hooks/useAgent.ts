@@ -2577,7 +2577,8 @@ export function useAgent(): UseAgentReturn {
 
   // Phase 2: Execute the approved plan
   const approvePlan = useCallback(async (): Promise<void> => {
-    if (!plan || !taskId || phase !== 'awaiting_approval') return;
+    if (!plan || !taskId || phase !== 'awaiting_approval' || isRunningRef.current)
+      return;
 
     // Ensure this task is the active one before execution
     activeTaskIdRef.current = taskId;
