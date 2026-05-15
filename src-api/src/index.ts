@@ -18,6 +18,7 @@ import {
   providersRoutes,
   sandboxRoutes,
   skillsRoutes,
+  updaterRoutes,
   wechatRoutes,
 } from '@/app/api';
 import { corsMiddleware, localOnlyMiddleware } from '@/app/middleware/index.js';
@@ -71,6 +72,7 @@ app.route('/channels/feishu', feishuRoutes);
 app.route('/skills', skillsRoutes);
 app.route('/cron', cronRoutes);
 app.route('/internal', internalDistillRoutes);
+app.route('/updater', updaterRoutes);
 app.route('/v1', completionsRoutes);
 
 // OAuth callback landing page — browser redirects here after Google/GitHub auth.

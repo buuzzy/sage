@@ -13,3 +13,4 @@ export { feishuRoutes } from './feishu.js';
 export { skillsRoutes } from './skills.js';
 export { cronRoutes } from './cron.js';
 export { internalDistillRoutes } from './internal-distill.js';
+export { updaterRoutes } from './updater.js';

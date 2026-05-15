@@ -60,7 +60,7 @@ pnpm open:ios                   # 打开 Xcode iOS 项目
 
 **桌面端注意**: App 运行的是 `.app/Contents/MacOS/sage-api` 二进制，不是 tsx 源码。改了后端代码必须重新生成二进制并打包。
 
-**桌面发布注意**: GitHub Release 里只有 `.dmg` / `.app.tar.gz` / `.sig` 不够，Tauri updater 还要求 release asset 里有真实文件名 `latest.json`，否则 About 页会报 `Could not fetch a valid release JSON from the remote`。完整手工发布、签名密钥解析、`latest.json` 生成和校验流程见 `docs/RELEASE.md`。
+**桌面发布注意**: GitHub Release 里上传 `.dmg` / `.app.tar.gz` / `.sig`；Tauri updater 的 manifest 从 v1.4.6 起走 Railway 稳定 endpoint `https://sage-production-28e1.up.railway.app/updater/latest.json`，不要再依赖 GitHub release asset 的 302 跳转链路。完整手工发布、签名密钥解析、manifest 配置和校验流程见 `docs/RELEASE.md`。
 
 **iOS 端注意**: 每次改前端代码后需要 `pnpm build:ios` 重新构建同步到 Xcode，然后在 Xcode 里 ▶️ 运行。`.env.ios` 包含 `VITE_API_URL` 指向 Railway。
 
@@ -180,6 +180,7 @@ export const API_BASE_URL = isTauri
 | `MIMO_MODEL` | 蒸馏模型（默认 `mimo-v2-flash`，但 Coding Plan 没该模型，必须显式设为 `mimo-v2-pro` / `mimo-v2.5` / `mimo-v2.5-pro`，否则 400） | Railway env only |
 | `SAGE_ENABLE_BACKGROUND_JOBS` | 设 `true` 才注册 cron。本地桌面端不设（避免双跑） | Railway env only |
 | `SAGE_API_TOKEN` | 云端 Bearer 鉴权（设了走 token check，未设走 loopback IP 白名单） | Railway env only |
+| `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 直接返回，避免 GitHub release asset 302/504） | Railway env only |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | 云端数据 + RLS user-scoped 客户端 | Railway env (service role 仅云端) |
 
 Tauri 启动 sidecar 时从 `~/.sage/.env` 读取并传递环境变量（`src-tauri/src/lib.rs` 中的 `load_dotenv()`）。

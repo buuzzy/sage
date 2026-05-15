@@ -168,8 +168,14 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/
 1. 版本号同步并提交推送。
 2. 生成签名后的 `.app.tar.gz` 和 `.sig`。
 3. 创建 GitHub tag + Release 并上传 DMG / updater payload / 签名。
-4. 生成并上传 **真实文件名为 `latest.json` 的资产**，否则客户端 About 页会报：
-   `Could not fetch a valid release JSON from the remote`。
+4. 更新 Railway 的 `SAGE_UPDATER_MANIFEST_JSON`，让 `/updater/latest.json`
+   返回稳定 manifest。
+
+> v1.4.6 起，客户端 updater endpoint 是 Railway：
+> `https://sage-production-28e1.up.railway.app/updater/latest.json`。
+> 不要把 GitHub `releases/latest/download/latest.json` 作为客户端 endpoint；
+> 它会 302 到临时 `release-assets.githubusercontent.com` URL，Tauri updater
+> 偶发拿到 504/HTML 时会报 `Could not fetch a valid release JSON from the remote`。
 
 推荐流程（以 `1.4.3` / mac-arm 为例）：
 
@@ -251,11 +257,12 @@ gh release create v1.4.3 \
   --notes "Release notes here"
 ```
 
-手工生成并上传 `latest.json`（单 mac-arm 包）：
+手工生成 manifest（单 mac-arm 包），并写入 Railway env：
 
 ```bash
 python3 - <<'PY'
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 version = '1.4.3'
@@ -266,7 +273,7 @@ signature = Path(
 latest = {
     'version': version,
     'notes': 'See release notes.',
-    'pub_date': '2026-05-14T03:14:05Z',
+    'pub_date': datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
     'platforms': {
         'darwin-aarch64': {
             'signature': signature,
@@ -278,16 +285,23 @@ latest = {
 Path('/tmp/latest.json').write_text(json.dumps(latest, indent=2) + '\n')
 PY
 
+RAILWAY_CALLER="manual-release" railway variable set \
+  SAGE_UPDATER_MANIFEST_JSON="$(python3 - <<'PY'
+from pathlib import Path
+print(Path('/tmp/latest.json').read_text())
+PY
+)" --service sage
+
+RAILWAY_CALLER="manual-release" railway up --detach -m "update updater manifest"
+```
+
+仍建议把 `latest.json` 同步上传到 GitHub Release 作为人工审计备份，但客户端不再依赖它：
+
+```bash
 gh release upload v1.4.3 /tmp/latest.json --clobber
 ```
 
-注意：`gh release upload /tmp/latest.json#latest.json` 里的 `#latest.json` 只是 label，不会改资产真实文件名。Updater endpoint 访问的是：
-
-```text
-https://github.com/buuzzy/sage/releases/latest/download/latest.json
-```
-
-所以 Release 资产名必须真的叫 `latest.json`。
+注意：`gh release upload /tmp/latest.json#latest.json` 里的 `#latest.json` 只是 label，不会改资产真实文件名。若上传 GitHub 备份，Release 资产名必须真的叫 `latest.json`。
 
 发布后必须校验：
 
@@ -296,7 +310,7 @@ gh release view v1.4.3 --json assets,url
 
 python3 - <<'PY'
 import json, urllib.request
-url = 'https://github.com/buuzzy/sage/releases/latest/download/latest.json'
+url = 'https://sage-production-28e1.up.railway.app/updater/latest.json'
 with urllib.request.urlopen(url, timeout=20) as response:
     data = json.loads(response.read().decode('utf-8'))
     print('status', response.status)
@@ -306,7 +320,7 @@ with urllib.request.urlopen(url, timeout=20) as response:
 PY
 ```
 
-`status 200` 且版本号正确后，旧客户端 About 页的「重试」才会检测到新版。
+`status 200` 且版本号正确后，已升级到 v1.4.6+ 的客户端 About 页「重试」才会稳定检测到新版。v1.4.5 及更早客户端仍使用旧 GitHub endpoint，必要时让用户手动安装一次 v1.4.6 过渡。
 
 ---
 
@@ -391,13 +405,12 @@ git tag -d v1.0.7
 
 ### About 页显示：`Could not fetch a valid release JSON from the remote`
 
-→ 通常是 GitHub Release 有安装包，但缺少 updater manifest：
+→ v1.4.6+ 通常是 Railway updater endpoint 配置错误：
 
-1. 打开 `https://github.com/buuzzy/sage/releases/latest/download/latest.json`，必须返回 JSON，不是 404/500。
-2. `gh release view <tag> --json assets` 里必须有真实资产名 `latest.json`。
-3. 不要用 `gh release upload file#latest.json` 试图重命名；`#` 后面只是 label。
-4. `latest.json.platforms.darwin-aarch64.url` 必须指向 Release 里的 `Sage.app.tar.gz`，`signature` 必须来自同名 `.sig` 文件。
-5. GitHub CDN 偶发延迟时等几十秒再试，但如果资产名错误会一直失败。
+1. 打开 `https://sage-production-28e1.up.railway.app/updater/latest.json`，必须返回 `200` JSON，不是 401/404/500。
+2. Railway `SAGE_UPDATER_MANIFEST_JSON` 必须是完整 JSON，包含 `version`、`platforms.darwin-aarch64.url` 和 `signature`。
+3. `url` 必须指向 GitHub Release 里的 `Sage.app.tar.gz`，`signature` 必须来自同名 `.sig` 文件。
+4. 若用户仍在 v1.4.5 或更早版本，客户端还 baked 旧 GitHub endpoint；旧 endpoint 可能因 GitHub release asset 302/504 失败，必要时手动安装 v1.4.6 过渡。
 
 ### 本地 Tauri build 失败：`failed to read plugin permissions`，路径指向旧目录
 
