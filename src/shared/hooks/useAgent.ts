@@ -93,6 +93,25 @@ function isDirectExecuteQuery(prompt: string): boolean {
 
   const lower = trimmed.toLowerCase();
 
+  const conversationalPatterns = [
+    '你好',
+    '您好',
+    'hello',
+    'hi',
+    'hey',
+    '在吗',
+    '谢谢',
+    'thanks',
+    'thank you',
+    '你是谁',
+    '你能做什么',
+    '你可以做什么',
+  ];
+
+  if (conversationalPatterns.some((p) => lower.includes(p))) {
+    return true;
+  }
+
   const memoryRecallPatterns = [
     'memory',
     '记忆',
