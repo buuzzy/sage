@@ -39,6 +39,15 @@ import { getUserSessionsDir } from '@/shared/lib/user-scoped-paths';
  *
  * 后端 chat.ts:generateTitle 已有同样处理，此处是防御性兜底。
  */
+function isLowQualityTitle(title: string): boolean {
+  const compact = title.replace(/[\s"'「」『』.,，。!?！？:：;；\-_/\\()[\]{}]/g, '');
+  if (compact.length <= 1) return true;
+  if (/^\d+$/.test(compact)) return true;
+  return /^(好的|可以|当然|没问题|以下是|我会|我可以|让我|根据你的|这是|这里是|已完成|sure|okay|here'?s|i can)\b/i.test(
+    title.trim()
+  );
+}
+
 function sanitizeTitle(raw: string): string {
   if (!raw) return '';
   let out = raw.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '');
@@ -47,6 +56,7 @@ function sanitizeTitle(raw: string): string {
   out = out.split(/\r?\n/)[0].trim();
   out = out.replace(/^["'「『]+|["'」』]+$/g, '').trim();
   if (out.length === 0 || out.length > 40) return '';
+  if (isLowQualityTitle(out)) return '';
   return out;
 }
 
@@ -978,8 +988,11 @@ export function useAgent(): UseAgentReturn {
   const [currentTaskIndex, setCurrentTaskIndex] = useState<number>(1);
   // Track file changes to trigger refresh in UI
   const [filesVersion, setFilesVersion] = useState<number>(0);
-  // Generated title from LLM summarization
-  const [generatedTitle, setGeneratedTitle] = useState<string | null>(null);
+  // Generated title from LLM summarization, scoped to the task that requested it.
+  const [generatedTitleResult, setGeneratedTitleResult] = useState<{
+    taskId: string;
+    title: string;
+  } | null>(null);
   const [sessionFolder, setSessionFolder] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null); // Backend session ID for API calls
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -2081,7 +2094,10 @@ export function useAgent(): UseAgentReturn {
                   const cleaned = sanitizeTitle(data.title);
                   if (cleaned) {
                     await updateTask(currentTaskId, { prompt: cleaned });
-                    setGeneratedTitle(cleaned);
+                    setGeneratedTitleResult({
+                      taskId: currentTaskId,
+                      title: cleaned,
+                    });
                     console.log('[useAgent] Updated task title:', cleaned);
                   } else {
                     console.warn(
@@ -3136,6 +3152,11 @@ export function useAgent(): UseAgentReturn {
   const runningBackgroundTaskCount = backgroundTasks.filter(
     (t) => t.isRunning
   ).length;
+
+  const generatedTitle =
+    generatedTitleResult?.taskId === taskId
+      ? generatedTitleResult.title
+      : null;
 
   return {
     messages,
