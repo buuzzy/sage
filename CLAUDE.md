@@ -150,6 +150,7 @@ export const API_BASE_URL = isTauri
 - **Node.js sidecar 用 small-icu 编译**，`toLocaleString` 的 locale 参数（如 sv-SE）会 fallback 到 en-US 的本地化格式。需要稳定输出 ISO-like 时间字符串时直接用 `padStart` 手动拼，不依赖 ICU。
 - **Dockerfile 不要用 `pnpm@latest`**：上游升级会让"昨天还能 build"的镜像第二天炸（pnpm 11 要求 Node ≥ 22.13，引入 `node:sqlite` 内置模块，Node 20 镜像直接 `ERR_UNKNOWN_BUILTIN_MODULE`）。规范：基镜像选 `node:22-alpine`，pnpm 用 `corepack prepare pnpm@<exact-version>`，并在根 `package.json` 加 `packageManager: pnpm@<same-version>` 让本地 corepack 也固定，避免本地与云端漂移。
 - **Phase 3 蒸馏调试**：Railway cron "没生效"不一定是调度问题。先看日志是否有 `[scheduler] persona-distill: done`，再核对 Supabase `messages.type`。前端真实存储是 `user`（用户）和 `text`（助手可见文本），不是 `assistant`；蒸馏和 `search_messages` 的 assistant 过滤必须把 `text` 当助手消息，否则会出现 cron 正常跑但永远跳过新回复的假象。
+- **Context used 指示器不是 provider usage**：前端只能估算本地即将发送的 conversation payload。不能只用 `messages.content.length / 4`，因为工具调用链路会把 `tool_result` 摘要重新拼回 assistant context；正确口径要与 `useAgent.buildConversationHistory()` 保持一致，否则 DMG 里长工具会话会显示成极低 token。
 
 ## 待办事项
 

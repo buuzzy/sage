@@ -25,6 +25,7 @@ import {
 import { useChannelSync } from '@/shared/hooks/useChannelSync';
 import { useVitePreview } from '@/shared/hooks/useVitePreview';
 import { extractArtifacts } from '@/shared/lib/artifactParser';
+import { estimateConversationContextTokens } from '@/shared/lib/context-usage';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
 import {
@@ -155,13 +156,14 @@ function TaskDetailContent() {
     return 200000; // default
   }
 
-  // Calculate current token usage from conversation
+  // Estimate the same conversation payload sent for follow-up requests.
   function calculateCurrentTokens(): number {
-    return messages.reduce((total, msg) => {
-      // Estimate: 1 token ≈ 4 characters
-      const tokenCount = Math.ceil((msg.content?.length || 0) / 4);
-      return total + tokenCount;
-    }, 0);
+    const settings = getSettings();
+    return estimateConversationContextTokens(
+      initialPrompt,
+      messages,
+      settings.maxConversationTurns || 20
+    );
   }
 
   // Get context limit from model config
@@ -1757,7 +1759,11 @@ function AgentActionBar({
         skipFonts: false,
         filter: (el) => {
           // Exclude the action bar element from the screenshot
-          if (el instanceof HTMLElement && el.classList.contains('agent-action-bar')) return false;
+          if (
+            el instanceof HTMLElement &&
+            el.classList.contains('agent-action-bar')
+          )
+            return false;
           return true;
         },
       });
@@ -1810,9 +1816,7 @@ function AgentActionBar({
 
       // Write to ~/.sage/feedback/bug-reports.jsonl via Tauri fs (本地备份)
       const { appDataDir } = await import('@tauri-apps/api/path');
-      const { writeTextFile, mkdir } = await import(
-        '@tauri-apps/plugin-fs'
-      );
+      const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs');
 
       const dataDir = await appDataDir();
       const feedbackDir = `${dataDir}/feedback`;
@@ -1838,7 +1842,10 @@ function AgentActionBar({
       // ── 构造排查上下文 ──────────────────────────────────────────
       // 默认上报：轻量摘要（最近 3 条 user / 2 条 text，各截 240 字）+ 当前 provider/model
       // 可选附加：完整对话（用户勾选后才上传）
-      const trunc = (s: string | null | undefined, max: number): string | null => {
+      const trunc = (
+        s: string | null | undefined,
+        max: number
+      ): string | null => {
         if (!s) return null;
         const t = s.trim();
         return t.length <= max ? t : t.slice(0, max) + '…';
@@ -1888,7 +1895,12 @@ function AgentActionBar({
           subtype: m.subtype ?? null,
           tool_name: m.name ?? null,
           // tool_use 的 input 截断防膨胀；tool_result 的 output 保留但截断
-          tool_input: typeof m.input === 'string' ? trunc(m.input, 2000) : m.input ? trunc(JSON.stringify(m.input), 2000) : null,
+          tool_input:
+            typeof m.input === 'string'
+              ? trunc(m.input, 2000)
+              : m.input
+                ? trunc(JSON.stringify(m.input), 2000)
+                : null,
           tool_output: trunc(m.output, 2000),
           is_error: m.isError ?? null,
           message: m.message ?? null,
@@ -1975,7 +1987,9 @@ function AgentActionBar({
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                <p className="text-foreground text-xs font-semibold">反馈问题类型</p>
+                <p className="text-foreground text-xs font-semibold">
+                  反馈问题类型
+                </p>
                 <div className="flex flex-col gap-1.5">
                   {BUG_CATEGORIES.map((cat) => (
                     <label
@@ -2055,7 +2069,10 @@ function TextMessageItem({
   );
 
   return (
-    <div ref={msgContainerRef} className="group/msgitem flex min-w-0 flex-col gap-3">
+    <div
+      ref={msgContainerRef}
+      className="group/msgitem flex min-w-0 flex-col gap-3"
+    >
       <Logo />
       <ArtifactRenderer artifacts={extractedArtifacts} />
       {cleanText.trim() && (
@@ -2063,13 +2080,12 @@ function TextMessageItem({
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               pre: ({ children }: any) => (
                 <pre className="bg-muted max-w-full overflow-x-auto rounded-lg p-4">
                   {children}
                 </pre>
               ),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
               code: ({ className, children, ...props }: any) => {
                 const isInline = !className;
                 if (isInline) {
@@ -2088,7 +2104,7 @@ function TextMessageItem({
                   </code>
                 );
               },
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
               a: ({ children, href }: any) => (
                 <a
                   href={href}
@@ -2109,7 +2125,7 @@ function TextMessageItem({
                   {children}
                 </a>
               ),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
               table: ({ children }: any) => (
                 <div className="overflow-x-auto">
                   <table className="border-border border-collapse border">
@@ -2117,13 +2133,13 @@ function TextMessageItem({
                   </table>
                 </div>
               ),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
               th: ({ children }: any) => (
                 <th className="border-border bg-muted border px-3 py-2 text-left">
                   {children}
                 </th>
               ),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
               td: ({ children }: any) => (
                 <td className="border-border border px-3 py-2">{children}</td>
               ),
