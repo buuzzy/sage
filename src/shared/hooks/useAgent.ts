@@ -15,7 +15,6 @@ import {
 } from '@/shared/db';
 import { getCurrentBoundUid } from '@/shared/db/database';
 import { getSettings } from '@/shared/db/settings';
-import { getCurrentAccessToken } from '@/shared/lib/supabase';
 import {
   loadAttachments,
   saveAttachments,
@@ -30,6 +29,7 @@ import {
   type BackgroundTask,
 } from '@/shared/lib/background-tasks';
 import { getAppDataDir, getFileName } from '@/shared/lib/paths';
+import { getCurrentAccessToken } from '@/shared/lib/supabase';
 import { extractToolMetadata } from '@/shared/lib/toolMetadataExtractor';
 import { getUserSessionsDir } from '@/shared/lib/user-scoped-paths';
 
@@ -1524,6 +1524,11 @@ export function useAgent(): UseAgentReturn {
       // Track tool execution progress for updating plan steps
       let completedToolCount = 0;
       let totalToolCount = 0;
+      let sawToolActivity = false;
+      let sawFinalTextAfterTool = false;
+      let finalResultSubtype: string | undefined;
+      let sawTerminalError = false;
+      let sawResultMessage = false;
 
       // Helper to check if this stream is still for the active task
       const isActiveTask = () => activeTaskIdRef.current === currentTaskId;
@@ -1553,6 +1558,42 @@ export function useAgent(): UseAgentReturn {
                   sessionIdRef.current = data.sessionId || null;
                 }
               } else if (data.type === 'done') {
+                if (
+                  sawToolActivity &&
+                  !sawFinalTextAfterTool &&
+                  !sawTerminalError
+                ) {
+                  const reason =
+                    finalResultSubtype && finalResultSubtype !== 'success'
+                      ? `本轮执行结束状态：${finalResultSubtype}。`
+                      : '本轮工具检索已经结束，但模型没有生成最终总结。';
+                  const fallbackMessage: AgentMessage = {
+                    type: 'text',
+                    content:
+                      `${reason}\n\n` +
+                      '我已经停止继续调用工具，避免空转。你可以直接让我“基于已检索结果总结”，或把范围缩小后继续追问。',
+                  };
+                  if (isActive) {
+                    setMessages((prev) => [...prev, fallbackMessage]);
+                  }
+                  try {
+                    await createMessage({
+                      task_id: currentTaskId,
+                      type: 'text',
+                      content: fallbackMessage.content,
+                    });
+                  } catch (dbError) {
+                    console.error('Failed to save fallback message:', dbError);
+                  }
+                }
+                if (sawToolActivity && !sawResultMessage && !sawTerminalError) {
+                  try {
+                    await updateTask(currentTaskId, { status: 'stopped' });
+                  } catch (dbError) {
+                    console.error('Failed to mark task stopped:', dbError);
+                  }
+                }
+
                 // Update background task status (always, even if not active)
                 updateBackgroundTaskStatus(currentTaskId, false);
 
@@ -1650,6 +1691,22 @@ export function useAgent(): UseAgentReturn {
                   }
                 }
               } else {
+                if (data.type === 'tool_use' || data.type === 'tool_result') {
+                  sawToolActivity = true;
+                  sawFinalTextAfterTool = false;
+                } else if (
+                  data.type === 'text' &&
+                  data.content &&
+                  !data.content.trim().startsWith('```artifact:')
+                ) {
+                  sawFinalTextAfterTool = true;
+                } else if (data.type === 'result') {
+                  finalResultSubtype = data.content || data.subtype;
+                  sawResultMessage = true;
+                } else if (data.type === 'error') {
+                  sawTerminalError = true;
+                }
+
                 // UI update only for active task
                 if (isActive) {
                   // For tool_result messages, extract metadata for artifact mapping

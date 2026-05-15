@@ -752,6 +752,10 @@ function generateFallbackSlug(prompt: string, taskId: string): string {
   return `${slug}-${suffix}`;
 }
 
+function isArtifactBlock(text: string): boolean {
+  return text.trim().startsWith('```artifact:');
+}
+
 function getSessionWorkDir(
   workDir: string = DEFAULT_WORK_DIR,
   prompt?: string,
@@ -1259,11 +1263,25 @@ export class CodeAnyAgent extends BaseAgent {
       const MAX_TOOL_CALLS = 20;
       let totalToolCalls = 0;
       let warnedToolLimit = false;
+      let sawToolActivity = false;
+      let sawFinalTextAfterTool = false;
+      let finalResultSubtype: string | undefined;
 
       for await (const message of query({ prompt: finalPrompt, options: sdkOpts })) {
         if (session.abortController.signal.aborted) break;
         for (const msg of this.processMessage(message, session.id, sentTextHashes, sentToolIds)) {
-          if (msg.type === 'tool_use') totalToolCalls++;
+          if (msg.type === 'tool_use') {
+            totalToolCalls++;
+            sawToolActivity = true;
+            sawFinalTextAfterTool = false;
+          } else if (msg.type === 'tool_result') {
+            sawToolActivity = true;
+            sawFinalTextAfterTool = false;
+          } else if (msg.type === 'text' && msg.content && !isArtifactBlock(msg.content)) {
+            sawFinalTextAfterTool = true;
+          } else if (msg.type === 'result') {
+            finalResultSubtype = msg.content;
+          }
           yield msg;
         }
         // SDK enforces termination via maxTurns; this is just an observability signal.
@@ -1271,6 +1289,19 @@ export class CodeAnyAgent extends BaseAgent {
           warnedToolLimit = true;
           logger.warn(`[CodeAny ${session.id}] Tool call limit (${MAX_TOOL_CALLS}) reached, SDK maxTurns will handle termination.`);
         }
+      }
+
+      if (sawToolActivity && !sawFinalTextAfterTool) {
+        const reason =
+          finalResultSubtype && finalResultSubtype !== 'success'
+            ? `本轮执行结束状态：${finalResultSubtype}。`
+            : '本轮工具检索已经结束，但模型没有生成最终总结。';
+        yield {
+          type: 'text',
+          content:
+            `${reason}\n\n` +
+            '我已经停止继续调用工具，避免空转。你可以直接让我“基于已检索结果总结”，或把范围缩小后继续追问。',
+        };
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

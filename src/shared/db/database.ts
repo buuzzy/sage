@@ -2,8 +2,8 @@ import {
   ensureUserDirs,
   getUserDbConnString,
 } from '@/shared/lib/user-scoped-paths';
-import { enqueueMessageInsert } from '@/shared/sync/messages-sync';
 import { enqueueUserBehavior } from '@/shared/sync/behavior-sync';
+import { enqueueMessageInsert } from '@/shared/sync/messages-sync';
 import {
   markSessionDeleted,
   markSessionDirty,
@@ -1047,10 +1047,11 @@ export async function updateTaskFromMessage(
     if (subtype === 'success') {
       await updateTask(taskId, { status: 'completed', cost, duration });
     } else if (subtype === 'error_max_turns') {
-      // Task hit max turns limit - keep as running, just update cost/duration
-      await updateTask(taskId, { cost, duration });
+      // The stream has ended; do not leave the UI in a permanently running
+      // state. Users can continue from the existing transcript if needed.
+      await updateTask(taskId, { status: 'stopped', cost, duration });
       console.log(
-        `[Database] Task ${taskId} hit max turns limit, keeping as running`
+        `[Database] Task ${taskId} hit max turns limit, marking as stopped`
       );
     } else {
       // Other errors
