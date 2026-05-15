@@ -176,6 +176,7 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/
 > 不要把 GitHub `releases/latest/download/latest.json` 作为客户端 endpoint；
 > 它会 302 到临时 `release-assets.githubusercontent.com` URL，Tauri updater
 > 偶发拿到 504/HTML 时会报 `Could not fetch a valid release JSON from the remote`。
+> 服务端会优先读取 `SAGE_UPDATER_MANIFEST_JSON`，缺失时使用代码内置的当前稳定 manifest 兜底；每次发布后仍应更新 Railway env，避免长期依赖内置值。
 
 推荐流程（以 `1.4.3` / mac-arm 为例）：
 

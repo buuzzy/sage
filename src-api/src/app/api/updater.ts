@@ -14,6 +14,20 @@ interface UpdaterManifest {
   platforms: Record<string, PlatformUpdate>;
 }
 
+const BUILT_IN_MANIFEST: UpdaterManifest = {
+  version: '1.4.6',
+  notes:
+    'Stabilizes desktop update checks by serving the Tauri updater manifest from Railway instead of GitHub release asset redirects.',
+  pub_date: '2026-05-15T03:14:57Z',
+  platforms: {
+    'darwin-aarch64': {
+      signature:
+        'dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQk1yTnd5UkNOMzdpbEQ1a0Y4UVhzRVFvS3FFVmpZaitqMGl4VTR6bndWR1BxV01PV1p5NnVVdHNqVDBKaEwrSWdpSWFnbWlqL1Z1V1MzSjR6SDREa3QrRHNVVVdJS3c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODE0ODg3CWZpbGU6U2FnZS5hcHAudGFyLmd6Ci8ydDBjbnZRTmVPaUdKckNuYlROdENlYloxWFZXSGJOeVZPaC9TV0wvaVFiRk44OHR6NnZWcnVrYVBlbTNZM2dOK0QrTDBHeGdSd083QU8yV2MwOURBPT0K',
+      url: 'https://github.com/buuzzy/sage/releases/download/v1.4.6/Sage.app.tar.gz',
+    },
+  },
+};
+
 function parseManifestFromEnv(): UpdaterManifest | null {
   const raw = process.env.SAGE_UPDATER_MANIFEST_JSON;
   if (!raw) return null;
@@ -49,7 +63,7 @@ function buildManifestFromEnv(): UpdaterManifest | null {
 }
 
 function getManifest(): UpdaterManifest | null {
-  return parseManifestFromEnv() ?? buildManifestFromEnv();
+  return parseManifestFromEnv() ?? buildManifestFromEnv() ?? BUILT_IN_MANIFEST;
 }
 
 function isValidManifest(manifest: UpdaterManifest | null): manifest is UpdaterManifest {

@@ -180,7 +180,7 @@ export const API_BASE_URL = isTauri
 | `MIMO_MODEL` | 蒸馏模型（默认 `mimo-v2-flash`，但 Coding Plan 没该模型，必须显式设为 `mimo-v2-pro` / `mimo-v2.5` / `mimo-v2.5-pro`，否则 400） | Railway env only |
 | `SAGE_ENABLE_BACKGROUND_JOBS` | 设 `true` 才注册 cron。本地桌面端不设（避免双跑） | Railway env only |
 | `SAGE_API_TOKEN` | 云端 Bearer 鉴权（设了走 token check，未设走 loopback IP 白名单） | Railway env only |
-| `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 直接返回，避免 GitHub release asset 302/504） | Railway env only |
+| `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 优先返回；缺失时用代码内置 manifest 兜底，避免 GitHub release asset 302/504） | Railway env only |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | 云端数据 + RLS user-scoped 客户端 | Railway env (service role 仅云端) |
 
 Tauri 启动 sidecar 时从 `~/.sage/.env` 读取并传递环境变量（`src-tauri/src/lib.rs` 中的 `load_dotenv()`）。
