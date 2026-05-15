@@ -1227,7 +1227,7 @@ function UserMessage({
           </div>
         )}
         {content && (
-          <p className="text-foreground text-sm break-words whitespace-pre-wrap">
+          <p className="text-foreground wrap-break-word text-sm whitespace-pre-wrap">
             {content}
           </p>
         )}
@@ -1565,7 +1565,7 @@ function TaskGroupComponent({
                 <div className="bg-primary size-2 animate-pulse rounded-full" />
               </div>
             )}
-            <span className="text-foreground line-clamp-2 min-w-0 text-sm font-medium break-words">
+            <span className="text-foreground line-clamp-2 wrap-break-word min-w-0 text-sm font-medium">
               {title}
             </span>
           </div>
@@ -2440,8 +2440,13 @@ function ErrorMessage({ message }: { message: string }) {
 
 // Running indicator component - shows current activity
 function RunningIndicator({ messages }: { messages: AgentMessage[] }) {
-  // Find the last tool_use message to show current activity
-  const lastToolUse = [...messages]
+  const lastUserIndex = messages.reduce(
+    (lastIndex, message, index) =>
+      message.type === 'user' ? index : lastIndex,
+    -1
+  );
+  const currentTurnMessages = messages.slice(lastUserIndex + 1);
+  const lastToolUse = [...currentTurnMessages]
     .reverse()
     .find((m) => m.type === 'tool_use');
 
