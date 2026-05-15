@@ -84,14 +84,37 @@ function getPreferredLanguage(): string | undefined {
 }
 
 /**
- * Detect if a prompt is a simple financial query that should skip the plan phase
- * and go directly to execution (needs tools but doesn't need a multi-step plan).
+ * Detect low-risk tool queries that should skip the explicit plan approval step
+ * and go directly to execution.
  */
 function isDirectExecuteQuery(prompt: string): boolean {
   const trimmed = prompt.trim();
   if (trimmed.length > 300) return false;
 
   const lower = trimmed.toLowerCase();
+
+  const memoryRecallPatterns = [
+    'memory',
+    '记忆',
+    '历史',
+    '之前',
+    '以前',
+    '上次',
+    '回顾',
+    '回忆',
+    '复盘',
+    '找一下',
+    '查一下之前',
+    '聊过',
+    '说过',
+    '提到过',
+    '回测',
+    'backtest',
+  ];
+
+  if (memoryRecallPatterns.some((p) => lower.includes(p))) {
+    return true;
+  }
 
   // Multi-target or comparison queries should go through plan phase
   const complexPatterns = ['对比', '比较', '分析', 'vs', '和', '与', '跟'];
