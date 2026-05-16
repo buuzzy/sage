@@ -171,11 +171,12 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/
 4. 更新 Railway 的 `SAGE_UPDATER_MANIFEST_JSON`，让 `/updater/latest.json`
    返回稳定 manifest。
 
-> v1.4.6 起，客户端 updater endpoint 是 Railway：
+> v1.4.6 起，客户端 updater 主 endpoint 是 Railway：
 > `https://sage-production-28e1.up.railway.app/updater/latest.json`。
-> 不要把 GitHub `releases/latest/download/latest.json` 作为客户端 endpoint；
+> GitHub `releases/latest/download/latest.json` 可作为第二 fallback endpoint，但不要放第一；
 > 它会 302 到临时 `release-assets.githubusercontent.com` URL，Tauri updater
 > 偶发拿到 504/HTML 时会报 `Could not fetch a valid release JSON from the remote`。
+> 二进制产物（DMG / `.app.tar.gz` / `.sig`）仍放在 GitHub Release，保证用户手动下载和应用内更新下载都走 GitHub。
 > 服务端会优先读取 `SAGE_UPDATER_MANIFEST_JSON`，缺失时使用代码内置的当前稳定 manifest 兜底；每次发布后仍应更新 Railway env，避免长期依赖内置值。
 
 推荐流程（以 `1.4.3` / mac-arm 为例）：

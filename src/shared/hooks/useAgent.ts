@@ -33,21 +33,23 @@ import { getCurrentAccessToken } from '@/shared/lib/supabase';
 import { extractToolMetadata } from '@/shared/lib/toolMetadataExtractor';
 import { getUserSessionsDir } from '@/shared/lib/user-scoped-paths';
 
+const TITLE_COMPACT_RE = /[\s"'「」『』.,，。!?！？:：;；\-_/\\()[\]{}]/g;
+const ASSISTANT_REPLY_TITLE_RE =
+  /^(好的|可以|当然|没问题|以下是|我会|我可以|让我|根据你的|这是|这里是|已完成|sure|okay|here'?s|i can)\b/i;
+
+function isLowQualityTitle(title: string): boolean {
+  const compact = title.replace(TITLE_COMPACT_RE, '');
+  if (compact.length <= 1) return true;
+  if (/^\d+$/.test(compact)) return true;
+  return ASSISTANT_REPLY_TITLE_RE.test(title.trim());
+}
+
 /**
  * 清洗 backend /agent/title 的输出，防止 thinking 模型的 `<think>...</think>`
  * 推理内容污染 task.prompt。返回空串表示"拒绝使用此 title"，调用方应保留原 prompt。
  *
  * 后端 chat.ts:generateTitle 已有同样处理，此处是防御性兜底。
  */
-function isLowQualityTitle(title: string): boolean {
-  const compact = title.replace(/[\s"'「」『』.,，。!?！？:：;；\-_/\\()[\]{}]/g, '');
-  if (compact.length <= 1) return true;
-  if (/^\d+$/.test(compact)) return true;
-  return /^(好的|可以|当然|没问题|以下是|我会|我可以|让我|根据你的|这是|这里是|已完成|sure|okay|here'?s|i can)\b/i.test(
-    title.trim()
-  );
-}
-
 function sanitizeTitle(raw: string): string {
   if (!raw) return '';
   let out = raw.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '');
@@ -96,6 +98,23 @@ function getPreferredLanguage(): string | undefined {
 const MODEL_EMPTY_RESPONSE_MESSAGE =
   '模型没有返回有效内容。本轮对话已经停止，请检查当前模型配置、API Key 或切换到可用模型后重试。';
 
+function isConversationalPrompt(lower: string): boolean {
+  const chinesePatterns = [
+    '你好',
+    '您好',
+    '在吗',
+    '谢谢',
+    '你是谁',
+    '你能做什么',
+    '你可以做什么',
+  ];
+  if (chinesePatterns.some((p) => lower.includes(p))) {
+    return true;
+  }
+
+  return /\b(hello|hi|hey|thanks|thank you)\b/i.test(lower);
+}
+
 /**
  * Detect low-risk tool queries that should skip the explicit plan approval step
  * and go directly to execution.
@@ -106,22 +125,7 @@ function isDirectExecuteQuery(prompt: string): boolean {
 
   const lower = trimmed.toLowerCase();
 
-  const conversationalPatterns = [
-    '你好',
-    '您好',
-    'hello',
-    'hi',
-    'hey',
-    '在吗',
-    '谢谢',
-    'thanks',
-    'thank you',
-    '你是谁',
-    '你能做什么',
-    '你可以做什么',
-  ];
-
-  if (conversationalPatterns.some((p) => lower.includes(p))) {
+  if (isConversationalPrompt(lower)) {
     return true;
   }
 

@@ -169,8 +169,12 @@ function stripThinking(text: string): string {
   return out.trim();
 }
 
+const TITLE_COMPACT_RE = /[\s"'「」『』.,，。!?！？:：;；\-_/\\()[\]{}]/g;
+const ASSISTANT_REPLY_TITLE_RE =
+  /^(好的|可以|当然|没问题|以下是|我会|我可以|让我|根据你的|这是|这里是|已完成|sure|okay|here'?s|i can)\b/i;
+
 function fallbackTitleFromPrompt(prompt: string, language?: string): string {
-  const compact = prompt.replace(/[\s"'「」『』.,，。!?！？:：;；\-_/\\()[\]{}]/g, '');
+  const compact = prompt.replace(TITLE_COMPACT_RE, '');
   if (compact.length <= 1 || /^\d+$/.test(compact)) {
     return language?.startsWith('zh') ? '新任务' : 'New Task';
   }
@@ -178,12 +182,10 @@ function fallbackTitleFromPrompt(prompt: string, language?: string): string {
 }
 
 function isLowQualityTitle(title: string): boolean {
-  const compact = title.replace(/[\s"'「」『』.,，。!?！？:：;；\-_/\\()[\]{}]/g, '');
+  const compact = title.replace(TITLE_COMPACT_RE, '');
   if (compact.length <= 1) return true;
   if (/^\d+$/.test(compact)) return true;
-  return /^(好的|可以|当然|没问题|以下是|我会|我可以|让我|根据你的|这是|这里是|已完成|sure|okay|here'?s|i can)\b/i.test(
-    title.trim()
-  );
+  return ASSISTANT_REPLY_TITLE_RE.test(title.trim());
 }
 
 async function openAICompatibleCreate(

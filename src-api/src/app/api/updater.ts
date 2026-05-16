@@ -15,15 +15,15 @@ interface UpdaterManifest {
 }
 
 const BUILT_IN_MANIFEST: UpdaterManifest = {
-  version: '1.4.6',
+  version: '1.4.9',
   notes:
-    'Stabilizes desktop update checks by serving the Tauri updater manifest from Railway instead of GitHub release asset redirects.',
-  pub_date: '2026-05-15T03:14:57Z',
+    'Hardens generated task titles, improves model failure visibility, and stabilizes execution UI state.',
+  pub_date: '2026-05-15T14:53:28Z',
   platforms: {
     'darwin-aarch64': {
       signature:
-        'dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQk1yTnd5UkNOMzdpbEQ1a0Y4UVhzRVFvS3FFVmpZaitqMGl4VTR6bndWR1BxV01PV1p5NnVVdHNqVDBKaEwrSWdpSWFnbWlqL1Z1V1MzSjR6SDREa3QrRHNVVVdJS3c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODE0ODg3CWZpbGU6U2FnZS5hcHAudGFyLmd6Ci8ydDBjbnZRTmVPaUdKckNuYlROdENlYloxWFZXSGJOeVZPaC9TV0wvaVFiRk44OHR6NnZWcnVrYVBlbTNZM2dOK0QrTDBHeGdSd083QU8yV2MwOURBPT0K',
-      url: 'https://github.com/buuzzy/sage/releases/download/v1.4.6/Sage.app.tar.gz',
+        'dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQk1yTnd5UkNOMzExRldvRUVKcHl5RzRHVmdvcFVWQlRVYXFUc2g2TUkrT1lWNlVTQU0xU3FLYTRsUkNCZkVGRUE5SzlOeVpKZ0xWZlZvODhaRG0zem5KS3ljaUk5UUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODU2NzQ4CWZpbGU6U2FnZS5hcHAudGFyLmd6Cm1NVzZOVmV3R2RDSUg2bkdIUko3NDFrMUN0UnlrTW9TZXd1NmVpMy85cFBaSm1BUnJMTHkxWHJYcDNWRkxTRkRramFzWlNZTnUrV2NzeEdwYWNLY0JnPT0K',
+      url: 'https://github.com/buuzzy/sage/releases/download/v1.4.9/Sage.app.tar.gz',
     },
   },
 };

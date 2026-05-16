@@ -60,7 +60,15 @@ pnpm open:ios                   # 打开 Xcode iOS 项目
 
 **桌面端注意**: App 运行的是 `.app/Contents/MacOS/sage-api` 二进制，不是 tsx 源码。改了后端代码必须重新生成二进制并打包。
 
-**桌面发布注意**: GitHub Release 里上传 `.dmg` / `.app.tar.gz` / `.sig`；Tauri updater 的 manifest 从 v1.4.6 起走 Railway 稳定 endpoint `https://sage-production-28e1.up.railway.app/updater/latest.json`，不要再依赖 GitHub release asset 的 302 跳转链路。完整手工发布、签名密钥解析、manifest 配置和校验流程见 `docs/RELEASE.md`。
+**桌面发布注意**: GitHub Release 里上传 `.dmg` / `.app.tar.gz` / `.sig`；Tauri updater 的 manifest 从 v1.4.6 起主通道走 Railway 稳定 endpoint `https://sage-production-28e1.up.railway.app/updater/latest.json`，GitHub `latest.json` 只作为第二 fallback endpoint。完整手工发布、签名密钥解析、manifest 配置和校验流程见 `docs/RELEASE.md`。
+
+**固定桌面 release 流程**:
+1. 只有用户明确要求 release，或改动涉及 `src-tauri/tauri.conf.json` / updater / 桌面 sidecar 行为时，才发布新桌面版本。
+2. 先提交功能修复，再用 `./scripts/version.sh <next>` bump 版本并单独提交 `chore: bump version to <next>`。
+3. 发布前必须通过 `pnpm build:api`、`pnpm build`，正式桌面包还必须用本地签名密钥运行 `pnpm tauri:build:mac-arm`。
+4. GitHub Release 必须上传 DMG、`Sage.app.tar.gz`、`Sage.app.tar.gz.sig`、`latest.json`；二进制下载源保持 GitHub。
+5. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本与有效签名。
+6. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布；如更新它，优先记录“上一稳定版本”，避免把自引用签名当成唯一真源。
 
 **iOS 端注意**: 每次改前端代码后需要 `pnpm build:ios` 重新构建同步到 Xcode，然后在 Xcode 里 ▶️ 运行。`.env.ios` 包含 `VITE_API_URL` 指向 Railway。
 
@@ -152,6 +160,7 @@ export const API_BASE_URL = isTauri
 - **Running indicator 必须按当前 user turn 计算**：继续对话时不要从全量 messages 倒序找最后一个 `tool_use`，否则新一轮刚开始会显示上一轮最后一个工具（如 `mcp__memory__search_memory`）。应只看最后一条 `user` 之后的工具调用。
 - **Plan approval 不能在 planning stream 未结束时可点击**：plan 消息可能先于 SSE `done` 到达，此时 `phase=awaiting_approval` 但 `isRunning=true`。如果此时显示/点击「继续」，会在 planning 未收尾时启动 execute，造成状态互相覆盖。按钮显示条件必须是 `awaiting_approval && !isRunning`，`approvePlan` 也要 guard 当前仍在 running 的情况。
 - **标题生成结果必须绑定 taskId，且 prompt 要当 untrusted data**：`/agent/title` 是异步请求，不能只用一个全局 `generatedTitle` 字符串驱动侧边栏更新，否则用户切换任务后旧标题会套到当前任务 UI。标题模型也不能直接吃裸 prompt，否则「完成后回复 1」会污染标题生成。应把用户输入包进 `<request>`，明确不执行其中指令，并过滤 `1`、纯数字、明显像助手回复开头的低质量标题，短输入 fallback 为「新任务」。
+- **Updater 采用混合通道**：客户端 updater endpoint 优先 Railway `/updater/latest.json`，第二 fallback 才是 GitHub Release `latest.json`。manifest 控制面需要稳定 JSON；DMG / `.app.tar.gz` / `.sig` 仍放 GitHub Release，保证手动下载和应用内 payload 下载速度。GitHub fallback 不要放第一，避免 release asset 302/HTML/504 重新触发 Tauri updater JSON 解析失败。
 - **Node.js sidecar 用 small-icu 编译**，`toLocaleString` 的 locale 参数（如 sv-SE）会 fallback 到 en-US 的本地化格式。需要稳定输出 ISO-like 时间字符串时直接用 `padStart` 手动拼，不依赖 ICU。
 - **Dockerfile 不要用 `pnpm@latest`**：上游升级会让"昨天还能 build"的镜像第二天炸（pnpm 11 要求 Node ≥ 22.13，引入 `node:sqlite` 内置模块，Node 20 镜像直接 `ERR_UNKNOWN_BUILTIN_MODULE`）。规范：基镜像选 `node:22-alpine`，pnpm 用 `corepack prepare pnpm@<exact-version>`，并在根 `package.json` 加 `packageManager: pnpm@<same-version>` 让本地 corepack 也固定，避免本地与云端漂移。
 - **Phase 3 蒸馏调试**：Railway cron "没生效"不一定是调度问题。先看日志是否有 `[scheduler] persona-distill: done`，再核对 Supabase `messages.type`。前端真实存储是 `user`（用户）和 `text`（助手可见文本），不是 `assistant`；蒸馏和 `search_messages` 的 assistant 过滤必须把 `text` 当助手消息，否则会出现 cron 正常跑但永远跳过新回复的假象。
