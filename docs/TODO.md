@@ -1,7 +1,7 @@
 # Sage — TODO & Feature Roadmap
 
 > 本文件是项目唯一权威 TODO。只保留真实待解决项、明确产品规划和暂不做事项；已完成内容通过 git commit / release 记录追溯。
-> 最后更新：2026-05-16（v1.4.11，已按真实代码审查校准）
+> 最后更新：2026-05-16（v1.4.12，P0/P1 已发布，剩余验证项已记录）
 
 ---
 
@@ -27,11 +27,11 @@
 - `数据导入功能补齐`：`DataSettings` 已支持导入 `sessions`、`tasks`、`messages`、`files`、`settings`，保留导出 ID，导入时重写 `user_id`，并避免走普通 `createMessage()` 的云同步副作用。
 - `完整消息跨设备恢复`：新增云端恢复入口，拉取 `sessions` / `tasks` / `messages` / `files` 并复用本地导入路径；后续新建 `tasks` / `files` 也会进入云端同步队列。
 - `Skills 从 GitHub 导入`：前端入口已恢复，后端 `/files/import-skill` 支持公开 GitHub repo/subdir 导入，校验目标路径、`SKILL.md`、文件数量和体积上限。
+- `v1.4.12` release：GitHub Release assets、Railway updater endpoint、GitHub fallback `latest.json` 已验证包含 `darwin-aarch64` / `darwin-x86_64`。
 
-**仍需 release / 环境验证**：
+**仍需环境 / 实机验证**：
 
-- 下次 release 验证 GitHub assets 和 Railway manifest 都含 `darwin-aarch64` / `darwin-x86_64`。
-- 在 Intel Mac 上验证 DMG 安装和应用内更新。
+- 在 Intel Mac 上验证 `v1.4.12` DMG 安装和应用内更新。
 - 在已应用 Supabase migration 的环境验证云端 `tasks.provider_usage`、`tasks` / `files` upsert 与云端恢复。
 - 用真实公开 GitHub skill repo 验证 `/files/import-skill`。
 
