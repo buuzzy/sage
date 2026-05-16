@@ -53,7 +53,9 @@ sage/
 ```bash
 pnpm build:api           # TS→JS 编译（不生成二进制）
 pnpm build:api:binary:mac-arm   # 生成 sage-api 独立二进制
+pnpm build:api:binary:mac-intel # 生成 Intel macOS sage-api 独立二进制
 pnpm tauri:build:mac-arm        # 完整 .app 打包（含前端+后端二进制）
+pnpm tauri:build:mac-intel      # Intel macOS .app 打包
 pnpm build:ios                  # iOS: 前端构建 + cap sync
 pnpm open:ios                   # 打开 Xcode iOS 项目
 ```
@@ -65,9 +67,9 @@ pnpm open:ios                   # 打开 Xcode iOS 项目
 **固定桌面 release 流程**:
 1. 只有用户明确要求 release，或改动涉及 `src-tauri/tauri.conf.json` / updater / 桌面 sidecar 行为时，才发布新桌面版本。
 2. 先提交功能修复，再用 `./scripts/version.sh <next>` bump 版本并单独提交 `chore: bump version to <next>`。
-3. 发布前必须通过 `pnpm build:api`、`pnpm build`，正式桌面包还必须用本地签名密钥运行 `pnpm tauri:build:mac-arm`。
-4. GitHub Release 必须上传 DMG、`Sage.app.tar.gz`、`Sage.app.tar.gz.sig`、`latest.json`；二进制下载源保持 GitHub。
-5. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本与有效签名。
+3. 发布前必须通过 `pnpm build:api`、`pnpm build`，正式桌面包还必须用本地签名密钥运行 `pnpm tauri:build:mac-arm`；维护 Intel 时同步运行 `pnpm tauri:build:mac-intel`。
+4. GitHub Release 必须上传每个平台的 DMG、`.app.tar.gz`、`.app.tar.gz.sig`、`latest.json`；二进制下载源保持 GitHub。
+5. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本、`darwin-aarch64` / `darwin-x86_64` 平台项与有效签名。
 6. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布；如更新它，优先记录“上一稳定版本”，避免把自引用签名当成唯一真源。
 
 **iOS 端注意**: 每次改前端代码后需要 `pnpm build:ios` 重新构建同步到 Xcode，然后在 Xcode 里 ▶️ 运行。`.env.ios` 包含 `VITE_API_URL` 指向 Railway。
@@ -132,14 +134,17 @@ export const API_BASE_URL = isTauri
 - `transformForComponent()` 将 API 响应格式转为前端组件数据格式
 - `generateSummary()` 生成简洁摘要（100~200 字符）替换原始 tool_output，节省 token
 - artifact block 推入 `pendingArtifacts` 队列，在 `processMessage()` 中 flush
+- SDK `PostToolUse` hook 组装集中在 `src-api/src/extensions/agent/codeany/tool-output-interceptor.ts`；Sage 产品逻辑保留在 adapter，SDK patch 只承载通用 `modifiedOutput` 传输能力和 provider/tool 兼容 shim。
 
-## SDK 补丁（已修改的 node_modules 文件）
+## SDK 补丁（pnpm patch，可复现）
 
 | 文件 | 改动 |
 |------|------|
 | `@codeany/open-agent-sdk/dist/hooks.js` | 新增 `modifiedOutput` 字段 |
 | `@codeany/open-agent-sdk/dist/engine.js` | PostToolUse 应用 modifiedOutput |
 | `@codeany/open-agent-sdk/dist/hooks.d.ts` | 类型声明更新 |
+
+`patches/@codeany__open-agent-sdk@0.2.1.patch` 仍需短期保留：上游 SDK 未提供正式的“替换 tool output 后继续进入模型上下文”扩展点。不要把 westock artifact 映射、summary 或 UI 协议写进 SDK patch。
 
 ## 经验教训
 
@@ -169,17 +174,7 @@ export const API_BASE_URL = isTauri
 
 ## 待办事项
 
-### P1 — MiniMax 不遵循 SKILL.md artifact 选择规则
-分时查询应走 `intraday-chart`，但 MiniMax 声称"没有分时图组件"。根因是 LLM reasoning 跳过 SKILL.md 检索。候选方案：提到 system prompt 顶层 / 加 few-shot / 后置 guard / 换模型。
-
-### P2 — 意图识别驱动的执行策略分层
-当前 `useAgent.ts` 有两档路由（直接执行 vs plan+execute）。目标是引入三层策略：
-- **直接执行**：意图明确的单步查询（「茅台现在多少钱」），零 plan 开销
-- **静默 plan**：多步但无歧义（「对比茅台和五粮液走势」），内部 plan 不暴露给用户
-- **显式 plan + 确认**：有副作用或高成本模糊意图（创建定时任务、批量分析）
-
-### P3 — 恢复 Windows x64 发布
-产品已更名为 Sage（纯英文），WiX 中文编码 bug 不再是阻碍。给 CI Windows job 加 `--bundles nsis` 即可恢复。
+`docs/TODO.md` 是项目唯一权威 TODO。不要在 `CLAUDE.md` 里维护第二份 backlog；新增、删除、改优先级都同步到 `docs/TODO.md`。
 
 ## API Key 管理
 
@@ -195,6 +190,7 @@ export const API_BASE_URL = isTauri
 | `SAGE_ENABLE_BACKGROUND_JOBS` | 设 `true` 才注册 cron。本地桌面端不设（避免双跑） | Railway env only |
 | `SAGE_API_TOKEN` | 云端 Bearer 鉴权（设了走 token check，未设走 loopback IP 白名单） | Railway env only |
 | `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 优先返回；缺失时用代码内置 manifest 兜底，避免 GitHub release asset 302/504） | Railway env only |
+| `SAGE_UPDATER_DARWIN_AARCH64_URL` / `SAGE_UPDATER_DARWIN_AARCH64_SIGNATURE` / `SAGE_UPDATER_DARWIN_X86_64_URL` / `SAGE_UPDATER_DARWIN_X86_64_SIGNATURE` | updater manifest 分项 env fallback；优先仍用完整 `SAGE_UPDATER_MANIFEST_JSON`，分项 env 只适合临时发布或排障 | Railway env only |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | 云端数据 + RLS user-scoped 客户端 | Railway env (service role 仅云端) |
 
 Tauri 启动 sidecar 时从 `~/.sage/.env` 读取并传递环境变量（`src-tauri/src/lib.rs` 中的 `load_dotenv()`）。

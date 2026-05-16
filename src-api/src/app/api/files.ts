@@ -24,6 +24,18 @@ interface FileEntry {
   children?: FileEntry[];
 }
 
+interface GitHubContentItem {
+  name: string;
+  path: string;
+  type: 'file' | 'dir';
+  download_url?: string | null;
+}
+
+interface GitHubImportRequest {
+  url: string;
+  targetDir?: string;
+}
+
 /**
  * Common files/folders to ignore (similar to .gitignore patterns)
  */
@@ -113,6 +125,144 @@ function shouldIgnore(name: string): boolean {
   if (lowerName.startsWith('yarn-error')) return true;
 
   return false;
+}
+
+function parseGitHubUrl(url: string): {
+  owner: string;
+  repo: string;
+  ref?: string;
+  path?: string;
+} {
+  const parsed = new URL(url);
+  if (parsed.hostname !== 'github.com') {
+    throw new Error('Only github.com repository URLs are supported');
+  }
+
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parts.length < 2) {
+    throw new Error('GitHub URL must include owner and repository');
+  }
+
+  const [owner, repo, marker, ref, ...rest] = parts;
+  return {
+    owner,
+    repo: repo.replace(/\.git$/, ''),
+    ref: marker === 'tree' ? ref : undefined,
+    path: marker === 'tree' ? rest.join('/') : undefined,
+  };
+}
+
+function assertAllowedSkillTarget(targetDir?: string): string {
+  const skillsDirs = getAllSkillsDirs();
+  const preferred = targetDir || skillsDirs.find((d) => d.name === 'sage')?.path;
+  if (!preferred) {
+    throw new Error('No skills directory configured');
+  }
+
+  const resolved = path.resolve(preferred);
+  const allowed = skillsDirs.some((dir) => path.resolve(dir.path) === resolved);
+  if (!allowed) {
+    throw new Error('Target directory is not an allowed skills directory');
+  }
+
+  return resolved;
+}
+
+function safeSkillDirName(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'imported-skill';
+}
+
+async function fetchGitHubContents(
+  owner: string,
+  repo: string,
+  contentPath = '',
+  ref?: string
+): Promise<GitHubContentItem[]> {
+  const pathPart = contentPath
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/');
+  const url = new URL(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${pathPart}`
+  );
+  if (ref) url.searchParams.set('ref', ref);
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'Sage-Skill-Importer',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub contents request failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as GitHubContentItem | GitHubContentItem[];
+  return Array.isArray(data) ? data : [data];
+}
+
+async function findSkillDirectory(
+  owner: string,
+  repo: string,
+  basePath = '',
+  ref?: string,
+  depth = 0
+): Promise<string | null> {
+  if (depth > 3) return null;
+  const items = await fetchGitHubContents(owner, repo, basePath, ref);
+  if (items.some((item) => item.type === 'file' && item.name === 'SKILL.md')) {
+    return basePath;
+  }
+
+  for (const item of items) {
+    if (item.type !== 'dir') continue;
+    const found = await findSkillDirectory(owner, repo, item.path, ref, depth + 1);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+async function copyGitHubDirectory(
+  owner: string,
+  repo: string,
+  sourcePath: string,
+  ref: string | undefined,
+  targetDir: string,
+  counters: { files: number; bytes: number }
+): Promise<void> {
+  const items = await fetchGitHubContents(owner, repo, sourcePath, ref);
+  await fs.mkdir(targetDir, { recursive: true });
+
+  for (const item of items) {
+    const targetPath = path.join(targetDir, item.name);
+    const relativeTarget = path.relative(targetDir, targetPath);
+    if (relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+      throw new Error('Unsafe file path in GitHub repository');
+    }
+
+    if (item.type === 'dir') {
+      await copyGitHubDirectory(owner, repo, item.path, ref, targetPath, counters);
+      continue;
+    }
+
+    if (item.type !== 'file' || !item.download_url) continue;
+    const response = await fetch(item.download_url);
+    if (!response.ok) {
+      throw new Error(`Failed to download ${item.path}: ${response.status}`);
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    counters.files++;
+    counters.bytes += buffer.byteLength;
+    if (counters.files > 200 || counters.bytes > 5 * 1024 * 1024) {
+      throw new Error('Skill import exceeds size limits');
+    }
+    await fs.writeFile(targetPath, buffer);
+  }
 }
 
 /**
@@ -369,6 +519,62 @@ files.get('/skills-dir', async (c) => {
     directories: results,
     inSandbox,
   });
+});
+
+/**
+ * Import a public GitHub repository or subdirectory as a skill.
+ * POST /files/import-skill
+ * Body: { url: "https://github.com/owner/repo[/tree/ref/path]", targetDir?: string }
+ */
+files.post('/import-skill', async (c) => {
+  try {
+    const body = await c.req.json<GitHubImportRequest>();
+    if (!body.url) {
+      return c.json({ success: false, error: 'URL is required' }, 400);
+    }
+
+    const targetRoot = assertAllowedSkillTarget(body.targetDir);
+    const { owner, repo, ref, path: requestedPath } = parseGitHubUrl(body.url);
+    const skillPath =
+      requestedPath ??
+      (await findSkillDirectory(owner, repo, '', ref)) ??
+      '';
+
+    const skillItems = await fetchGitHubContents(owner, repo, skillPath, ref);
+    if (!skillItems.some((item) => item.type === 'file' && item.name === 'SKILL.md')) {
+      return c.json(
+        { success: false, error: 'No SKILL.md found in repository path' },
+        400
+      );
+    }
+
+    const installName = safeSkillDirName(
+      skillPath.split('/').filter(Boolean).pop() || repo
+    );
+    const installDir = path.join(targetRoot, installName);
+    const relativeInstall = path.relative(targetRoot, installDir);
+    if (relativeInstall.startsWith('..') || path.isAbsolute(relativeInstall)) {
+      return c.json({ success: false, error: 'Unsafe install path' }, 400);
+    }
+
+    const counters = { files: 0, bytes: 0 };
+    await copyGitHubDirectory(owner, repo, skillPath, ref, installDir, counters);
+
+    return c.json({
+      success: true,
+      path: installDir,
+      files: counters.files,
+      bytes: counters.bytes,
+    });
+  } catch (error) {
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      500
+    );
+  }
 });
 
 /**

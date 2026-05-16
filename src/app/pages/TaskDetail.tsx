@@ -19,6 +19,7 @@ import {
 } from '@/shared/db';
 import {
   useAgent,
+  type AgentPhase,
   type AgentMessage,
   type MessageAttachment,
 } from '@/shared/hooks/useAgent';
@@ -1037,7 +1038,9 @@ function TaskDetailContent() {
                       taskId={taskId}
                     />
 
-                    {isRunning && <RunningIndicator messages={messages} />}
+                    {isRunning && (
+                      <RunningIndicator messages={messages} phase={phase} />
+                    )}
 
                     {/* Question Input UI - shown when agent asks questions */}
                     {pendingQuestion && (
@@ -2443,7 +2446,13 @@ function ErrorMessage({ message }: { message: string }) {
 }
 
 // Running indicator component - shows current activity
-function RunningIndicator({ messages }: { messages: AgentMessage[] }) {
+function RunningIndicator({
+  messages,
+  phase,
+}: {
+  messages: AgentMessage[];
+  phase: AgentPhase;
+}) {
   const lastUserIndex = messages.reduce(
     (lastIndex, message, index) =>
       message.type === 'user' ? index : lastIndex,
@@ -2456,8 +2465,12 @@ function RunningIndicator({ messages }: { messages: AgentMessage[] }) {
 
   // Get description of current activity
   const getActivityText = () => {
+    if (phase === 'planning') {
+      return 'Planning execution...';
+    }
+
     if (!lastToolUse?.name) {
-      return 'Thinking...';
+      return phase === 'executing' ? 'Executing...' : 'Thinking...';
     }
 
     const input = lastToolUse.input as Record<string, unknown> | undefined;

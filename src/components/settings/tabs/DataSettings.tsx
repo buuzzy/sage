@@ -11,6 +11,7 @@ import {
   getAllSessions,
   getAllTasks,
   getMessagesByTaskId,
+  importBackupData,
 } from '@/shared/db/database';
 import {
   clearAllSettings,
@@ -24,6 +25,7 @@ import { getCurrentBoundUid } from '@/shared/db/database';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
 import { clearCloudConversations } from '@/shared/sync';
+import { restoreCloudConversations } from '@/shared/sync/cloud-restore';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -56,6 +58,8 @@ export function DataSettings() {
   const { t } = useLanguage();
   const [exportStatus, setExportStatus] = useState<OperationStatus>('idle');
   const [importStatus, setImportStatus] = useState<OperationStatus>('idle');
+  const [cloudRestoreStatus, setCloudRestoreStatus] =
+    useState<OperationStatus>('idle');
   const [clearStatus, setClearStatus] = useState<OperationStatus>('idle');
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [confirmClearType, setConfirmClearType] = useState<ClearType>(null);
@@ -118,6 +122,36 @@ export function DataSettings() {
     }
   };
 
+  const handleCloudRestore = async () => {
+    setCloudRestoreStatus('loading');
+    setErrorMessage('');
+
+    try {
+      const shouldRestore = window.confirm(
+        'Restore cloud sessions, tasks, messages, and files into this device? Existing records with the same IDs will be updated.'
+      );
+      if (!shouldRestore) {
+        setCloudRestoreStatus('idle');
+        return;
+      }
+
+      const result = await restoreCloudConversations();
+      console.log('[DataSettings] Restored cloud conversations:', result);
+      setCloudRestoreStatus('success');
+      setTimeout(() => {
+        setCloudRestoreStatus('idle');
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error('[DataSettings] Cloud restore failed:', error);
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Cloud restore failed'
+      );
+      setCloudRestoreStatus('error');
+      setTimeout(() => setCloudRestoreStatus('idle'), 3000);
+    }
+  };
+
   // Import data from file
   const handleImport = async () => {
     setImportStatus('loading');
@@ -143,8 +177,22 @@ export function DataSettings() {
       const data = JSON.parse(content) as ExportData;
 
       // Validate data format
-      if (!data.version || !data.tasks) {
+      if (
+        data.version !== 1 ||
+        !Array.isArray(data.sessions) ||
+        !Array.isArray(data.tasks) ||
+        !Array.isArray(data.messages) ||
+        !Array.isArray(data.files)
+      ) {
         throw new Error('Invalid data format');
+      }
+
+      const shouldImport = window.confirm(
+        `Import ${data.sessions.length} sessions, ${data.tasks.length} tasks, ${data.messages.length} messages, and ${data.files.length} files into the current account? Existing records with the same IDs will be updated.`
+      );
+      if (!shouldImport) {
+        setImportStatus('idle');
+        return;
       }
 
       // Import settings if included
@@ -152,9 +200,8 @@ export function DataSettings() {
         saveSettings(data.settings);
       }
 
-      // Note: Full import would require database insert operations
-      // For now, we just import settings
-      // TODO: Implement full data import with database operations
+      const result = await importBackupData(data);
+      console.log('[DataSettings] Imported backup:', result);
 
       setImportStatus('success');
       setTimeout(() => {
@@ -408,8 +455,7 @@ export function DataSettings() {
           </div>
           <button
             onClick={handleImport}
-            disabled
-            title="Coming soon"
+            disabled={importStatus === 'loading'}
             className={cn(
               'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
               'border-border text-foreground hover:bg-accent border',
@@ -426,8 +472,38 @@ export function DataSettings() {
         </div>
       </div>
 
+      {/* Restore Cloud Data */}
+      <div className="border-border rounded-lg border p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="text-foreground font-medium">
+              Restore Cloud History
+            </h3>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Pull cloud sessions, tasks, messages, and files into this device.
+            </p>
+          </div>
+          <button
+            onClick={handleCloudRestore}
+            disabled={cloudRestoreStatus === 'loading'}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+              'border-border text-foreground hover:bg-accent border',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            {getButtonContent(
+              cloudRestoreStatus,
+              <Download className="size-4" />,
+              'Restore',
+              'Restoring...'
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Clear Data */}
-      <div className="border-border rounded-lg border border-red-500/20 bg-red-500/5 p-4">
+      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <h3 className="text-foreground font-medium">
@@ -551,7 +627,7 @@ export function DataSettings() {
 
       {/* Confirmation Dialog */}
       {confirmClearType && (
-        <div className="bg-background/80 fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm">
+        <div className="bg-background/80 fixed inset-0 z-60 flex items-center justify-center backdrop-blur-sm">
           <div className="border-border bg-background mx-4 w-full max-w-md rounded-xl border p-6 shadow-lg">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-full bg-red-500/10 text-red-500">

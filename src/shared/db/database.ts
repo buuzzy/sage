@@ -3,7 +3,11 @@ import {
   getUserDbConnString,
 } from '@/shared/lib/user-scoped-paths';
 import { enqueueUserBehavior } from '@/shared/sync/behavior-sync';
-import { enqueueMessageInsert } from '@/shared/sync/messages-sync';
+import {
+  enqueueFileUpsert,
+  enqueueMessageInsert,
+  enqueueTaskUpsert,
+} from '@/shared/sync/messages-sync';
 import {
   markSessionDeleted,
   markSessionDirty,
@@ -21,6 +25,20 @@ import type {
   Task,
   UpdateTaskInput,
 } from './types';
+
+export interface BackupImportData {
+  sessions?: unknown[];
+  tasks?: unknown[];
+  messages?: unknown[];
+  files?: unknown[];
+}
+
+export interface BackupImportResult {
+  sessions: number;
+  tasks: number;
+  messages: number;
+  files: number;
+}
 
 // ─── User-scoped DB binding ──────────────────────────────────────────────────
 //
@@ -62,6 +80,25 @@ function isTauriSync(): boolean {
   const hasTauri = '__TAURI__' in window;
 
   return hasTauriInternals || hasTauri;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function str(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+function nullableStr(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function nullableJsonString(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 // ============ IndexedDB for Browser Mode ============
@@ -247,6 +284,7 @@ async function ensureSchema(db: SqliteHandle): Promise<void> {
       status TEXT NOT NULL DEFAULT 'running',
       cost REAL,
       duration INTEGER,
+      provider_usage TEXT,
       session_id TEXT,
       task_index INTEGER DEFAULT 1,
       favorite INTEGER DEFAULT 0,
@@ -371,6 +409,7 @@ async function ensureSchema(db: SqliteHandle): Promise<void> {
     'ALTER TABLE tasks ADD COLUMN session_id TEXT',
     'ALTER TABLE tasks ADD COLUMN task_index INTEGER DEFAULT 1',
     'ALTER TABLE tasks ADD COLUMN favorite INTEGER DEFAULT 0',
+    'ALTER TABLE tasks ADD COLUMN provider_usage TEXT',
   ];
   for (const sql of alters) {
     try {
@@ -687,6 +726,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     status: 'running',
     cost: null,
     duration: null,
+    provider_usage: null,
     created_at: now,
     updated_at: now,
   };
@@ -712,6 +752,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 
     // Update session task count
     await updateSessionTaskCount(input.session_id, input.task_index);
+    if (currentUid) enqueueTaskUpsert(result, currentUid);
 
     return result;
   } else {
@@ -724,6 +765,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 
     // Update session task count
     await updateSessionTaskCount(input.session_id, input.task_index);
+    if (currentUid) enqueueTaskUpsert(task, currentUid);
 
     return task;
   }
@@ -801,6 +843,10 @@ export async function updateTask(
       updates.push(`duration = $${paramIndex++}`);
       values.push(input.duration);
     }
+    if (input.provider_usage !== undefined) {
+      updates.push(`provider_usage = $${paramIndex++}`);
+      values.push(input.provider_usage);
+    }
     if (input.prompt !== undefined) {
       updates.push(`prompt = $${paramIndex++}`);
       values.push(input.prompt);
@@ -858,6 +904,7 @@ export async function updateTask(
 
   // 影响 session 的只有 prompt（title 来源）和 status（间接通过 preview 不变，但语义上是活跃）
   if (result?.session_id) {
+    if (currentUid) enqueueTaskUpsert(result, currentUid);
     markSessionDirty(result.session_id);
   }
 
@@ -988,6 +1035,220 @@ export async function createMessage(
   return message;
 }
 
+export async function importBackupData(
+  data: BackupImportData
+): Promise<BackupImportResult> {
+  const userId = currentUid;
+  if (!userId) {
+    throw new Error(
+      '[DB] importBackupData called without bound user. Please sign in first.'
+    );
+  }
+
+  const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+  const messages = Array.isArray(data.messages) ? data.messages : [];
+  const files = Array.isArray(data.files) ? data.files : [];
+  const now = new Date().toISOString();
+  const result: BackupImportResult = {
+    sessions: 0,
+    tasks: 0,
+    messages: 0,
+    files: 0,
+  };
+
+  const database = await getSQLiteDatabase();
+
+  if (database) {
+    for (const raw of sessions) {
+      const row = asRecord(raw);
+      if (!row?.id) continue;
+      await database.execute(
+        `INSERT OR REPLACE INTO sessions (id, prompt, task_count, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          str(row.id),
+          str(row.prompt),
+          Number(row.task_count ?? 0),
+          str(row.created_at, now),
+          str(row.updated_at, now),
+        ]
+      );
+      result.sessions++;
+    }
+
+    for (const raw of tasks) {
+      const row = asRecord(raw);
+      if (!row?.id || !row?.session_id) continue;
+      await database.execute(
+        `INSERT OR REPLACE INTO tasks
+         (id, session_id, task_index, prompt, status, cost, duration, provider_usage, favorite, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          str(row.id),
+          str(row.session_id),
+          Number(row.task_index ?? 1),
+          str(row.prompt),
+          str(row.status, 'completed'),
+          row.cost ?? null,
+          row.duration ?? null,
+          nullableJsonString(row.provider_usage),
+          row.favorite ? 1 : 0,
+          str(row.created_at, now),
+          str(row.updated_at, now),
+        ]
+      );
+      result.tasks++;
+    }
+
+    for (const raw of messages) {
+      const row = asRecord(raw);
+      if (!row?.id || !row?.task_id || !row?.type) continue;
+      await database.execute(
+        `INSERT OR REPLACE INTO messages
+         (id, user_id, task_id, type, content, tool_name, tool_input, tool_output,
+          tool_use_id, tool_metadata, subtype, error_message, attachments, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        [
+          str(row.id),
+          userId,
+          str(row.task_id),
+          str(row.type),
+          nullableStr(row.content),
+          nullableStr(row.tool_name),
+          nullableStr(row.tool_input),
+          nullableStr(row.tool_output),
+          nullableStr(row.tool_use_id),
+          nullableStr(row.tool_metadata),
+          nullableStr(row.subtype),
+          nullableStr(row.error_message),
+          nullableStr(row.attachments),
+          str(row.created_at, now),
+          str(row.updated_at, now),
+        ]
+      );
+      result.messages++;
+    }
+
+    for (const raw of files) {
+      const row = asRecord(raw);
+      if (!row?.id || !row?.task_id || !row?.name || !row?.path) continue;
+      await database.execute(
+        `INSERT OR REPLACE INTO files
+         (id, user_id, task_id, name, type, path, preview, thumbnail, is_favorite, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          str(row.id),
+          userId,
+          str(row.task_id),
+          str(row.name),
+          str(row.type, 'document'),
+          str(row.path),
+          nullableStr(row.preview),
+          nullableStr(row.thumbnail),
+          row.is_favorite ? 1 : 0,
+          str(row.created_at, now),
+          str(row.updated_at, now),
+        ]
+      );
+      result.files++;
+    }
+
+    return result;
+  }
+
+  const db = await getIndexedDB();
+  const tx = db.transaction(['sessions', 'tasks', 'messages', 'files'], 'readwrite');
+  const sessionStore = tx.objectStore('sessions');
+  const taskStore = tx.objectStore('tasks');
+  const messageStore = tx.objectStore('messages');
+  const fileStore = tx.objectStore('files');
+
+  for (const raw of sessions) {
+    const row = asRecord(raw);
+    if (!row?.id) continue;
+    await idbRequest(
+      sessionStore.put({
+        id: str(row.id),
+        prompt: str(row.prompt),
+        task_count: Number(row.task_count ?? 0),
+        created_at: str(row.created_at, now),
+        updated_at: str(row.updated_at, now),
+      } satisfies Session)
+    );
+    result.sessions++;
+  }
+
+  for (const raw of tasks) {
+    const row = asRecord(raw);
+    if (!row?.id || !row?.session_id) continue;
+    await idbRequest(
+      taskStore.put({
+        id: str(row.id),
+        session_id: str(row.session_id),
+        task_index: Number(row.task_index ?? 1),
+        prompt: str(row.prompt),
+        status: str(row.status, 'completed') as Task['status'],
+        cost: typeof row.cost === 'number' ? row.cost : null,
+        duration: typeof row.duration === 'number' ? row.duration : null,
+        provider_usage: nullableJsonString(row.provider_usage),
+        favorite: Boolean(row.favorite),
+        created_at: str(row.created_at, now),
+        updated_at: str(row.updated_at, now),
+      } satisfies Task)
+    );
+    result.tasks++;
+  }
+
+  for (const raw of messages) {
+    const row = asRecord(raw);
+    if (!row?.id || !row?.task_id || !row?.type) continue;
+    await idbRequest(
+      messageStore.put({
+        id: str(row.id),
+        user_id: userId,
+        task_id: str(row.task_id),
+        type: str(row.type) as Message['type'],
+        content: nullableStr(row.content),
+        tool_name: nullableStr(row.tool_name),
+        tool_input: nullableStr(row.tool_input),
+        tool_output: nullableStr(row.tool_output),
+        tool_use_id: nullableStr(row.tool_use_id),
+        tool_metadata: nullableStr(row.tool_metadata),
+        subtype: nullableStr(row.subtype),
+        error_message: nullableStr(row.error_message),
+        attachments: nullableStr(row.attachments),
+        created_at: str(row.created_at, now),
+        updated_at: str(row.updated_at, now),
+      } satisfies Message)
+    );
+    result.messages++;
+  }
+
+  for (const raw of files) {
+    const row = asRecord(raw);
+    if (!row?.id || !row?.task_id || !row?.name || !row?.path) continue;
+    await idbRequest(
+      fileStore.put({
+        id: str(row.id),
+        user_id: userId,
+        task_id: str(row.task_id),
+        name: str(row.name),
+        type: str(row.type, 'document') as LibraryFile['type'],
+        path: str(row.path),
+        preview: nullableStr(row.preview),
+        thumbnail: nullableStr(row.thumbnail),
+        is_favorite: Boolean(row.is_favorite),
+        created_at: str(row.created_at, now),
+        updated_at: str(row.updated_at, now),
+      } satisfies LibraryFile)
+    );
+    result.files++;
+  }
+
+  return result;
+}
+
 export async function getMessagesByTaskId(taskId: string): Promise<Message[]> {
   const database = await getSQLiteDatabase();
 
@@ -1041,21 +1302,40 @@ export async function updateTaskFromMessage(
   duration?: number
 ): Promise<void> {
   if (messageType === 'result') {
+    const provider_usage =
+      cost !== undefined || duration !== undefined
+        ? JSON.stringify({
+            source: 'agent_result',
+            cost_usd: cost ?? null,
+            duration_ms: duration ?? null,
+            captured_at: new Date().toISOString(),
+          })
+        : undefined;
     // Only mark as completed for actual success
     // error_max_turns means the task was interrupted, not completed
     // Keep it in 'running' state so user knows to continue
     if (subtype === 'success') {
-      await updateTask(taskId, { status: 'completed', cost, duration });
+      await updateTask(taskId, {
+        status: 'completed',
+        cost,
+        duration,
+        provider_usage,
+      });
     } else if (subtype === 'error_max_turns') {
       // The stream has ended; do not leave the UI in a permanently running
       // state. Users can continue from the existing transcript if needed.
-      await updateTask(taskId, { status: 'stopped', cost, duration });
+      await updateTask(taskId, {
+        status: 'stopped',
+        cost,
+        duration,
+        provider_usage,
+      });
       console.log(
         `[Database] Task ${taskId} hit max turns limit, marking as stopped`
       );
     } else {
       // Other errors
-      await updateTask(taskId, { status: 'error', cost, duration });
+      await updateTask(taskId, { status: 'error', cost, duration, provider_usage });
     }
   } else if (messageType === 'error') {
     await updateTask(taskId, { status: 'error' });
@@ -1119,6 +1399,8 @@ export async function createFile(input: CreateFileInput): Promise<LibraryFile> {
     const store = tx.objectStore('files');
     await idbRequest(store.add(file));
   }
+
+  enqueueFileUpsert(file);
 
   // 新增 file 会让 session 的 has_artifacts 变成 true
   try {

@@ -19,6 +19,7 @@ export interface Task {
   status: TaskStatus;
   cost: number | null;
   duration: number | null;
+  provider_usage?: string | null; // JSON usage/cost snapshot from provider/SDK result
   favorite?: boolean; // Whether task is favorited
   created_at: string;
   updated_at: string;
@@ -93,6 +94,7 @@ export interface UpdateTaskInput {
   status?: TaskStatus;
   cost?: number;
   duration?: number;
+  provider_usage?: string | null;
   prompt?: string;
   favorite?: boolean;
 }

@@ -98,6 +98,52 @@ function getPreferredLanguage(): string | undefined {
 const MODEL_EMPTY_RESPONSE_MESSAGE =
   '模型没有返回有效内容。本轮对话已经停止，请检查当前模型配置、API Key 或切换到可用模型后重试。';
 
+type AgentExecutionRoute = 'direct' | 'plan';
+type AgentExecutionIntent =
+  | 'conversation'
+  | 'memory_recall'
+  | 'simple_lookup'
+  | 'multi_target'
+  | 'complex_task'
+  | 'image'
+  | 'openai_provider';
+
+interface AgentExecutionStrategy {
+  route: AgentExecutionRoute;
+  intent: AgentExecutionIntent;
+  boostPrompt?: boolean;
+  reason: string;
+}
+
+type AgentErrorCategory =
+  | 'auth'
+  | 'rate_limit'
+  | 'timeout'
+  | 'network'
+  | 'context_overflow'
+  | 'model_empty_response'
+  | 'server_error'
+  | 'tool_loop_limit'
+  | 'unknown';
+
+interface ClassifiedAgentError {
+  category: AgentErrorCategory;
+  message: string;
+  retryable: boolean;
+  status?: number;
+}
+
+class AgentHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly endpoint: string,
+    message?: string
+  ) {
+    super(message ?? `Server error: ${status}`);
+    this.name = 'AgentHttpError';
+  }
+}
+
 function isConversationalPrompt(lower: string): boolean {
   const chinesePatterns = [
     '你好',
@@ -115,20 +161,7 @@ function isConversationalPrompt(lower: string): boolean {
   return /\b(hello|hi|hey|thanks|thank you)\b/i.test(lower);
 }
 
-/**
- * Detect low-risk tool queries that should skip the explicit plan approval step
- * and go directly to execution.
- */
-function isDirectExecuteQuery(prompt: string): boolean {
-  const trimmed = prompt.trim();
-  if (trimmed.length > 300) return false;
-
-  const lower = trimmed.toLowerCase();
-
-  if (isConversationalPrompt(lower)) {
-    return true;
-  }
-
+function isMemoryRecallPrompt(lower: string): boolean {
   const memoryRecallPatterns = [
     'memory',
     '记忆',
@@ -148,17 +181,31 @@ function isDirectExecuteQuery(prompt: string): boolean {
     'backtest',
   ];
 
-  if (memoryRecallPatterns.some((p) => lower.includes(p))) {
-    return true;
-  }
+  return memoryRecallPatterns.some((p) => lower.includes(p));
+}
 
-  // Multi-target or comparison queries should go through plan phase
-  const complexPatterns = ['对比', '比较', '分析', 'vs', '和', '与', '跟'];
-  const hasMultipleTargets = complexPatterns.some((p) => lower.includes(p));
-  // Count commas / enumeration markers as a sign of multiple targets
+function countExplicitSymbols(lower: string): number {
+  const matches = lower.match(/\b(?:sh|sz|hk|bj)?\d{5,6}\b/g);
+  return new Set(matches ?? []).size;
+}
+
+function isMultiTargetQuery(prompt: string): boolean {
+  const lower = prompt.toLowerCase();
+  const comparisonPatterns = ['对比', '比较', '分析', 'vs', '和', '与', '跟'];
+  const hasComparisonIntent = comparisonPatterns.some((p) =>
+    lower.includes(p)
+  );
   const enumCount = (lower.match(/[、，,]/g) || []).length;
-  if (hasMultipleTargets && enumCount >= 1) return false;
+  const symbolCount = countExplicitSymbols(lower);
 
+  return (
+    (hasComparisonIntent && enumCount >= 1) ||
+    enumCount >= 2 ||
+    symbolCount >= 2
+  );
+}
+
+function hasDirectLookupIntent(lower: string): boolean {
   const directPatterns = [
     // Simple quote queries
     '行情',
@@ -204,15 +251,140 @@ function isDirectExecuteQuery(prompt: string): boolean {
   return directPatterns.some((p) => lower.includes(p));
 }
 
+function classifyAgentExecutionStrategy(
+  prompt: string,
+  options: { hasImages?: boolean; apiType?: string | null }
+): AgentExecutionStrategy {
+  const trimmed = prompt.trim();
+  const lower = trimmed.toLowerCase();
+  const isOpenAiProvider = options.apiType === 'openai-completions';
+  const multiTarget = isMultiTargetQuery(trimmed);
+
+  if (options.hasImages) {
+    return {
+      route: 'direct',
+      intent: 'image',
+      boostPrompt: multiTarget,
+      reason: 'images require execution path',
+    };
+  }
+
+  if (isOpenAiProvider) {
+    return {
+      route: 'direct',
+      intent: multiTarget ? 'multi_target' : 'openai_provider',
+      boostPrompt: multiTarget,
+      reason: 'OpenAI-compatible providers use direct execution',
+    };
+  }
+
+  if (trimmed.length > 300) {
+    return {
+      route: 'plan',
+      intent: 'complex_task',
+      reason: 'long request benefits from explicit plan',
+    };
+  }
+
+  if (isConversationalPrompt(lower)) {
+    return {
+      route: 'direct',
+      intent: 'conversation',
+      reason: 'low-risk conversational prompt',
+    };
+  }
+
+  if (isMemoryRecallPrompt(lower)) {
+    return {
+      route: 'direct',
+      intent: 'memory_recall',
+      reason: 'memory recall should execute tools directly',
+    };
+  }
+
+  if (multiTarget) {
+    return {
+      route: 'plan',
+      intent: 'multi_target',
+      reason: 'multi-target comparison needs structured execution',
+    };
+  }
+
+  if (hasDirectLookupIntent(lower)) {
+    return {
+      route: 'direct',
+      intent: 'simple_lookup',
+      reason: 'simple lookup can skip explicit approval',
+    };
+  }
+
+  return {
+    route: 'plan',
+    intent: 'complex_task',
+    reason: 'default explicit planning path',
+  };
+}
+
+function applyAgentStrategyHint(
+  prompt: string,
+  strategy: AgentExecutionStrategy
+): string {
+  if (!strategy.boostPrompt && strategy.intent !== 'multi_target') {
+    return prompt;
+  }
+
+  return `${prompt}
+
+[Execution strategy]
+- This is a multi-target or comparison request.
+- Prefer batch-capable tools and aggregate results before writing the final answer.
+- Keep tool calls bounded: fetch each required data category once per target group, then summarize.
+- If web search is needed, search combined keywords instead of repeating one search per target.
+- In the final answer, explicitly compare the targets and call out missing data instead of looping.`;
+}
+
 console.log(
   `[API] Environment: ${import.meta.env.PROD ? 'production' : 'development'}, Port: ${API_PORT}`
 );
 
-// Helper to format fetch errors with more details (user-friendly, localized)
-function formatFetchError(error: unknown, _endpoint: string): string {
+function classifyFetchError(
+  error: unknown,
+  endpoint: string
+): ClassifiedAgentError {
   const err = error as Error;
   const message = err.message || String(error);
   const t = getErrorMessages();
+  const status =
+    error instanceof AgentHttpError
+      ? error.status
+      : Number(message.match(/Server error:\s*(\d+)/)?.[1]);
+
+  if (status === 401 || status === 403) {
+    return {
+      category: 'auth',
+      message: t.requestFailed.replace('{message}', '认证失败或权限不足'),
+      retryable: false,
+      status,
+    };
+  }
+
+  if (status === 429) {
+    return {
+      category: 'rate_limit',
+      message: t.requestFailed.replace('{message}', '请求过于频繁，请稍后重试'),
+      retryable: true,
+      status,
+    };
+  }
+
+  if (status >= 500) {
+    return {
+      category: 'server_error',
+      message: t.requestFailed.replace('{message}', `服务端错误 ${status}`),
+      retryable: true,
+      status,
+    };
+  }
 
   // Common error patterns - use friendly messages
   if (
@@ -220,23 +392,66 @@ function formatFetchError(error: unknown, _endpoint: string): string {
     message === 'Failed to fetch' ||
     message.includes('NetworkError')
   ) {
-    return t.connectionFailedFinal;
+    return {
+      category: 'network',
+      message: t.connectionFailedFinal,
+      retryable: true,
+    };
   }
 
   if (message.includes('CORS') || message.includes('cross-origin')) {
-    return t.corsError;
+    return { category: 'network', message: t.corsError, retryable: false };
   }
 
   if (message.includes('timeout') || message.includes('Timeout')) {
-    return t.timeout;
+    return { category: 'timeout', message: t.timeout, retryable: true };
   }
 
   if (message.includes('ECONNREFUSED')) {
-    return t.serverNotRunning;
+    return {
+      category: 'network',
+      message: t.serverNotRunning,
+      retryable: true,
+    };
+  }
+
+  if (message.includes(MODEL_EMPTY_RESPONSE_MESSAGE)) {
+    return {
+      category: 'model_empty_response',
+      message: MODEL_EMPTY_RESPONSE_MESSAGE,
+      retryable: true,
+    };
+  }
+
+  if (/context|token|maximum context|上下文/i.test(message)) {
+    return {
+      category: 'context_overflow',
+      message: t.requestFailed.replace('{message}', message),
+      retryable: false,
+    };
+  }
+
+  if (/tool.*limit|max.*tool|工具.*上限/i.test(message)) {
+    return {
+      category: 'tool_loop_limit',
+      message: t.requestFailed.replace('{message}', message),
+      retryable: false,
+    };
   }
 
   // Return generic message for other errors
-  return t.requestFailed.replace('{message}', message);
+  return {
+    category: 'unknown',
+    message: t.requestFailed.replace('{message}', message || endpoint),
+    retryable: false,
+    status: Number.isFinite(status) ? status : undefined,
+  };
+}
+
+function throwForBadResponse(response: Response, endpoint: string): void {
+  if (!response.ok) {
+    throw new AgentHttpError(response.status, endpoint);
+  }
 }
 
 // Fetch with retry logic for better resilience
@@ -502,6 +717,9 @@ export interface AgentMessage {
   cost?: number;
   duration?: number;
   message?: string;
+  errorCategory?: AgentErrorCategory;
+  retryable?: boolean;
+  status?: number;
   sessionId?: string;
   // Permission request fields
   permission?: PermissionRequest;
@@ -2236,10 +2454,25 @@ export function useAgent(): UseAgentReturn {
         // Fast chat was removed: it has no tools, so models cannot access
         // real-time data (time, weather, search) and incorrectly say "I can't".
 
-        // Direct execute: simple financial queries skip the plan phase
-        if (!hasImages && isDirectExecuteQuery(prompt)) {
+        const isOpenAiProvider = modelConfig?.apiType === 'openai-completions';
+        const executionStrategy = classifyAgentExecutionStrategy(prompt, {
+          hasImages: Boolean(hasImages),
+          apiType: modelConfig?.apiType,
+        });
+        const executionPrompt = applyAgentStrategyHint(
+          augmentedPrompt,
+          executionStrategy
+        );
+
+        // Direct execute: simple, image, or OpenAI-compatible provider queries
+        // skip the explicit plan approval step.
+        if (
+          executionStrategy.route === 'direct' &&
+          !hasImages &&
+          !isOpenAiProvider
+        ) {
           console.log(
-            '[useAgent] Simple financial query, skipping plan → direct execute'
+            `[useAgent] ${executionStrategy.reason}, skipping plan → direct execute`
           );
           setPhase('executing');
 
@@ -2266,7 +2499,7 @@ export function useAgent(): UseAgentReturn {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              prompt: augmentedPrompt,
+              prompt: executionPrompt,
               workDir,
               taskId: currentTaskId,
               modelConfig,
@@ -2280,9 +2513,7 @@ export function useAgent(): UseAgentReturn {
             signal: abortController.signal,
           });
 
-          if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-          }
+          throwForBadResponse(response, '/agent');
 
           await processStream(response, currentTaskId, abortController);
           return currentTaskId;
@@ -2293,13 +2524,12 @@ export function useAgent(): UseAgentReturn {
         // - Images need to be processed during execution, not planning.
         // - OpenAI-format providers have unreliable plan generation; direct
         //   execution with tools is more robust.
-        const isOpenAiProvider = modelConfig?.apiType === 'openai-completions';
-        if (hasImages || isOpenAiProvider) {
+        if (executionStrategy.route === 'direct') {
           if (hasImages) {
             console.log('[useAgent] Images attached, using direct execution');
           } else {
             console.log(
-              '[useAgent] OpenAI-format provider, skipping plan phase'
+              `[useAgent] ${executionStrategy.reason}, skipping plan phase`
             );
           }
           setPhase('executing');
@@ -2355,7 +2585,7 @@ export function useAgent(): UseAgentReturn {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              prompt: augmentedPrompt,
+              prompt: executionPrompt,
               workDir,
               taskId: currentTaskId,
               modelConfig,
@@ -2370,9 +2600,7 @@ export function useAgent(): UseAgentReturn {
             signal: abortController.signal,
           });
 
-          if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-          }
+          throwForBadResponse(response, '/agent');
 
           await processStream(response, currentTaskId, abortController);
           return currentTaskId;
@@ -2401,7 +2629,7 @@ export function useAgent(): UseAgentReturn {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              prompt: augmentedPrompt,
+              prompt: executionPrompt,
               modelConfig,
               language: getPreferredLanguage(),
               userId: getCurrentBoundUid() ?? undefined,
@@ -2411,9 +2639,7 @@ export function useAgent(): UseAgentReturn {
           }
         );
 
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.status}`);
-        }
+        throwForBadResponse(response, '/agent/plan');
 
         // Process planning stream
         const reader = response.body?.getReader();
@@ -2561,14 +2787,26 @@ export function useAgent(): UseAgentReturn {
         }
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
-          const errorMessage = formatFetchError(error, '/agent/plan');
-          console.error('[useAgent] Request failed:', error);
+          const classifiedError = classifyFetchError(error, '/agent/plan');
+          const errorMessage = classifiedError.message;
+          console.error('[useAgent] Request failed:', {
+            error,
+            category: classifiedError.category,
+            retryable: classifiedError.retryable,
+            status: classifiedError.status,
+          });
 
           // UI updates only for active task
           if (activeTaskIdRef.current === currentTaskId) {
             setMessages((prev) => [
               ...prev,
-              { type: 'error', message: errorMessage },
+              {
+                type: 'error',
+                message: errorMessage,
+                errorCategory: classifiedError.category,
+                retryable: classifiedError.retryable,
+                status: classifiedError.status,
+              },
             ]);
             setPhase('idle');
           }
@@ -2579,6 +2817,11 @@ export function useAgent(): UseAgentReturn {
               task_id: currentTaskId,
               type: 'error',
               error_message: errorMessage,
+              tool_metadata: JSON.stringify({
+                errorCategory: classifiedError.category,
+                retryable: classifiedError.retryable,
+                status: classifiedError.status,
+              }),
             });
             await updateTask(currentTaskId, { status: 'error' });
           } catch (dbError) {
@@ -2671,21 +2914,31 @@ export function useAgent(): UseAgentReturn {
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
+      throwForBadResponse(response, '/agent/execute');
 
       await processStream(response, taskId, abortController);
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
-        const errorMessage = formatFetchError(error, '/agent/execute');
-        console.error('[useAgent] Execute failed:', error);
+        const classifiedError = classifyFetchError(error, '/agent/execute');
+        const errorMessage = classifiedError.message;
+        console.error('[useAgent] Execute failed:', {
+          error,
+          category: classifiedError.category,
+          retryable: classifiedError.retryable,
+          status: classifiedError.status,
+        });
 
         // UI updates only for active task
         if (activeTaskIdRef.current === taskId) {
           setMessages((prev) => [
             ...prev,
-            { type: 'error', message: errorMessage },
+            {
+              type: 'error',
+              message: errorMessage,
+              errorCategory: classifiedError.category,
+              retryable: classifiedError.retryable,
+              status: classifiedError.status,
+            },
           ]);
         }
 
@@ -2695,6 +2948,11 @@ export function useAgent(): UseAgentReturn {
             task_id: taskId,
             type: 'error',
             error_message: errorMessage,
+            tool_metadata: JSON.stringify({
+              errorCategory: classifiedError.category,
+              retryable: classifiedError.retryable,
+              status: classifiedError.status,
+            }),
           });
           await updateTask(taskId, { status: 'error' });
         } catch (dbError) {
@@ -2903,8 +3161,11 @@ export function useAgent(): UseAgentReturn {
           console.log('[useAgent] Valid images for API:', images?.length || 0);
         }
 
-        // Fast chat detection for follow-up messages
-        // Fast chat removed — all queries go through agent path (with tools).
+        const followUpStrategy = classifyAgentExecutionStrategy(reply, {
+          hasImages: Boolean(hasImages),
+          apiType: modelConfig?.apiType,
+        });
+        const executionPrompt = applyAgentStrategyHint(reply, followUpStrategy);
 
         // Send conversation with full history (agent SDK path)
         const response = await fetchWithRetry(`${AGENT_SERVER_URL}/agent`, {
@@ -2913,7 +3174,7 @@ export function useAgent(): UseAgentReturn {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            prompt: reply,
+            prompt: executionPrompt,
             conversation: conversationHistory,
             workDir,
             taskId,
@@ -2928,15 +3189,19 @@ export function useAgent(): UseAgentReturn {
           signal: abortController.signal,
         });
 
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.status}`);
-        }
+        throwForBadResponse(response, '/agent');
 
         await processStream(response, taskId, abortController);
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
-          const errorMessage = formatFetchError(error, '/agent');
-          console.error('[useAgent] Continue conversation failed:', error);
+          const classifiedError = classifyFetchError(error, '/agent');
+          const errorMessage = classifiedError.message;
+          console.error('[useAgent] Continue conversation failed:', {
+            error,
+            category: classifiedError.category,
+            retryable: classifiedError.retryable,
+            status: classifiedError.status,
+          });
 
           // UI updates only for active task
           if (activeTaskIdRef.current === taskId) {
@@ -2945,6 +3210,9 @@ export function useAgent(): UseAgentReturn {
               {
                 type: 'error',
                 message: errorMessage,
+                errorCategory: classifiedError.category,
+                retryable: classifiedError.retryable,
+                status: classifiedError.status,
               },
             ]);
           }
@@ -2955,6 +3223,11 @@ export function useAgent(): UseAgentReturn {
               task_id: taskId,
               type: 'error',
               error_message: errorMessage,
+              tool_metadata: JSON.stringify({
+                errorCategory: classifiedError.category,
+                retryable: classifiedError.retryable,
+                status: classifiedError.status,
+              }),
             });
             await updateTask(taskId, { status: 'error' });
           } catch (dbError) {

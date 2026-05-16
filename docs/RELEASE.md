@@ -68,7 +68,7 @@ git push origin v1.0.7
 | `mac-arm` | macos-14 | aarch64-apple-darwin | DMG + .app.tar.gz + .sig |
 | `mac-intel` | macos-15-intel | x86_64-apple-darwin | DMG + .app.tar.gz + .sig |
 
-> Windows x64 暂未启用，恢复方式见 `release.yml` 注释（取消 matrix include 注释 + Tauri build 加 `--bundles nsis`）。
+> 当前发布策略只维护 macOS Apple Silicon 与 macOS Intel；Windows 暂不发布。
 
 ### CI 必需的 Secrets
 
@@ -150,7 +150,7 @@ pnpm tauri:build:mac-intel
 2. 自动加载 `configs/env/.env.production`（前端 Supabase 配置）
 3. 调用对应平台的 `tauri:build:<arch>`
 
-产物位置（以 mac-arm 为例）：
+产物位置（以 mac-arm 为例；mac-intel 对应 `x86_64-apple-darwin`）：
 
 ```
 src-tauri/target/aarch64-apple-darwin/release/bundle/
@@ -159,7 +159,7 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/
 └── macos/Sage.app.tar.gz.sig     ← updater 签名
 ```
 
-> macOS 上无法交叉编译 Windows（缺 MSVC 工具链），Windows 必须走 CI。
+> 当前不发布 Windows；若未来恢复，macOS 上也无法交叉编译 Windows（缺 MSVC 工具链），必须走 CI。
 
 ### 本地手动 GitHub Release（CI 未跑时）
 
@@ -183,7 +183,8 @@ src-tauri/target/aarch64-apple-darwin/release/bundle/
 
 ```bash
 # 1. 同步版本
-./scripts/version.sh 1.4.3
+VERSION=1.4.3
+./scripts/version.sh "$VERSION"
 cargo metadata --manifest-path "src-tauri/Cargo.toml" --format-version 1 >/tmp/sage-cargo-metadata.json
 
 # 2. 验证
@@ -198,6 +199,7 @@ git push origin main
 
 # 4. 打包。若 Cargo 报旧绝对路径缓存，可先 cargo clean。
 pnpm tauri:build:mac-arm
+pnpm tauri:build:mac-intel
 ```
 
 `pnpm tauri:build:mac-arm` 如果缺少 `TAURI_SIGNING_PRIVATE_KEY` 会先生成 `.app` / `.dmg` / `.app.tar.gz`，最后签名失败。此时需要按「签名密钥管理」章节设置环境变量后重跑。
@@ -239,9 +241,46 @@ for line in lines:
 raise SystemExit('password not found')
 PY
 )" pnpm tauri:build:mac-arm
+
+# Intel 包同理，把最后的 build 命令换成：
+# pnpm tauri:build:mac-intel
 ```
 
 > 不要把私钥或密码打印到终端，不要提交任何 `.env/` 文件。
+
+手工暂存双平台 release 资产并生成 manifest：
+
+```bash
+VERSION=1.4.3
+rm -rf /tmp/sage-release-assets
+rm -rf /tmp/sage-release-artifacts
+mkdir -p /tmp/sage-release-assets
+mkdir -p /tmp/sage-release-artifacts/aarch64-apple-darwin
+mkdir -p /tmp/sage-release-artifacts/x86_64-apple-darwin
+
+cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/Sage_${VERSION}_aarch64.dmg \
+  "/tmp/sage-release-assets/sage-${VERSION}-aarch64-apple-darwin.dmg"
+cp src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/Sage_${VERSION}_x64.dmg \
+  "/tmp/sage-release-assets/sage-${VERSION}-x86_64-apple-darwin.dmg"
+cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz \
+  "/tmp/sage-release-artifacts/aarch64-apple-darwin/sage-${VERSION}-aarch64-apple-darwin.app.tar.gz"
+cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz.sig \
+  "/tmp/sage-release-artifacts/aarch64-apple-darwin/sage-${VERSION}-aarch64-apple-darwin.app.tar.gz.sig"
+cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Sage.app.tar.gz \
+  "/tmp/sage-release-artifacts/x86_64-apple-darwin/sage-${VERSION}-x86_64-apple-darwin.app.tar.gz"
+cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Sage.app.tar.gz.sig \
+  "/tmp/sage-release-artifacts/x86_64-apple-darwin/sage-${VERSION}-x86_64-apple-darwin.app.tar.gz.sig"
+
+LATEST_JSON_NOTES="See release notes." ./scripts/gen-latest-json.sh \
+  "$VERSION" \
+  /tmp/sage-release-artifacts \
+  "https://github.com/buuzzy/sage/releases/download/v${VERSION}"
+
+cp latest.json /tmp/latest.json
+cp /tmp/sage-release-artifacts/aarch64-apple-darwin/* /tmp/sage-release-assets/
+cp /tmp/sage-release-artifacts/x86_64-apple-darwin/* /tmp/sage-release-assets/
+cp /tmp/latest.json /tmp/sage-release-assets/latest.json
+```
 
 手工创建 Release：
 
@@ -249,44 +288,16 @@ PY
 git tag v1.4.3
 git push origin v1.4.3
 
-gh release create v1.4.3 \
-  "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/Sage_1.4.3_aarch64.dmg" \
-  "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz" \
-  "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz.sig" \
+gh release create v1.4.3 /tmp/sage-release-assets/* \
   --target main \
   --latest \
   --title "v1.4.3" \
   --notes "Release notes here"
 ```
 
-手工生成 manifest（单 mac-arm 包），并写入 Railway env：
+将同一份 manifest 写入 Railway env：
 
 ```bash
-python3 - <<'PY'
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-
-version = '1.4.3'
-signature = Path(
-    'src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Sage.app.tar.gz.sig'
-).read_text().strip()
-
-latest = {
-    'version': version,
-    'notes': 'See release notes.',
-    'pub_date': datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
-    'platforms': {
-        'darwin-aarch64': {
-            'signature': signature,
-            'url': f'https://github.com/buuzzy/sage/releases/download/v{version}/Sage.app.tar.gz',
-        },
-    },
-}
-
-Path('/tmp/latest.json').write_text(json.dumps(latest, indent=2) + '\n')
-PY
-
 RAILWAY_CALLER="manual-release" railway variable set \
   SAGE_UPDATER_MANIFEST_JSON="$(python3 - <<'PY'
 from pathlib import Path
@@ -297,10 +308,10 @@ PY
 RAILWAY_CALLER="manual-release" railway up --detach -m "update updater manifest"
 ```
 
-仍建议把 `latest.json` 同步上传到 GitHub Release 作为人工审计备份，但客户端不再依赖它：
+如果 Release 已存在，更新资产时使用：
 
 ```bash
-gh release upload v1.4.3 /tmp/latest.json --clobber
+gh release upload v1.4.3 /tmp/sage-release-assets/* --clobber
 ```
 
 注意：`gh release upload /tmp/latest.json#latest.json` 里的 `#latest.json` 只是 label，不会改资产真实文件名。若上传 GitHub 备份，Release 资产名必须真的叫 `latest.json`。
@@ -312,13 +323,19 @@ gh release view v1.4.3 --json assets,url
 
 python3 - <<'PY'
 import json, urllib.request
-url = 'https://sage-production-28e1.up.railway.app/updater/latest.json'
-with urllib.request.urlopen(url, timeout=20) as response:
-    data = json.loads(response.read().decode('utf-8'))
-    print('status', response.status)
-    print('version', data.get('version'))
-    print('platforms', ','.join(sorted((data.get('platforms') or {}).keys())))
-    print('has_signature', bool(data.get('platforms', {}).get('darwin-aarch64', {}).get('signature')))
+for url in [
+    'https://sage-production-28e1.up.railway.app/updater/latest.json',
+    'https://github.com/buuzzy/sage/releases/latest/download/latest.json',
+]:
+    with urllib.request.urlopen(url, timeout=20) as response:
+        data = json.loads(response.read().decode('utf-8'))
+    platforms = data.get('platforms') or {}
+    print(url)
+    print('  status', response.status)
+    print('  version', data.get('version'))
+    print('  platforms', ','.join(sorted(platforms.keys())))
+    print('  darwin-aarch64', bool(platforms.get('darwin-aarch64', {}).get('signature')))
+    print('  darwin-x86_64', bool(platforms.get('darwin-x86_64', {}).get('signature')))
 PY
 ```
 
@@ -381,9 +398,8 @@ git tag -d v1.0.7
 
 | 限制 | 说明 | 跟踪 |
 |---|---|---|
-| Windows x64 暂缓 | 历史原因为中文产品名走 WiX `light.exe` 编码 bug；产品已改名 Sage 后理论上可恢复，需要 CI matrix 解注释 + 加 `--bundles nsis` | TODO.md P3 |
 | 暂未公证 | macOS Gatekeeper 首次启动需右键打开 | 待 Apple Developer 账号 |
-| Tauri 默认 `targets: "all"` 会同时打 NSIS + MSI | Windows 恢复时务必加 `--bundles nsis` 跳过 MSI | release.yml 注释 |
+| Windows 暂不发布 | 当前只维护 macOS Apple Silicon 与 macOS Intel；如未来恢复 Windows，需要重新设计发布矩阵和安装包策略 | 产品决策 |
 
 ---
 

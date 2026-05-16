@@ -49,6 +49,11 @@ import { isSupabaseConfigured } from '@/shared/supabase/client';
 
 import { buildPersonaSection } from './persona-injector';
 import { buildActiveRecallSection } from './active-recall';
+import {
+  createToolOutputInterceptorHook,
+  type ToolOutputInterceptResult,
+  type ToolOutputMetadata,
+} from './tool-output-interceptor';
 import { createLogger, LOG_FILE_PATH } from '@/shared/utils/logger';
 import { stripHashSuffix } from '@/shared/utils/url';
 
@@ -128,18 +133,6 @@ const POST_ROUTE_MAP: Record<string, { skill: string; action: string }> = {
   'stock_filter_query':        { skill: 'westock-screener', action: 'stock_filter_query' },
   'query_list_data_by_date':   { skill: 'westock-screener', action: 'query_list_data_by_date' },
 };
-
-interface ToolOutputMetadata {
-  skill: string;
-  action: string;
-  list_code?: string;
-}
-
-interface InterceptResult {
-  metadata: ToolOutputMetadata;
-  artifactBlock: string;
-  summary: string;
-}
 
 // ---- Layer 1: URL / route detection from the Bash command string -----------
 
@@ -564,7 +557,10 @@ function transformForComponent(artifactType: string, meta: ToolOutputMetadata, p
  * @param output   - The tool output string (stdout from Bash execution)
  * @returns InterceptResult if intercepted, null otherwise (fall-through to LLM)
  */
-function interceptToolOutput(command: string, output: string): InterceptResult | null {
+function interceptToolOutput(
+  command: string,
+  output: string
+): ToolOutputInterceptResult | null {
   if (!output || output.length < 10) return null;
 
   // Try to parse output as JSON
@@ -972,32 +968,17 @@ export class CodeAnyAgent extends BaseAgent {
       sdkOpts.abortController = options.abortController;
     }
 
-    // Register PostToolUse hook for deterministic data interception.
-    // Detects westock API calls from command URL patterns + response structure,
-    // queues artifact blocks for direct frontend rendering, and replaces the
-    // LLM's tool_output with a concise summary (~200 chars vs ~10K chars).
+    // Sage-owned hook: deterministic interception stays in our adapter. The SDK
+    // patch only supplies the generic `modifiedOutput` transport.
     sdkOpts.hooks = {
       ...((sdkOpts as any).hooks || {}),
-      PostToolUse: [{
-        matcher: 'Bash',
-        hooks: [async (input: any) => {
-          const toolOutput = typeof input.toolOutput === 'string' ? input.toolOutput : '';
-          // Extract the Bash command string from toolInput
-          const command = typeof input.toolInput === 'object' && input.toolInput
-            ? (input.toolInput.command || '')
-            : (typeof input.toolInput === 'string' ? input.toolInput : '');
-          const result = interceptToolOutput(command, toolOutput);
-          if (!result) return undefined;
-
-          // Queue artifact block for frontend rendering
-          this.pendingArtifacts.push(result.artifactBlock);
-
-          logger.info(`[PostToolUse] Intercepted → ${result.metadata.skill}/${result.metadata.action}, artifact queued, summary ${result.summary.length} chars`);
-
-          // Return summary to replace the tool output the LLM sees
-          return { modifiedOutput: result.summary };
-        }],
-      }],
+      PostToolUse: [
+        createToolOutputInterceptorHook({
+          queueArtifact: (artifactBlock) =>
+            this.pendingArtifacts.push(artifactBlock),
+          intercept: interceptToolOutput,
+        }),
+      ],
     };
 
     return sdkOpts;

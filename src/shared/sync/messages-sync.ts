@@ -22,7 +22,7 @@
  *   • 用户切换 / 登出 时 stop worker
  */
 
-import type { Message } from '@/shared/db/types';
+import type { LibraryFile, Message, Task } from '@/shared/db/types';
 import { supabase } from '@/shared/lib/supabase';
 
 import {
@@ -60,6 +60,51 @@ function transformMessageForCloud(msg: Message): Record<string, unknown> {
   };
 }
 
+function transformTaskForCloud(
+  task: Task,
+  userId: string
+): Record<string, unknown> {
+  let providerUsage: unknown = null;
+  if (task.provider_usage) {
+    try {
+      providerUsage = JSON.parse(task.provider_usage);
+    } catch {
+      providerUsage = task.provider_usage;
+    }
+  }
+
+  return {
+    id: task.id,
+    user_id: userId,
+    session_id: task.session_id,
+    task_index: task.task_index,
+    prompt: task.prompt,
+    status: task.status,
+    cost: task.cost,
+    duration: task.duration,
+    provider_usage: providerUsage,
+    favorite: Boolean(task.favorite),
+    created_at: task.created_at,
+    updated_at: task.updated_at,
+  };
+}
+
+function transformFileForCloud(file: LibraryFile): Record<string, unknown> {
+  return {
+    id: file.id,
+    user_id: file.user_id,
+    task_id: file.task_id,
+    name: file.name,
+    type: file.type,
+    path: file.path,
+    preview: file.preview,
+    thumbnail: file.thumbnail,
+    is_favorite: file.is_favorite,
+    created_at: file.created_at,
+    updated_at: file.updated_at,
+  };
+}
+
 // ─── Public API: enqueue ─────────────────────────────────────────────────────
 
 /**
@@ -72,6 +117,20 @@ export function enqueueMessageInsert(msg: Message): void {
       console.error('[messages-sync] enqueue failed:', err);
     }
   );
+}
+
+export function enqueueTaskUpsert(task: Task, userId: string): void {
+  void enqueueSync('tasks', 'upsert', transformTaskForCloud(task, userId)).catch(
+    (err) => {
+      console.error('[messages-sync] task enqueue failed:', err);
+    }
+  );
+}
+
+export function enqueueFileUpsert(file: LibraryFile): void {
+  void enqueueSync('files', 'upsert', transformFileForCloud(file)).catch((err) => {
+    console.error('[messages-sync] file enqueue failed:', err);
+  });
 }
 
 // ─── Worker ──────────────────────────────────────────────────────────────────
@@ -92,6 +151,22 @@ async function processQueueRow(row: SyncQueueRow): Promise<void> {
 
   if (row.table_name === 'messages' && row.operation === 'insert') {
     const { error } = await supabase.from('messages').upsert(payload, {
+      onConflict: 'id',
+    });
+    if (error) throw error;
+    return;
+  }
+
+  if (row.table_name === 'tasks' && row.operation === 'upsert') {
+    const { error } = await supabase.from('tasks').upsert(payload, {
+      onConflict: 'id',
+    });
+    if (error) throw error;
+    return;
+  }
+
+  if (row.table_name === 'files' && row.operation === 'upsert') {
+    const { error } = await supabase.from('files').upsert(payload, {
       onConflict: 'id',
     });
     if (error) throw error;

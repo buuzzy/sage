@@ -14,6 +14,8 @@ interface UpdaterManifest {
   platforms: Record<string, PlatformUpdate>;
 }
 
+const SUPPORTED_MAC_PLATFORMS = ['darwin-aarch64', 'darwin-x86_64'] as const;
+
 const BUILT_IN_MANIFEST: UpdaterManifest = {
   version: '1.4.9',
   notes:
@@ -27,6 +29,19 @@ const BUILT_IN_MANIFEST: UpdaterManifest = {
     },
   },
 };
+
+function readPlatformFromEnv(prefix: string): PlatformUpdate | null {
+  const url = process.env[`${prefix}_URL`];
+  const signature = process.env[`${prefix}_SIGNATURE`];
+
+  if (!url && !signature) return null;
+  if (!url || !signature) {
+    console.warn(`[updater] incomplete platform env for ${prefix}`);
+    return null;
+  }
+
+  return { signature, url };
+}
 
 function parseManifestFromEnv(): UpdaterManifest | null {
   const raw = process.env.SAGE_UPDATER_MANIFEST_JSON;
@@ -42,10 +57,18 @@ function parseManifestFromEnv(): UpdaterManifest | null {
 
 function buildManifestFromEnv(): UpdaterManifest | null {
   const version = process.env.SAGE_UPDATER_VERSION;
-  const url = process.env.SAGE_UPDATER_DARWIN_AARCH64_URL;
-  const signature = process.env.SAGE_UPDATER_DARWIN_AARCH64_SIGNATURE;
+  if (!version) {
+    return null;
+  }
 
-  if (!version || !url || !signature) {
+  const darwinArm = readPlatformFromEnv('SAGE_UPDATER_DARWIN_AARCH64');
+  const darwinIntel = readPlatformFromEnv('SAGE_UPDATER_DARWIN_X86_64');
+  const platforms: Record<string, PlatformUpdate> = {};
+
+  if (darwinArm) platforms['darwin-aarch64'] = darwinArm;
+  if (darwinIntel) platforms['darwin-x86_64'] = darwinIntel;
+
+  if (Object.keys(platforms).length === 0) {
     return null;
   }
 
@@ -53,12 +76,7 @@ function buildManifestFromEnv(): UpdaterManifest | null {
     version,
     notes: process.env.SAGE_UPDATER_NOTES ?? '',
     pub_date: process.env.SAGE_UPDATER_PUB_DATE ?? new Date().toISOString(),
-    platforms: {
-      'darwin-aarch64': {
-        signature,
-        url,
-      },
-    },
+    platforms,
   };
 }
 
@@ -68,8 +86,10 @@ function getManifest(): UpdaterManifest | null {
 
 function isValidManifest(manifest: UpdaterManifest | null): manifest is UpdaterManifest {
   if (!manifest?.version || !manifest.platforms) return false;
-  const darwinArm = manifest.platforms['darwin-aarch64'];
-  return Boolean(darwinArm?.url && darwinArm?.signature);
+  return SUPPORTED_MAC_PLATFORMS.some((platform) => {
+    const update = manifest.platforms[platform];
+    return Boolean(update?.url && update?.signature);
+  });
 }
 
 updaterRoutes.get('/latest.json', (c) => {

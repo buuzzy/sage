@@ -177,6 +177,7 @@ export function SkillsSettings({
   const [showGitHubImport, setShowGitHubImport] = useState(false);
   const [githubUrl, setGithubUrl] = useState('');
   const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
   const { t } = useLanguage();
 
   const handleToggleSkill = async (skillName: string, enabled: boolean) => {
@@ -526,9 +527,9 @@ export function SkillsSettings({
                             {t.settings.skillsAddToDirectory}
                           </span>
                         </button>
-                        {/* TODO: Import from GitHub - hidden for now
                         <button
                           onClick={() => {
+                            setImportError('');
                             setShowGitHubImport(true);
                             setShowAddMenu(false);
                           }}
@@ -539,7 +540,6 @@ export function SkillsSettings({
                             {t.settings.skillsImportGitHub}
                           </span>
                         </button>
-                        */}
                       </div>
                     </>
                   )}
@@ -678,6 +678,7 @@ export function SkillsSettings({
             onClick={() => {
               setShowGitHubImport(false);
               setGithubUrl('');
+              setImportError('');
             }}
           />
           <div className="bg-background border-border relative z-10 w-[420px] rounded-xl border p-6 shadow-lg">
@@ -685,6 +686,7 @@ export function SkillsSettings({
               onClick={() => {
                 setShowGitHubImport(false);
                 setGithubUrl('');
+                setImportError('');
               }}
               className="text-muted-foreground hover:text-foreground absolute top-4 right-4"
             >
@@ -726,6 +728,7 @@ export function SkillsSettings({
               onClick={async () => {
                 if (!githubUrl) return;
                 setImporting(true);
+                setImportError('');
                 try {
                   const response = await fetch(
                     `${API_BASE_URL}/files/import-skill`,
@@ -739,15 +742,20 @@ export function SkillsSettings({
                     }
                   );
                   const data = await response.json();
-                  if (data.success) {
+                  if (response.ok && data.success) {
                     setShowGitHubImport(false);
                     setGithubUrl('');
                     // Reload skills
-                    loadSkillsFromPath(settings.skillsPath || '');
+                    loadSkillsFromPath(skillsDirs.user || settings.skillsPath || '');
                   } else {
-                    console.error('[Skills] Import failed:', data.error);
+                    const message = data.error || 'Import failed';
+                    setImportError(message);
+                    console.error('[Skills] Import failed:', message);
                   }
                 } catch (err) {
+                  setImportError(
+                    err instanceof Error ? err.message : 'Import failed'
+                  );
                   console.error('[Skills] Import error:', err);
                 } finally {
                   setImporting(false);
@@ -765,6 +773,9 @@ export function SkillsSettings({
                 t.settings.skillsImport
               )}
             </button>
+            {importError && (
+              <p className="text-destructive mt-3 text-sm">{importError}</p>
+            )}
           </div>
         </div>
       )}
