@@ -904,8 +904,11 @@ function buildConversationHistory(
 ): ConversationMessage[] {
   const history: ConversationMessage[] = [];
 
-  // Add initial user prompt
-  if (initialPrompt) {
+  // Use persisted user messages whenever they exist. task.prompt can later be
+  // replaced by a generated sidebar title, so it must not be treated as the
+  // canonical first user message for follow-up context.
+  const hasPersistedUserMessage = messages.some((msg) => msg.type === 'user');
+  if (initialPrompt && !hasPersistedUserMessage) {
     history.push({ role: 'user', content: initialPrompt });
   }
 

@@ -39,8 +39,24 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
 // Token estimation
 // ---------------------------------------------------------------------------
 
+const CJK_RE =
+  /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g;
+
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  if (!text) return 0;
+
+  const cjkCount = text.match(CJK_RE)?.length ?? 0;
+  const nonCjkText = text.replace(CJK_RE, ' ');
+  const nonWhitespaceChars = nonCjkText.replace(/\s+/g, '').length;
+
+  // English/code/JSON roughly fit chars/4; CJK text is much closer to one token
+  // per character. Use the larger estimate so compaction and UI warnings do not
+  // under-count Chinese-heavy sessions.
+  return Math.max(
+    1,
+    cjkCount + Math.ceil(nonWhitespaceChars / 4),
+    Math.ceil(text.length / 4)
+  );
 }
 
 export interface SessionMessage {

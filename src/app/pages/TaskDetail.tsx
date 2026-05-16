@@ -159,10 +159,14 @@ function TaskDetailContent() {
   // Estimate the same conversation payload sent for follow-up requests.
   function calculateCurrentTokens(): number {
     const settings = getSettings();
+    const hasPersistedUserMessage = messages.some((msg) => msg.type === 'user');
     return estimateConversationContextTokens(
-      initialPrompt,
+      hasPersistedUserMessage ? '' : initialPrompt || task?.prompt || '',
       messages,
-      settings.maxConversationTurns || 20
+      {
+        maxConversationTurns: settings.maxConversationTurns || 20,
+        maxHistoryTokens: settings.maxHistoryTokens || 12000,
+      }
     );
   }
 
