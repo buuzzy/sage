@@ -1,6 +1,6 @@
 {
   "name": "sage-api",
-  "version": "1.4.13",
+  "version": "1.4.14",
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/patch-deps.mjs",
