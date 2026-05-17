@@ -1,11 +1,17 @@
 import '@ant-design/v5-patch-for-react-19';
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 
 import { router } from './app/router';
 import { ErrorBoundary } from './components/error-boundary';
+import {
+  StartupScreen,
+  type StartupDiagnostic,
+  type StartupStep,
+} from './components/startup/StartupScreen';
+import { API_BASE_URL } from './config';
 import { initializeSettings } from './shared/db/settings';
 import { AntdThemeProvider } from './shared/providers/antd-theme-provider';
 import { AuthProvider } from './shared/providers/auth-provider';
@@ -22,6 +28,256 @@ import {
 } from './shared/sync';
 
 import '@/config/style/global.css';
+
+function AppProviders() {
+  return (
+    <LanguageProvider>
+      <ThemeProvider>
+        <AntdThemeProvider>
+          <StartupHealthGate>
+            <AuthProvider>
+              <ProfileProvider>
+                <SettingsSyncProvider>
+                  <SessionSyncProvider>
+                    <UpdateProvider>
+                      <RouterProvider router={router} />
+                    </UpdateProvider>
+                  </SessionSyncProvider>
+                </SettingsSyncProvider>
+              </ProfileProvider>
+            </AuthProvider>
+          </StartupHealthGate>
+        </AntdThemeProvider>
+      </ThemeProvider>
+    </LanguageProvider>
+  );
+}
+
+function StartupHealthGate({ children }: { children: React.ReactNode }) {
+  const isDesktop =
+    typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  const [apiReady, setApiReady] = useState(!isDesktop);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiDiagnostics, setApiDiagnostics] = useState<StartupDiagnostic[]>([
+    {
+      label: 'Runtime',
+      value: isDesktop ? 'Tauri desktop' : 'Web / iOS',
+      tone: isDesktop ? 'default' : 'success',
+    },
+    {
+      label: 'Endpoint',
+      value: `${API_BASE_URL}/health`,
+    },
+  ]);
+
+  const checkApi = useCallback(async () => {
+    if (!isDesktop) {
+      setApiReady(true);
+      setApiDiagnostics([
+        { label: 'Runtime', value: 'Web / iOS', tone: 'success' },
+        { label: 'Local sidecar', value: 'not required', tone: 'success' },
+      ]);
+      return;
+    }
+
+    const endpoint = `${API_BASE_URL}/health`;
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 6000);
+
+    setApiError(null);
+    setApiReady(false);
+    setApiDiagnostics([
+      { label: 'Runtime', value: 'Tauri desktop' },
+      { label: 'Endpoint', value: endpoint },
+      { label: 'Started', value: new Date(startedAt).toLocaleTimeString() },
+      { label: 'Timeout', value: '6000ms' },
+    ]);
+
+    try {
+      const response = await fetch(endpoint, {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      const elapsedMs = Date.now() - startedAt;
+      if (!response.ok) {
+        throw new Error(`Local service returned ${response.status}`);
+      }
+      const body = (await response.json().catch(() => null)) as {
+        status?: string;
+        uptime?: number;
+      } | null;
+      setApiDiagnostics([
+        { label: 'Runtime', value: 'Tauri desktop' },
+        { label: 'Endpoint', value: endpoint },
+        { label: 'HTTP status', value: String(response.status), tone: 'success' },
+        { label: 'Latency', value: `${elapsedMs}ms`, tone: 'success' },
+        {
+          label: 'Sidecar status',
+          value: body?.status ?? 'ok',
+          tone: 'success',
+        },
+        ...(typeof body?.uptime === 'number'
+          ? [
+              {
+                label: 'Sidecar uptime',
+                value: `${Math.round(body.uptime)}s`,
+              } satisfies StartupDiagnostic,
+            ]
+          : []),
+      ]);
+      setApiReady(true);
+    } catch (error) {
+      const elapsedMs = Date.now() - startedAt;
+      console.error('[startup] local API health check failed:', error);
+      const message =
+        error instanceof Error && error.name === 'AbortError'
+          ? 'Local Sage service did not respond within 6000ms'
+          : error instanceof Error
+            ? error.message
+            : 'Local Sage service is not responding';
+      setApiDiagnostics([
+        { label: 'Runtime', value: 'Tauri desktop' },
+        { label: 'Endpoint', value: endpoint },
+        { label: 'Latency', value: `${elapsedMs}ms`, tone: 'error' },
+        { label: 'Failure', value: message, tone: 'error' },
+      ]);
+      setApiError(
+        message
+      );
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
+    void checkApi();
+  }, [checkApi]);
+
+  if (!apiReady) {
+    const steps: StartupStep[] = [
+      {
+        id: 'app-shell',
+        label: 'App shell ready',
+        description: 'Theme and interface are loaded.',
+        status: 'done',
+      },
+      {
+        id: 'sidecar',
+        label: 'Connecting local Sage service',
+        description: 'Checking the desktop sidecar API before conversations.',
+        status: apiError ? 'error' : 'active',
+      },
+      {
+        id: 'auth',
+        label: 'Restoring account',
+        description: 'Authentication starts after the local service is ready.',
+        status: 'pending',
+      },
+    ];
+
+    return (
+      <StartupScreen
+        title="Connecting Sage"
+        subtitle="Checking the local service that powers desktop conversations."
+        steps={steps}
+        diagnostics={apiDiagnostics}
+        error={apiError ?? undefined}
+        onRetry={apiError ? checkApi : undefined}
+        compact
+      />
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function BootstrapRoot() {
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsDiagnostics, setSettingsDiagnostics] = useState<
+    StartupDiagnostic[]
+  >([]);
+
+  const boot = useCallback(async () => {
+    const startedAt = Date.now();
+    setSettingsError(null);
+    setSettingsReady(false);
+    setSettingsDiagnostics([
+      { label: 'Stage', value: 'settings' },
+      { label: 'Started', value: new Date(startedAt).toLocaleTimeString() },
+    ]);
+    try {
+      await initializeSettings();
+      const elapsedMs = Date.now() - startedAt;
+      setSettingsDiagnostics([
+        { label: 'Stage', value: 'settings', tone: 'success' },
+        { label: 'Latency', value: `${elapsedMs}ms`, tone: 'success' },
+        { label: 'Theme support', value: 'black / white / warm', tone: 'success' },
+      ]);
+      setSettingsReady(true);
+      void flushErrorQueue();
+    } catch (error) {
+      const elapsedMs = Date.now() - startedAt;
+      console.error('[startup] initializeSettings failed:', error);
+      setSettingsDiagnostics([
+        { label: 'Stage', value: 'settings', tone: 'error' },
+        { label: 'Latency', value: `${elapsedMs}ms`, tone: 'error' },
+        {
+          label: 'Failure',
+          value:
+            error instanceof Error
+              ? error.message
+              : 'Failed to initialize settings',
+          tone: 'error',
+        },
+      ]);
+      setSettingsError(
+        error instanceof Error ? error.message : 'Failed to initialize settings'
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    void boot();
+  }, [boot]);
+
+  if (!settingsReady) {
+    const steps: StartupStep[] = [
+      {
+        id: 'settings',
+        label: 'Loading settings',
+        description: 'Reading theme, language, and local preferences.',
+        status: settingsError ? 'error' : 'active',
+      },
+      {
+        id: 'theme',
+        label: 'Applying Sage theme',
+        description: 'Preparing the black, white, or warm background.',
+        status: 'pending',
+      },
+      {
+        id: 'app',
+        label: 'Starting app shell',
+        description: 'Mounting providers and conversation routes.',
+        status: 'pending',
+      },
+    ];
+
+    return (
+      <StartupScreen
+        title="Preparing Sage"
+        subtitle="Setting up the app shell before your conversation starts."
+        steps={steps}
+        diagnostics={settingsDiagnostics}
+        error={settingsError ?? undefined}
+        onRetry={settingsError ? boot : undefined}
+      />
+    );
+  }
+
+  return <AppProviders />;
+}
 
 // ─── Global error listeners ──────────────────────────────────────────────────
 //
@@ -84,34 +340,10 @@ if (typeof window !== 'undefined') {
   }, RETRY_POLL_MS);
 }
 
-// Initialize settings from database on startup, then render app
-initializeSettings()
-  .catch(console.error)
-  .finally(() => {
-    // Flush 离线错误队列，fire-and-forget
-    void flushErrorQueue();
-
-    ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-      <React.StrictMode>
-        <ErrorBoundary>
-          <LanguageProvider>
-            <ThemeProvider>
-              <AntdThemeProvider>
-                <AuthProvider>
-                  <ProfileProvider>
-                    <SettingsSyncProvider>
-                      <SessionSyncProvider>
-                        <UpdateProvider>
-                          <RouterProvider router={router} />
-                        </UpdateProvider>
-                      </SessionSyncProvider>
-                    </SettingsSyncProvider>
-                  </ProfileProvider>
-                </AuthProvider>
-              </AntdThemeProvider>
-            </ThemeProvider>
-          </LanguageProvider>
-        </ErrorBoundary>
-      </React.StrictMode>
-    );
-  });
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <BootstrapRoot />
+    </ErrorBoundary>
+  </React.StrictMode>
+);

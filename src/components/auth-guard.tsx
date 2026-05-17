@@ -2,6 +2,12 @@ import { type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/shared/providers/auth-provider';
 
+import {
+  StartupScreen,
+  type StartupDiagnostic,
+  type StartupStep,
+} from '@/components/startup/StartupScreen';
+
 interface AuthGuardProps {
   children: ReactNode;
 }
@@ -21,13 +27,61 @@ interface AuthGuardProps {
  *   所以把 dbReady 并入 gate，确保业务页只在 DB 切换完毕后挂载。
  */
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { status, dbReady } = useAuth();
+  const { status, dbReady, dbError, retryDbBind } = useAuth();
 
   if (status === 'loading' || (status === 'authenticated' && !dbReady)) {
+    const isDbBinding = status === 'authenticated' && !dbReady;
+    const steps: StartupStep[] = [
+      {
+        id: 'auth',
+        label: 'Restoring your session',
+        description: 'Checking the local Supabase session cache.',
+        status: status === 'loading' ? 'active' : 'done',
+      },
+      {
+        id: 'db',
+        label: 'Binding local data',
+        description: dbError
+          ? 'Local database could not be opened.'
+          : 'Opening the user-scoped Sage database.',
+        status: dbError
+          ? 'error'
+          : isDbBinding
+            ? 'active'
+            : dbReady
+              ? 'done'
+              : 'pending',
+      },
+      {
+        id: 'conversation',
+        label: 'Preparing conversation workspace',
+        description: 'Loading the app once local data is ready.',
+        status: 'pending',
+      },
+    ];
+    const diagnostics: StartupDiagnostic[] = [
+      {
+        label: 'Auth state',
+        value: status,
+        tone: status === 'authenticated' ? 'success' : 'default',
+      },
+      {
+        label: 'Local database',
+        value: dbError ? 'failed' : dbReady ? 'ready' : 'binding',
+        tone: dbError ? 'error' : dbReady ? 'success' : 'default',
+      },
+    ];
+
     return (
-      <div className="bg-background flex min-h-svh items-center justify-center">
-        <div className="border-primary/30 border-t-primary size-6 animate-spin rounded-full border-2" />
-      </div>
+      <StartupScreen
+        title="Starting Sage"
+        subtitle="Restoring your account and local conversation workspace."
+        steps={steps}
+        diagnostics={diagnostics}
+        error={dbError ?? undefined}
+        onRetry={dbError ? retryDbBind : undefined}
+        compact
+      />
     );
   }
 

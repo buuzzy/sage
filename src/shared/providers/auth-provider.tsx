@@ -33,6 +33,8 @@ interface AuthContextType {
    * - 业务页（session 列表、settings）应等 dbReady 再做查询，避免切账号瞬间读到残影。
    */
   dbReady: boolean;
+  dbError: string | null;
+  retryDbBind: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
@@ -154,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (uid === null) {
         lastBoundUid = null;
+        setDbError(null);
         // Phase 1: 停掉 sync worker（在 unbind 之前停，避免它读到 null uid）
         stopMessageSyncWorker();
         try {
@@ -184,6 +188,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        setDbError(null);
+        if (!cancelled) setDbReady(false);
         await bindUserId(uid);
         // Settings 走的是同一份 user-scoped DB —— 切换账号后强制重载一次，
         // 避免拿到上一位用户的主题/语言等缓存。
@@ -194,7 +200,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         startMessageSyncWorker();
       } catch (err) {
         console.error('[Auth] bindUserId failed:', err);
-        if (!cancelled) setDbReady(false);
+        if (!cancelled) {
+          setDbReady(false);
+          setDbError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to bind local database'
+          );
+        }
       }
     };
 
@@ -377,6 +390,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // onAuthStateChange('SIGNED_OUT') 会触发 switchDbTo(null)
   }, []);
 
+  const retryDbBind = useCallback(async () => {
+    const uid = user?.id;
+    if (!uid) return;
+
+    setDbError(null);
+    setDbReady(false);
+    try {
+      await bindUserId(uid);
+      await reloadSettingsForCurrentUser();
+      setDbReady(true);
+      startMessageSyncWorker();
+    } catch (err) {
+      console.error('[Auth] retryDbBind failed:', err);
+      setDbReady(false);
+      setDbError(
+        err instanceof Error ? err.message : 'Failed to bind local database'
+      );
+    }
+  }, [user?.id]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -384,6 +417,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         status,
         dbReady,
+        dbError,
+        retryDbBind,
         signInWithGitHub,
         signInWithGoogle,
         signInWithEmail,
