@@ -41,7 +41,7 @@ export function StartupScreen({
     steps.length === 0 ? 100 : Math.round((completedSteps / steps.length) * 100);
 
   return (
-    <div className="bg-background text-foreground relative flex min-h-svh items-center justify-center overflow-hidden px-6">
+    <div className="bg-background text-foreground relative flex min-h-svh items-center justify-center overflow-x-hidden overflow-y-auto px-6 py-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,var(--primary)_0%,transparent_34%)] opacity-[0.07]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-primary/8 to-transparent" />
       <div className="pointer-events-none absolute inset-x-12 bottom-0 h-40 rounded-full bg-primary/5 blur-3xl" />
@@ -49,6 +49,7 @@ export function StartupScreen({
       <div
         className={cn(
           'border-border/70 bg-background/82 relative w-full rounded-3xl border shadow-[0_24px_80px_rgba(0,0,0,0.08)] backdrop-blur-xl',
+          'max-h-[calc(100svh-3rem)] overflow-y-auto',
           'animate-in fade-in-0 zoom-in-95 duration-500',
           compact ? 'max-w-sm p-6' : 'max-w-lg p-8'
         )}

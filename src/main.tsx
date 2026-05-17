@@ -1,6 +1,6 @@
 import '@ant-design/v5-patch-for-react-19';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 
@@ -29,6 +29,10 @@ import {
 
 import '@/config/style/global.css';
 
+const STARTUP_API_READY_TIMEOUT_MS = 45_000;
+const STARTUP_API_ATTEMPT_TIMEOUT_MS = 2_500;
+const STARTUP_API_RETRY_DELAY_MS = 900;
+
 function AppProviders() {
   return (
     <LanguageProvider>
@@ -56,6 +60,7 @@ function AppProviders() {
 function StartupHealthGate({ children }: { children: React.ReactNode }) {
   const isDesktop =
     typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  const checkRunId = useRef(0);
   const [apiReady, setApiReady] = useState(!isDesktop);
   const [apiError, setApiError] = useState<string | null>(null);
   const [apiDiagnostics, setApiDiagnostics] = useState<StartupDiagnostic[]>([
@@ -80,10 +85,15 @@ function StartupHealthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const runId = checkRunId.current + 1;
+    checkRunId.current = runId;
+    const isCurrentRun = () => checkRunId.current === runId;
+
     const endpoint = `${API_BASE_URL}/health`;
     const startedAt = Date.now();
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 6000);
+    const deadline = startedAt + STARTUP_API_READY_TIMEOUT_MS;
+    let attempt = 0;
+    let lastFailure = 'Local Sage service is not responding';
 
     setApiError(null);
     setApiReady(false);
@@ -91,63 +101,105 @@ function StartupHealthGate({ children }: { children: React.ReactNode }) {
       { label: 'Runtime', value: 'Tauri desktop' },
       { label: 'Endpoint', value: endpoint },
       { label: 'Started', value: new Date(startedAt).toLocaleTimeString() },
-      { label: 'Timeout', value: '6000ms' },
+      { label: 'Startup budget', value: `${STARTUP_API_READY_TIMEOUT_MS}ms` },
     ]);
 
-    try {
-      const response = await fetch(endpoint, {
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-      const elapsedMs = Date.now() - startedAt;
-      if (!response.ok) {
-        throw new Error(`Local service returned ${response.status}`);
-      }
-      const body = (await response.json().catch(() => null)) as {
-        status?: string;
-        uptime?: number;
-      } | null;
-      setApiDiagnostics([
-        { label: 'Runtime', value: 'Tauri desktop' },
-        { label: 'Endpoint', value: endpoint },
-        { label: 'HTTP status', value: String(response.status), tone: 'success' },
-        { label: 'Latency', value: `${elapsedMs}ms`, tone: 'success' },
-        {
-          label: 'Sidecar status',
-          value: body?.status ?? 'ok',
-          tone: 'success',
-        },
-        ...(typeof body?.uptime === 'number'
-          ? [
-              {
-                label: 'Sidecar uptime',
-                value: `${Math.round(body.uptime)}s`,
-              } satisfies StartupDiagnostic,
-            ]
-          : []),
-      ]);
-      setApiReady(true);
-    } catch (error) {
-      const elapsedMs = Date.now() - startedAt;
-      console.error('[startup] local API health check failed:', error);
-      const message =
-        error instanceof Error && error.name === 'AbortError'
-          ? 'Local Sage service did not respond within 6000ms'
-          : error instanceof Error
-            ? error.message
-            : 'Local Sage service is not responding';
-      setApiDiagnostics([
-        { label: 'Runtime', value: 'Tauri desktop' },
-        { label: 'Endpoint', value: endpoint },
-        { label: 'Latency', value: `${elapsedMs}ms`, tone: 'error' },
-        { label: 'Failure', value: message, tone: 'error' },
-      ]);
-      setApiError(
-        message
+    while (Date.now() < deadline) {
+      attempt += 1;
+      const attemptStartedAt = Date.now();
+      const remainingMs = Math.max(0, deadline - attemptStartedAt);
+      const attemptTimeoutMs = Math.min(
+        STARTUP_API_ATTEMPT_TIMEOUT_MS,
+        remainingMs
       );
-    } finally {
-      window.clearTimeout(timeout);
+      const controller = new AbortController();
+      const timeout = window.setTimeout(
+        () => controller.abort(),
+        attemptTimeoutMs
+      );
+
+      if (!isCurrentRun()) return;
+      setApiDiagnostics([
+        { label: 'Runtime', value: 'Tauri desktop' },
+        { label: 'Endpoint', value: endpoint },
+        { label: 'Attempt', value: String(attempt) },
+        { label: 'Remaining', value: `${remainingMs}ms` },
+      ]);
+
+      try {
+        const response = await fetch(endpoint, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const elapsedMs = Date.now() - attemptStartedAt;
+        if (!response.ok) {
+          throw new Error(`Local service returned ${response.status}`);
+        }
+        const body = (await response.json().catch(() => null)) as {
+          status?: string;
+          uptime?: number;
+        } | null;
+        if (!isCurrentRun()) return;
+        setApiDiagnostics([
+          { label: 'Runtime', value: 'Tauri desktop' },
+          { label: 'Endpoint', value: endpoint },
+          { label: 'HTTP status', value: String(response.status), tone: 'success' },
+          { label: 'Latency', value: `${elapsedMs}ms`, tone: 'success' },
+          { label: 'Attempts', value: String(attempt), tone: 'success' },
+          {
+            label: 'Sidecar status',
+            value: body?.status ?? 'ok',
+            tone: 'success',
+          },
+          ...(typeof body?.uptime === 'number'
+            ? [
+                {
+                  label: 'Sidecar uptime',
+                  value: `${Math.round(body.uptime)}s`,
+                } satisfies StartupDiagnostic,
+              ]
+            : []),
+        ]);
+        setApiReady(true);
+        return;
+      } catch (error) {
+        const elapsedMs = Date.now() - attemptStartedAt;
+        lastFailure =
+          error instanceof Error && error.name === 'AbortError'
+            ? `Local Sage service did not respond within ${attemptTimeoutMs}ms`
+            : error instanceof Error
+              ? error.message
+              : 'Local Sage service is not responding';
+        if (!isCurrentRun()) return;
+        setApiDiagnostics([
+          { label: 'Runtime', value: 'Tauri desktop' },
+          { label: 'Endpoint', value: endpoint },
+          { label: 'Attempt', value: String(attempt) },
+          { label: 'Last latency', value: `${elapsedMs}ms`, tone: 'warning' },
+          { label: 'Last failure', value: lastFailure, tone: 'warning' },
+        ]);
+      } finally {
+        window.clearTimeout(timeout);
+      }
+
+      if (Date.now() < deadline) {
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, STARTUP_API_RETRY_DELAY_MS)
+        );
+      }
     }
+
+    if (!isCurrentRun()) return;
+    console.error('[startup] local API health check failed:', lastFailure);
+    setApiDiagnostics([
+      { label: 'Runtime', value: 'Tauri desktop' },
+      { label: 'Endpoint', value: endpoint },
+      { label: 'Attempts', value: String(attempt), tone: 'error' },
+      { label: 'Failure', value: lastFailure, tone: 'error' },
+    ]);
+    setApiError(
+      `${lastFailure}. Sage waited ${STARTUP_API_READY_TIMEOUT_MS}ms for the local service.`
+    );
   }, [isDesktop]);
 
   useEffect(() => {
