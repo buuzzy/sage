@@ -4,7 +4,6 @@ export default {
   // Categories
   account: '账号',
   general: '通用',
-  workplace: '工作区',
   model: '模型',
   provider: '供应商',
   mcp: 'MCP',
@@ -264,18 +263,23 @@ export default {
 
   // Data
   data: '数据',
-  dataDescription: '管理您的数据：导出备份、导入数据或清空所有数据。',
+  dataDescription: '管理本地存储路径、导出备份、恢复云端数据或清空数据。',
+  dataStorageSection: '存储',
+  dataBackupSection: '备份与恢复',
+  dataDangerSection: '危险区域',
   dataExport: '导出数据',
-  dataExportDescription: '将所有任务、消息和设置导出为 JSON 文件。',
+  dataExportDescription: '将所有会话、消息和设置导出为 JSON 文件，保存到本地。',
   dataExportButton: '导出',
   dataExporting: '导出中...',
-  dataImport: '导入数据',
-  dataImportDescription:
-    '从之前导出的 JSON 文件恢复数据（即将支持，内测版尚未启用）。',
-  dataImportButton: '即将支持',
-  dataImporting: '导入中...',
+  dataCloudRestore: '恢复云端历史',
+  dataCloudRestoreDescription:
+    '从云端拉取所有会话记录到当前设备。适用于新设备登录或本地数据丢失后恢复。已有相同记录会被更新。',
+  dataCloudRestoreButton: '恢复',
+  dataCloudRestoring: '恢复中...',
+  dataCloudRestoreConfirm:
+    '将从云端恢复所有会话、任务、消息和文件到当前设备，已有相同 ID 的记录会被覆盖更新。确定继续吗？',
   dataClear: '清空数据',
-  dataClearDescription: '永久删除所有数据。此操作无法撤销。',
+  dataClearDescription: '永久删除数据，此操作无法撤销。',
   dataClearButton: '清空',
   dataClearing: '清空中...',
   dataSuccess: '成功',
@@ -283,16 +287,18 @@ export default {
   dataClearConfirmDescription: '选择您要清空的数据：',
   dataClearTasksOnly: '清空会话历史',
   dataClearTasksOnlyDescription:
-    '删除所有对话与消息（含云端备份，影响所有已登录设备），保留登录态、偏好和 Sage 关于你的画像',
+    '删除本地和云端的所有对话与消息（影响所有已登录设备）。保留：登录态、设置偏好、用户画像。',
   dataClearSettingsOnly: '仅清空配置',
-  dataClearSettingsOnlyDescription: '重置所有配置为默认值，保留任务',
+  dataClearSettingsOnlyDescription:
+    '重置所有本地设置（主题、模型、MCP 等）为默认值。保留：会话历史、登录态、用户画像。',
   dataClearAll: '清空所有数据',
-  dataClearAllDescription: '删除所有任务、消息和设置',
+  dataClearAllDescription:
+    '删除本地和云端的所有会话与消息，并重置设置为默认值。保留：登录态、用户画像。',
   dataClearTasksConfirm:
-    '即将删除所有对话与消息，包括云端备份（同步到你所有已登录的设备）。\n\n保留：登录态、设置偏好、Sage 学到的关于你的画像。\n\n此操作无法撤销，确定继续吗？',
+    '即将删除所有对话与消息，包括云端备份（影响所有已登录设备）。\n\n保留：登录态、设置偏好、用户画像。\n\n此操作无法撤销，确定继续吗？',
   dataClearSettingsConfirm: '确定要将所有配置重置为默认值吗？此操作无法撤销。',
   dataClearAllConfirm:
-    '确定要删除所有数据（包括任务、消息和设置）吗？此操作无法撤销。',
+    '确定要删除所有会话与消息（含云端），并重置设置为默认值吗？\n\n保留：登录态、用户画像。\n\n此操作无法撤销。',
   dataConfirmTitle: '确认',
   dataConfirmClear: '确定清空',
   dataCancel: '取消',

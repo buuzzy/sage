@@ -29,7 +29,6 @@ import { MCPSettings } from './tabs/MCPSettings';
 import { ModelSettings } from './tabs/ModelSettings';
 import { PersonaSettings } from './tabs/PersonaSettings';
 import { SkillsSettings } from './tabs/SkillsSettings';
-import { WorkplaceSettings } from './tabs/WorkplaceSettings';
 import type { SettingsCategory } from './types';
 
 interface SettingsModalProps {
@@ -80,7 +79,6 @@ export function SettingsModal({
   const categories: SettingsCategory[] = [
     'account',
     'general',
-    'workplace',
     'model',
     'mcp',
     'skills',
@@ -198,14 +196,6 @@ export function SettingsModal({
                 />
               )}
 
-              {activeCategory === 'workplace' && (
-                <WorkplaceSettings
-                  settings={settings}
-                  onSettingsChange={handleSettingsChange}
-                  defaultPaths={defaultPaths}
-                />
-              )}
-
               {activeCategory === 'model' && (
                 <ModelSettings
                   settings={settings}
@@ -233,7 +223,13 @@ export function SettingsModal({
 
               {activeCategory === 'persona' && <PersonaSettings />}
 
-              {activeCategory === 'data' && <DataSettings />}
+              {activeCategory === 'data' && (
+                <DataSettings
+                  settings={settings}
+                  onSettingsChange={handleSettingsChange}
+                  defaultPaths={defaultPaths}
+                />
+              )}
 
               {activeCategory === 'about' && <AboutSettings />}
             </div>

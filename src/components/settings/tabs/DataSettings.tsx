@@ -1,8 +1,11 @@
 /**
- * Data Settings - Export, Import, and Clear Data
+ * Data Settings - Storage paths, Export, Cloud Restore, and Clear Data
+ *
+ * 合并了原「工作区」(Workspace) 和「数据」(Data) 两个 Tab。
+ * 布局分三段：存储路径 → 备份与恢复 → 危险区域。
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/config';
 import {
   deleteMessagesByTaskId,
@@ -11,14 +14,13 @@ import {
   getAllSessions,
   getAllTasks,
   getMessagesByTaskId,
-  importBackupData,
 } from '@/shared/db/database';
 import {
   clearAllSettings,
   getSettings,
-  saveSettings,
   type Settings,
 } from '@/shared/db/settings';
+import { getPathSeparator } from '@/shared/lib/paths';
 import { getSessionsDir } from '@/shared/lib/paths';
 import { getUserSessionsDir } from '@/shared/lib/user-scoped-paths';
 import { getCurrentBoundUid } from '@/shared/db/database';
@@ -30,9 +32,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
+  FileText,
+  FolderOpen,
   Loader2,
   Trash2,
-  Upload,
 } from 'lucide-react';
 
 // Check if running in Tauri environment
@@ -54,16 +57,51 @@ interface ExportData {
 type OperationStatus = 'idle' | 'loading' | 'success' | 'error';
 type ClearType = 'tasks' | 'settings' | 'all' | null;
 
-export function DataSettings() {
+// Helper function to open folder/file in system file manager
+const openInSystem = async (folderPath: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/files/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: folderPath, expandHome: true }),
+    });
+    const data = await response.json();
+    if (!data.success) {
+      console.error('[DataSettings] Failed to open path:', data.error);
+    }
+  } catch (err) {
+    console.error('[DataSettings] Error opening path:', err);
+  }
+};
+
+interface DataSettingsProps {
+  settings: Settings;
+  onSettingsChange: (settings: Settings) => void;
+  defaultPaths: {
+    workDir: string;
+    mcpConfigPath: string;
+    skillsPath: string;
+  };
+}
+
+export function DataSettings({ settings, defaultPaths }: DataSettingsProps) {
   const { t } = useLanguage();
+  const [pathSep, setPathSep] = useState('/');
   const [exportStatus, setExportStatus] = useState<OperationStatus>('idle');
-  const [importStatus, setImportStatus] = useState<OperationStatus>('idle');
   const [cloudRestoreStatus, setCloudRestoreStatus] =
     useState<OperationStatus>('idle');
   const [clearStatus, setClearStatus] = useState<OperationStatus>('idle');
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [confirmClearType, setConfirmClearType] = useState<ClearType>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Load platform-aware path separator
+  useEffect(() => {
+    getPathSeparator().then(setPathSep);
+  }, []);
+
+  const workDir = settings.workDir || defaultPaths.workDir;
+  const logFilePath = `${workDir}${pathSep}logs${pathSep}sage.log`;
 
   // Export all data
   const handleExport = async () => {
@@ -75,7 +113,7 @@ export function DataSettings() {
       const sessions = await getAllSessions();
       const tasks = await getAllTasks();
       const files = await getAllFiles();
-      const settings = getSettings();
+      const currentSettings = getSettings();
 
       // Get messages for each task
       const allMessages: unknown[] = [];
@@ -91,7 +129,7 @@ export function DataSettings() {
         tasks,
         messages: allMessages,
         files,
-        settings,
+        settings: currentSettings,
       };
 
       const jsonString = JSON.stringify(exportData, null, 2);
@@ -128,7 +166,8 @@ export function DataSettings() {
 
     try {
       const shouldRestore = window.confirm(
-        'Restore cloud sessions, tasks, messages, and files into this device? Existing records with the same IDs will be updated.'
+        t.settings.dataCloudRestoreConfirm ||
+          'Restore cloud sessions, tasks, messages, and files into this device? Existing records with the same IDs will be updated.'
       );
       if (!shouldRestore) {
         setCloudRestoreStatus('idle');
@@ -149,71 +188,6 @@ export function DataSettings() {
       );
       setCloudRestoreStatus('error');
       setTimeout(() => setCloudRestoreStatus('idle'), 3000);
-    }
-  };
-
-  // Import data from file
-  const handleImport = async () => {
-    setImportStatus('loading');
-    setErrorMessage('');
-
-    try {
-      // Use Tauri native dialog
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const { readTextFile } = await import('@tauri-apps/plugin-fs');
-
-      const filePath = await open({
-        filters: [{ name: 'JSON', extensions: ['json'] }],
-        multiple: false,
-      });
-
-      if (!filePath) {
-        // User cancelled
-        setImportStatus('idle');
-        return;
-      }
-
-      const content = await readTextFile(filePath as string);
-      const data = JSON.parse(content) as ExportData;
-
-      // Validate data format
-      if (
-        data.version !== 1 ||
-        !Array.isArray(data.sessions) ||
-        !Array.isArray(data.tasks) ||
-        !Array.isArray(data.messages) ||
-        !Array.isArray(data.files)
-      ) {
-        throw new Error('Invalid data format');
-      }
-
-      const shouldImport = window.confirm(
-        `Import ${data.sessions.length} sessions, ${data.tasks.length} tasks, ${data.messages.length} messages, and ${data.files.length} files into the current account? Existing records with the same IDs will be updated.`
-      );
-      if (!shouldImport) {
-        setImportStatus('idle');
-        return;
-      }
-
-      // Import settings if included
-      if (data.settings) {
-        saveSettings(data.settings);
-      }
-
-      const result = await importBackupData(data);
-      console.log('[DataSettings] Imported backup:', result);
-
-      setImportStatus('success');
-      setTimeout(() => {
-        setImportStatus('idle');
-        // Reload page to apply imported settings
-        window.location.reload();
-      }, 1500);
-    } catch (error) {
-      console.error('[DataSettings] Import failed:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Import failed');
-      setImportStatus('error');
-      setTimeout(() => setImportStatus('idle'), 3000);
     }
   };
 
@@ -261,31 +235,23 @@ export function DataSettings() {
   };
 
   // Clear workspace files (sessions directory for the CURRENT user only).
-  //
-  // M1 隔离后 sessions 目录按账号独立：`~/.sage/users/{uid}/sessions`。
-  // 清理操作严格限定在当前登录用户的目录下；未绑定 user 时静默 no-op，
-  // 避免误删 legacy 共享目录影响其他账号。
   const clearWorkspaceFiles = async () => {
     if (!isTauri()) return;
 
     try {
       const uid = getCurrentBoundUid();
-      // 优先走 user-scoped；若没绑定（理论上不该发生），退回 legacy 路径
       const sessionsDir = uid
         ? await getUserSessionsDir(uid)
         : await getSessionsDir();
       const { remove, exists } = await import('@tauri-apps/plugin-fs');
 
-      // Check if sessions directory exists
       const dirExists = await exists(sessionsDir);
       if (dirExists) {
-        // Remove the entire sessions directory recursively
         await remove(sessionsDir, { recursive: true });
         console.log('[DataSettings] Cleared workspace files:', sessionsDir);
       }
     } catch (error) {
       console.warn('[DataSettings] Failed to clear workspace files:', error);
-      // Don't throw - continue with database cleanup even if file cleanup fails
     }
   };
 
@@ -300,14 +266,8 @@ export function DataSettings() {
 
     try {
       if (type === 'settings') {
-        // Clear settings only
         await clearAllSettings();
       } else if (type === 'tasks') {
-        // 「清空会话历史」：云端 messages/tasks + 本地 SQLite/IDB + 工作区文件 +
-        // sidecar 内存中的 channel store。
-        // 不动 persona_memory / settings / auth session / profile。
-        // 先清 sidecar channel store：否则 useChannelSync poll 会把它拉回来重建 task。
-        // 先清云端：失败则保留本地不删，避免出现"本地空了云端没空"的不一致。
         await clearSidecarChannels();
         await clearCloudConversations();
         await clearWorkspaceFiles();
@@ -317,8 +277,6 @@ export function DataSettings() {
           await deleteTask(task.id);
         }
       } else if (type === 'all') {
-        // 「清空所有数据」：含会话 + 设置；同样不动 auth session / persona_memory。
-        // 先清 sidecar channel store + 云端会话，再清本地，最后清设置。
         await clearSidecarChannels();
         await clearCloudConversations();
         await clearWorkspaceFiles();
@@ -333,7 +291,6 @@ export function DataSettings() {
       setClearStatus('success');
       setTimeout(() => {
         setClearStatus('idle');
-        // Reload page to reflect changes
         window.location.reload();
       }, 1500);
     } catch (error) {
@@ -344,12 +301,10 @@ export function DataSettings() {
     }
   };
 
-  // Handle clear option click - show confirmation
   const handleClearOptionClick = (type: ClearType) => {
     setConfirmClearType(type);
   };
 
-  // Get confirmation message based on clear type
   const getConfirmMessage = (type: ClearType): string => {
     switch (type) {
       case 'tasks':
@@ -406,130 +361,166 @@ export function DataSettings() {
     <div className="space-y-6">
       {/* Description */}
       <p className="text-muted-foreground text-sm">
-        {t.settings.dataDescription ||
-          'Manage your data: export backups, import data, or clear all data.'}
+        {t.settings.dataDescription}
       </p>
 
-      {/* Export Data */}
-      <div className="border-border rounded-lg border p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-foreground font-medium">
-              {t.settings.dataExport || 'Export Data'}
-            </h3>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {t.settings.dataExportDescription ||
-                'Export all tasks, messages, and settings to a JSON file.'}
-            </p>
+      {/* ── Storage Section ── */}
+      <div className="space-y-4">
+        <h3 className="text-foreground text-sm font-semibold tracking-wide uppercase">
+          {t.settings.dataStorageSection}
+        </h3>
+
+        {/* Working Directory */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-foreground text-sm font-medium">
+            {t.settings.workingDirectory}
+          </label>
+          <p className="text-muted-foreground text-xs">
+            {t.settings.workingDirectoryDescription}
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="border-input bg-muted text-foreground flex h-9 max-w-md flex-1 items-center rounded-lg border px-3 text-sm">
+              {workDir || 'Loading...'}
+            </div>
+            <button
+              onClick={() => openInSystem(workDir)}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent rounded p-2 transition-colors"
+              title={t.settings.skillsOpenFolder}
+            >
+              <FolderOpen className="size-4" />
+            </button>
           </div>
-          <button
-            onClick={handleExport}
-            disabled={exportStatus === 'loading'}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-              'bg-primary text-primary-foreground hover:bg-primary/90',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {getButtonContent(
-              exportStatus,
-              <Download className="size-4" />,
-              t.settings.dataExportButton || 'Export',
-              t.settings.dataExporting || 'Exporting...'
-            )}
-          </button>
+        </div>
+
+        {/* Log File */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-foreground text-sm font-medium">
+            {t.settings.logFile}
+          </label>
+          <p className="text-muted-foreground text-xs">
+            {t.settings.logFileDescription}
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="border-input bg-muted text-foreground flex h-9 max-w-md flex-1 items-center rounded-lg border px-3 text-sm">
+              {logFilePath}
+            </div>
+            <button
+              onClick={() => openInSystem(logFilePath)}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent rounded p-2 transition-colors"
+              title={t.settings.logFileOpen}
+            >
+              <FileText className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Import Data */}
-      <div className="border-border rounded-lg border p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-foreground font-medium">
-              {t.settings.dataImport || 'Import Data'}
-            </h3>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {t.settings.dataImportDescription ||
-                'Import data from a previously exported JSON file.'}
-            </p>
+      {/* Divider */}
+      <div className="border-border border-t" />
+
+      {/* ── Backup & Restore Section ── */}
+      <div className="space-y-4">
+        <h3 className="text-foreground text-sm font-semibold tracking-wide uppercase">
+          {t.settings.dataBackupSection}
+        </h3>
+
+        {/* Export Data */}
+        <div className="border-border rounded-lg border p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="text-foreground font-medium">
+                {t.settings.dataExport}
+              </h3>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t.settings.dataExportDescription}
+              </p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exportStatus === 'loading'}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                'bg-primary text-primary-foreground hover:bg-primary/90',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              {getButtonContent(
+                exportStatus,
+                <Download className="size-4" />,
+                t.settings.dataExportButton || 'Export',
+                t.settings.dataExporting || 'Exporting...'
+              )}
+            </button>
           </div>
-          <button
-            onClick={handleImport}
-            disabled={importStatus === 'loading'}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-              'border-border text-foreground hover:bg-accent border',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {getButtonContent(
-              importStatus,
-              <Upload className="size-4" />,
-              t.settings.dataImportButton || 'Import',
-              t.settings.dataImporting || 'Importing...'
-            )}
-          </button>
+        </div>
+
+        {/* Restore Cloud Data */}
+        <div className="border-border rounded-lg border p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="text-foreground font-medium">
+                {t.settings.dataCloudRestore}
+              </h3>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t.settings.dataCloudRestoreDescription}
+              </p>
+            </div>
+            <button
+              onClick={handleCloudRestore}
+              disabled={cloudRestoreStatus === 'loading'}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                'border-border text-foreground hover:bg-accent border',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              {getButtonContent(
+                cloudRestoreStatus,
+                <Download className="size-4" />,
+                t.settings.dataCloudRestoreButton || 'Restore',
+                t.settings.dataCloudRestoring || 'Restoring...'
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Restore Cloud Data */}
-      <div className="border-border rounded-lg border p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-foreground font-medium">
-              Restore Cloud History
-            </h3>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Pull cloud sessions, tasks, messages, and files into this device.
-            </p>
-          </div>
-          <button
-            onClick={handleCloudRestore}
-            disabled={cloudRestoreStatus === 'loading'}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-              'border-border text-foreground hover:bg-accent border',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {getButtonContent(
-              cloudRestoreStatus,
-              <Download className="size-4" />,
-              'Restore',
-              'Restoring...'
-            )}
-          </button>
-        </div>
-      </div>
+      {/* Divider */}
+      <div className="border-border border-t" />
 
-      {/* Clear Data */}
-      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-foreground font-medium">
-              {t.settings.dataClear || 'Clear Data'}
-            </h3>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {t.settings.dataClearDescription ||
-                'Permanently delete all data. This action cannot be undone.'}
-            </p>
+      {/* ── Danger Zone ── */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold tracking-wide uppercase text-red-500">
+          {t.settings.dataDangerSection}
+        </h3>
+
+        <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="text-foreground font-medium">
+                {t.settings.dataClear}
+              </h3>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t.settings.dataClearDescription}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowClearDialog(true)}
+              disabled={clearStatus === 'loading'}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                'bg-red-500/10 text-red-500 hover:bg-red-500/20',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              {getButtonContent(
+                clearStatus,
+                <Trash2 className="size-4" />,
+                t.settings.dataClearButton || 'Clear',
+                t.settings.dataClearing || 'Clearing...'
+              )}
+            </button>
           </div>
-          <button
-            onClick={() => setShowClearDialog(true)}
-            disabled={clearStatus === 'loading'}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-              'bg-red-500/10 text-red-500 hover:bg-red-500/20',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {getButtonContent(
-              clearStatus,
-              <Trash2 className="size-4" />,
-              t.settings.dataClearButton || 'Clear',
-              t.settings.dataClearing || 'Clearing...'
-            )}
-          </button>
         </div>
       </div>
 
@@ -550,13 +541,12 @@ export function DataSettings() {
                 <AlertTriangle className="size-5" />
               </div>
               <h3 className="text-foreground text-lg font-semibold">
-                {t.settings.dataClearConfirmTitle || 'Clear Data'}
+                {t.settings.dataClearConfirmTitle}
               </h3>
             </div>
 
             <p className="text-muted-foreground mb-6 text-sm">
-              {t.settings.dataClearConfirmDescription ||
-                'Choose what data you want to clear:'}
+              {t.settings.dataClearConfirmDescription}
             </p>
 
             <div className="space-y-3">
@@ -569,11 +559,10 @@ export function DataSettings() {
               >
                 <div>
                   <div className="text-foreground font-medium">
-                    {t.settings.dataClearTasksOnly || 'Clear Tasks Only'}
+                    {t.settings.dataClearTasksOnly}
                   </div>
                   <div className="text-muted-foreground text-sm">
-                    {t.settings.dataClearTasksOnlyDescription ||
-                      'Delete all tasks and messages, keep settings'}
+                    {t.settings.dataClearTasksOnlyDescription}
                   </div>
                 </div>
               </button>
@@ -587,11 +576,10 @@ export function DataSettings() {
               >
                 <div>
                   <div className="text-foreground font-medium">
-                    {t.settings.dataClearSettingsOnly || 'Clear Settings Only'}
+                    {t.settings.dataClearSettingsOnly}
                   </div>
                   <div className="text-muted-foreground text-sm">
-                    {t.settings.dataClearSettingsOnlyDescription ||
-                      'Reset all settings to defaults, keep tasks'}
+                    {t.settings.dataClearSettingsOnlyDescription}
                   </div>
                 </div>
               </button>
@@ -605,11 +593,10 @@ export function DataSettings() {
               >
                 <div>
                   <div className="font-medium text-red-500">
-                    {t.settings.dataClearAll || 'Clear All Data'}
+                    {t.settings.dataClearAll}
                   </div>
                   <div className="text-muted-foreground text-sm">
-                    {t.settings.dataClearAllDescription ||
-                      'Delete all tasks, messages, and settings'}
+                    {t.settings.dataClearAllDescription}
                   </div>
                 </div>
               </button>
@@ -634,7 +621,7 @@ export function DataSettings() {
                 <AlertTriangle className="size-5" />
               </div>
               <h3 className="text-foreground text-lg font-semibold">
-                {t.settings.dataConfirmTitle || 'Confirm'}
+                {t.settings.dataConfirmTitle}
               </h3>
             </div>
 
@@ -659,7 +646,7 @@ export function DataSettings() {
                   'bg-red-500 text-white hover:bg-red-600'
                 )}
               >
-                {t.settings.dataConfirmClear || 'Yes, Clear'}
+                {t.settings.dataConfirmClear}
               </button>
             </div>
           </div>

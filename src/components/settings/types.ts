@@ -9,7 +9,6 @@ export type { SettingsType, AIProvider };
 export type SettingsCategory =
   | 'account'
   | 'general'
-  | 'workplace'
   | 'model'
   | 'mcp'
   | 'skills'
@@ -23,15 +22,6 @@ export type SettingsCategory =
 export interface SettingsTabProps {
   settings: SettingsType;
   onSettingsChange: (settings: SettingsType) => void;
-}
-
-// Workplace settings props (includes default paths)
-export interface WorkplaceSettingsProps extends SettingsTabProps {
-  defaultPaths: {
-    workDir: string;
-    mcpConfigPath: string;
-    skillsPath: string;
-  };
 }
 
 // Dependency status for workspace settings

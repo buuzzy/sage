@@ -10,7 +10,6 @@ import {
   Clock,
   Cpu,
   Database,
-  FolderOpen,
   Info,
   Plug,
   Server,
@@ -28,7 +27,6 @@ export const categoryIcons: Record<
 > = {
   account: User,
   general: Settings,
-  workplace: FolderOpen,
   model: Cpu,
   mcp: Server,
   skills: Sparkles,
