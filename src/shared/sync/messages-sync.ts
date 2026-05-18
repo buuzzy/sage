@@ -199,7 +199,12 @@ async function tick(): Promise<void> {
         await processQueueRow(row);
         await markDone(row.id);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg =
+          err instanceof Error
+            ? err.message
+            : typeof err === 'object' && err !== null && 'message' in err
+              ? String((err as { message: unknown }).message)
+              : String(err);
         console.warn(
           `[messages-sync] sync failed for ${row.table_name}/${row.id} (retry=${row.retry_count}):`,
           msg
