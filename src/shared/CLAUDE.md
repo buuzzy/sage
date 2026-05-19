@@ -9,7 +9,7 @@
 | hooks/ | Agent 通信 + Provider 配置 + 频道同步 | pages, components | db, sync, lib, config |
 | db/ | 本地 SQLite CRUD（tasks, messages, sessions, files, settings） | hooks, sync, pages | - |
 | sync/ | 云端同步队列（Supabase） | hooks（写入时触发） | db, lib/supabase |
-| lib/ | 工具函数（路径、格式化、token 估算、artifact 解析） | 任何模块 | - |
+| lib/ | 工具函数（路径、格式化、token 估算、artifact 解析、**平台检测**） | 任何模块 | - |
 | providers/ | React Context（auth, theme, language, antd-theme, update） | App.tsx 包裹 | lib/supabase |
 | types/ | TypeScript 类型定义（artifact, persona-memory） | 任何模块 | - |
 | config/ | artifactMapping（URL→组件类型映射） | htui/ArtifactRenderer | - |
@@ -62,6 +62,7 @@
 
 | 文件 | 职责 |
 |------|------|
+| platform.ts | 平台检测（isTauri / isCapacitor / isMobile / isWeb / isDesktop） |
 | supabase.ts | Supabase client 初始化（isTauri 分叉 detectSessionInUrl/flowType） |
 | attachments.ts | 附件存储/加载 |
 | background-tasks.ts | 背景任务生命周期管理 |

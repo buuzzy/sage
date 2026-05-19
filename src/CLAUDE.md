@@ -7,6 +7,7 @@
 | 目录 | 职责 | 稳定度 |
 |------|------|--------|
 | app/pages/ | 5 个页面组件 | 🔧 可修改 |
+| app/pages/task-detail/ | TaskDetail 子组件（MessageList, ErrorMessage, AgentActionBar 等） | 🔧 |
 | components/htui/ | 14 个金融可视化组件 | 详见 htui/CLAUDE.md |
 | components/ui/ | shadcn/ui 基础组件（button, dialog, sheet, tooltip...） | 🔒 不改接口 |
 | components/task/ | 任务渲染（PlanApproval, ToolExecutionItem, QuestionInput） | 🔧 |
