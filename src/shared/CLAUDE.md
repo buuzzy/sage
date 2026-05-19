@@ -37,10 +37,14 @@
 
 | 文件 | 职责 |
 |------|------|
-| database.ts | SQLite 连接初始化 + user binding |
-| index.ts | CRUD 函数导出（createTask, createMessage, getMessagesByTaskId...） |
-| settings.ts | 本地设置读写（getSettings / updateSettings） |
-| types.ts | DB 实体类型定义 |
+| database.ts | 核心基础设施（IndexedDB/SQLite 连接、schema 管理、用户绑定） |
+| sessions.ts | Session CRUD |
+| tasks.ts | Task CRUD |
+| messages.ts | Message CRUD + 备份导入 |
+| files.ts | Library File CRUD |
+| settings.ts | 本地设置读写 |
+| types.ts | 所有 DB 实体类型定义 |
+| index.ts | Barrel re-export（所有模块通过 `@/shared/db` 统一导出） |
 
 ## sync/ 文件清单
 
