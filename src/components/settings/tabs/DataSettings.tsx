@@ -15,7 +15,7 @@ import {
   getAllTasks,
   getCurrentBoundUid,
   getMessagesByTaskId,
-} from '@/shared/db/database';
+} from '@/shared/db';
 import {
   clearAllSettings,
   getSettings,

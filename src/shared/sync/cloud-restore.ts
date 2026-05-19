@@ -1,7 +1,7 @@
 import {
   importBackupData,
   type BackupImportResult,
-} from '@/shared/db/database';
+} from '@/shared/db';
 import { supabase } from '@/shared/lib/supabase';
 
 interface CloudSessionRow {

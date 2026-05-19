@@ -31,7 +31,7 @@ import {
   getMessagesByTaskId,
   getSession,
   getTasksBySessionId,
-} from '@/shared/db/database';
+} from '@/shared/db';
 import { supabase } from '@/shared/lib/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
