@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ImageLogo from '@/assets/logo.png';
 import type { Task } from '@/shared/db';
+import { isMobile } from '@/shared/lib/platform';
 import { cn } from '@/shared/lib/utils';
 import { useAuth } from '@/shared/providers/auth-provider';
 import { useLanguage } from '@/shared/providers/language-provider';
@@ -213,12 +214,16 @@ export function LeftSidebar({
   };
 
   const handleNewTask = () => {
+    if (isMobile) setLeftOpen(false);
     navigate('/');
   };
 
   const handleSelectTask = (taskId: string) => {
     // Skip if already on this task or already loading
     if (taskId === currentTaskId || loadingTaskId) return;
+
+    // Mobile: close drawer after selection
+    if (isMobile) setLeftOpen(false);
 
     // Show loading state immediately
     setLoadingTaskId(taskId);
@@ -242,10 +247,23 @@ export function LeftSidebar({
 
   return (
     <TooltipProvider delayDuration={0}>
+      {/* Mobile: overlay backdrop */}
+      {isMobile && leftOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 transition-opacity"
+          onClick={() => setLeftOpen(false)}
+        />
+      )}
       <aside
         className={cn(
           'border-sidebar-border bg-sidebar flex h-full shrink-0 flex-col border-none transition-all duration-300',
-          leftOpen ? 'w-72' : 'w-14'
+          leftOpen ? 'w-72' : 'w-14',
+          // Mobile: fixed overlay drawer
+          isMobile && 'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[320px] shadow-2xl',
+          isMobile && !leftOpen && '-translate-x-full',
+          isMobile && leftOpen && 'translate-x-0',
+          // Mobile: add safe area padding
+          isMobile && 'pt-[var(--safe-area-top)]'
         )}
       >
         {leftOpen ? (
