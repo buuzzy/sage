@@ -203,9 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           setDbReady(false);
           setDbError(
-            err instanceof Error
-              ? err.message
-              : 'Failed to bind local database'
+            err instanceof Error ? err.message : 'Failed to bind local database'
           );
         }
       }

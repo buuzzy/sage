@@ -18,15 +18,17 @@ interface RestoreCloudConversationsResult extends BackupImportResult {
 }
 
 export async function restoreCloudConversations(): Promise<RestoreCloudConversationsResult> {
-  const [{ data: sessions, error: sessionsError }, { data: tasks, error: tasksError }] =
-    await Promise.all([
-      supabase.from('sessions').select('*').order('updated_at', {
-        ascending: false,
-      }),
-      supabase.from('tasks').select('*').order('created_at', {
-        ascending: true,
-      }),
-    ]);
+  const [
+    { data: sessions, error: sessionsError },
+    { data: tasks, error: tasksError },
+  ] = await Promise.all([
+    supabase.from('sessions').select('*').order('updated_at', {
+      ascending: false,
+    }),
+    supabase.from('tasks').select('*').order('created_at', {
+      ascending: true,
+    }),
+  ]);
 
   if (sessionsError) {
     throw new Error(`Failed to fetch cloud sessions: ${sessionsError.message}`);
@@ -35,15 +37,17 @@ export async function restoreCloudConversations(): Promise<RestoreCloudConversat
     throw new Error(`Failed to fetch cloud tasks: ${tasksError.message}`);
   }
 
-  const [{ data: messages, error: messagesError }, { data: files, error: filesError }] =
-    await Promise.all([
-      supabase.from('messages').select('*').order('created_at', {
-        ascending: true,
-      }),
-      supabase.from('files').select('*').order('created_at', {
-        ascending: true,
-      }),
-    ]);
+  const [
+    { data: messages, error: messagesError },
+    { data: files, error: filesError },
+  ] = await Promise.all([
+    supabase.from('messages').select('*').order('created_at', {
+      ascending: true,
+    }),
+    supabase.from('files').select('*').order('created_at', {
+      ascending: true,
+    }),
+  ]);
 
   if (messagesError) {
     throw new Error(`Failed to fetch cloud messages: ${messagesError.message}`);

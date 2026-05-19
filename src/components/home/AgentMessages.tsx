@@ -418,7 +418,6 @@ export function AgentMessages({ messages, isRunning }: AgentMessagesProps) {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       a: ({ children, href }: any) => (
                         <a
                           href={href}

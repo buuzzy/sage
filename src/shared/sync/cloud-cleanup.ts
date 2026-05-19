@@ -36,10 +36,7 @@
 import { getCurrentBoundUid } from '@/shared/db/database';
 import { supabase } from '@/shared/lib/supabase';
 
-import {
-  startMessageSyncWorker,
-  stopMessageSyncWorker,
-} from './messages-sync';
+import { startMessageSyncWorker, stopMessageSyncWorker } from './messages-sync';
 import { clearQueueForUser } from './sync-queue';
 
 export async function clearCloudConversations(): Promise<void> {
@@ -80,7 +77,9 @@ export async function clearCloudConversations(): Promise<void> {
       .eq('user_id', uid);
     if (behErr) {
       // user_behavior 是 v1.4.0 才上的，旧账号可能没有任何行；不致命
-      console.warn(`[cloud-cleanup] 删除 user_behavior 失败（忽略）：${behErr.message}`);
+      console.warn(
+        `[cloud-cleanup] 删除 user_behavior 失败（忽略）：${behErr.message}`
+      );
     }
   } finally {
     // 5. 重启 worker（即使中途失败也要恢复，否则后续新对话同步会停摆）

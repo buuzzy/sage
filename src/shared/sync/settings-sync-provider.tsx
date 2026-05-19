@@ -14,14 +14,15 @@
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useAuth } from '@/shared/providers/auth-provider';
-import { supabase } from '@/shared/lib/supabase';
 import {
   getSettings,
   saveSettings,
   subscribeSettingsSaved,
   type Settings,
 } from '@/shared/db/settings';
+import { supabase } from '@/shared/lib/supabase';
+import { useAuth } from '@/shared/providers/auth-provider';
+
 import {
   extractSyncable,
   fetchCloudSettings,
@@ -30,7 +31,12 @@ import {
   syncableEqual,
   type SyncablePartial,
 } from './settings-sync';
-import { markFailed, markOk, markSyncing, registerRetryHandler } from './sync-status';
+import {
+  markFailed,
+  markOk,
+  markSyncing,
+  registerRetryHandler,
+} from './sync-status';
 
 const PUSH_DEBOUNCE_MS = 1000;
 

@@ -16,12 +16,10 @@
  *   保证用户老数据也能同步到云端。
  */
 
-import {
-  useEffect,
-  useRef,
-  type ReactNode,
-} from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useAuth } from '@/shared/providers/auth-provider';
+
+import { markSessionDirty, subscribeSessionDirty } from './session-dirty-queue';
 import {
   buildCloudPayload,
   deleteCloudSession,
@@ -29,10 +27,6 @@ import {
   getAllLocalSessionIds,
   upsertCloudSession,
 } from './session-sync';
-import {
-  markSessionDirty,
-  subscribeSessionDirty,
-} from './session-dirty-queue';
 import { markFailed, markOk, markSyncing } from './sync-status';
 
 export function SessionSyncProvider({ children }: { children: ReactNode }) {
@@ -41,8 +35,7 @@ export function SessionSyncProvider({ children }: { children: ReactNode }) {
 
   // 保持 userId 最新，订阅回调里用 ref 读（避免频繁 re-subscribe）
   useEffect(() => {
-    userIdRef.current =
-      status === 'authenticated' && user ? user.id : null;
+    userIdRef.current = status === 'authenticated' && user ? user.id : null;
   }, [status, user]);
 
   // ── 登录后：fetch + backfill ──────────────────────────────────────────────
@@ -58,9 +51,7 @@ export function SessionSyncProvider({ children }: { children: ReactNode }) {
         // 1) 先 fetch 云端（当前只打印）
         const cloud = await fetchCloudSessions();
         if (cancelled) return;
-        console.log(
-          `[session-sync] Fetched ${cloud.length} cloud sessions`
-        );
+        console.log(`[session-sync] Fetched ${cloud.length} cloud sessions`);
 
         // 2) Backfill：本地所有 session 都 markDirty 一次，触发首次上云
         //    已存在的云端记录会被 upsert 覆盖，幂等安全

@@ -17,8 +17,8 @@
  *   • 不订阅 realtime（Phase 5 增强）
  */
 
-import { supabase } from '@/shared/lib/supabase';
 import type { Settings } from '@/shared/db/settings';
+import { supabase } from '@/shared/lib/supabase';
 
 // ─── White-listed keys（只有这些字段会上云） ──────────────────────────────────
 //
@@ -77,10 +77,7 @@ export function mergeCloudIntoLocal(
 }
 
 /** 浅比较两个 SyncablePartial 是否字段一致（避免无意义的 push） */
-export function syncableEqual(
-  a: SyncablePartial,
-  b: SyncablePartial
-): boolean {
+export function syncableEqual(a: SyncablePartial, b: SyncablePartial): boolean {
   for (const key of SYNCABLE_KEYS) {
     if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) return false;
   }
@@ -125,15 +122,13 @@ export async function pushCloudSettings(
   userId: string,
   partial: SyncablePartial
 ): Promise<void> {
-  const { error } = await supabase
-    .from('user_settings')
-    .upsert(
-      {
-        user_id: userId,
-        settings: partial,
-      },
-      { onConflict: 'user_id' }
-    );
+  const { error } = await supabase.from('user_settings').upsert(
+    {
+      user_id: userId,
+      settings: partial,
+    },
+    { onConflict: 'user_id' }
+  );
 
   if (error) {
     throw new Error(`[settings-sync] pushCloudSettings: ${error.message}`);

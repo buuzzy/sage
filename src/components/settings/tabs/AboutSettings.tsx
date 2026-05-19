@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import ImageLogo from '@/assets/logo.png';
+import { supabaseMeta } from '@/shared/lib/supabase';
 import { useLanguage } from '@/shared/providers/language-provider';
 import { useUpdate } from '@/shared/providers/update-provider';
-import { supabaseMeta } from '@/shared/lib/supabase';
 import { getVersion } from '@tauri-apps/api/app';
 import {
   CheckCircle,
@@ -61,7 +61,11 @@ export function AboutSettings() {
         disabled: true,
       };
     }
-    if (status === 'downloading' || status === 'ready' || status === 'installing') {
+    if (
+      status === 'downloading' ||
+      status === 'ready' ||
+      status === 'installing'
+    ) {
       const pct = progress !== null ? Math.round(progress * 100) : null;
       return {
         icon:
@@ -148,10 +152,8 @@ export function AboutSettings() {
   })();
 
   const variantClasses: Record<ButtonVariant, string> = {
-    primary:
-      'bg-primary text-primary-foreground hover:bg-primary/90',
-    neutral:
-      'border-border bg-muted text-foreground hover:bg-accent border',
+    primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    neutral: 'border-border bg-muted text-foreground hover:bg-accent border',
     danger:
       'border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/20 border',
   };

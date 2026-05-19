@@ -25,7 +25,7 @@ const isTauri =
 
 export const API_BASE_URL = isTauri
   ? `http://127.0.0.1:${API_PORT}`
-  : (import.meta.env.VITE_API_URL || `http://localhost:${API_PORT}`);
+  : import.meta.env.VITE_API_URL || `http://localhost:${API_PORT}`;
 
 // =============================================================================
 // App Configuration

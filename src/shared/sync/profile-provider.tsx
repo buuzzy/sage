@@ -26,8 +26,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useAuth } from '@/shared/providers/auth-provider';
 import { supabase } from '@/shared/lib/supabase';
+import { useAuth } from '@/shared/providers/auth-provider';
+
 import {
   deriveFallbackFromUser,
   syncProfileOnLogin,
@@ -35,7 +36,12 @@ import {
   type CloudProfile,
   type ProfileUpdate,
 } from './profile-sync';
-import { markFailed, markOk, markSyncing, registerRetryHandler } from './sync-status';
+import {
+  markFailed,
+  markOk,
+  markSyncing,
+  registerRetryHandler,
+} from './sync-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -64,7 +70,8 @@ function detectPlatform(): string {
 }
 
 const ENV_INFO = {
-  app_version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0',
+  app_version:
+    typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0',
   platform: detectPlatform(),
 };
 

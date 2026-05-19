@@ -746,7 +746,9 @@ export function SkillsSettings({
                     setShowGitHubImport(false);
                     setGithubUrl('');
                     // Reload skills
-                    loadSkillsFromPath(skillsDirs.user || settings.skillsPath || '');
+                    loadSkillsFromPath(
+                      skillsDirs.user || settings.skillsPath || ''
+                    );
                   } else {
                     const message = data.error || 'Import failed';
                     setImportError(message);

@@ -19,8 +19,8 @@ import {
 } from '@/shared/db';
 import {
   useAgent,
-  type AgentPhase,
   type AgentMessage,
+  type AgentPhase,
   type MessageAttachment,
 } from '@/shared/hooks/useAgent';
 import { useChannelSync } from '@/shared/hooks/useChannelSync';
@@ -1234,7 +1234,7 @@ function UserMessage({
           </div>
         )}
         {content && (
-          <p className="text-foreground wrap-break-word text-sm whitespace-pre-wrap">
+          <p className="text-foreground text-sm wrap-break-word whitespace-pre-wrap">
             {content}
           </p>
         )}
@@ -1572,7 +1572,7 @@ function TaskGroupComponent({
                 <div className="bg-primary size-2 animate-pulse rounded-full" />
               </div>
             )}
-            <span className="text-foreground line-clamp-2 wrap-break-word min-w-0 text-sm font-medium">
+            <span className="text-foreground line-clamp-2 min-w-0 text-sm font-medium wrap-break-word">
               {title}
             </span>
           </div>

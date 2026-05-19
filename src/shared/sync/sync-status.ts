@@ -179,7 +179,9 @@ export async function retryFailedChannels(
   if (retryInFlight) return;
 
   const now = Date.now();
-  const failed = (Object.entries(snapshot.channels) as [SyncChannel, ChannelSnapshot][])
+  const failed = (
+    Object.entries(snapshot.channels) as [SyncChannel, ChannelSnapshot][]
+  )
     .filter(([, c]) => c.state === 'failed')
     .filter(([, c]) => {
       if (options.force) return true;
@@ -204,7 +206,10 @@ export async function retryFailedChannels(
         try {
           await handler();
         } catch (err) {
-          console.warn(`[sync-status] retry handler for ${channel} threw:`, err);
+          console.warn(
+            `[sync-status] retry handler for ${channel} threw:`,
+            err
+          );
         }
       }
     }

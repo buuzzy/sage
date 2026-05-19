@@ -58,7 +58,8 @@ function extractAssetMentions(text: string): string[] {
   const out = new Set<string>();
 
   // A 股前缀形式：sh600519 / SZ 000001
-  const reAStockPrefix = /(?:^|[\s,.;:!?(\[\u3000])(sh|sz|SH|SZ)\s*0*(\d{6})\b/g;
+  const reAStockPrefix =
+    /(?:^|[\s,.;:!?(\[\u3000])(sh|sz|SH|SZ)\s*0*(\d{6})\b/g;
   for (const m of text.matchAll(reAStockPrefix)) {
     if (m[1] && m[2]) out.add(m[1].toLowerCase() + m[2]);
   }

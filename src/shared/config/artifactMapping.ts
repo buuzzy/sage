@@ -1,6 +1,6 @@
 /**
  * Artifact Mapping Configuration
- * 
+ *
  * Maps (skill, action) tuples to artifact component types for deterministic rendering.
  * This enables the frontend to automatically select the correct component without
  * relying on explicit artifact blocks or implicit response structure detection.
@@ -16,8 +16,8 @@ type MappingType = ArtifactType | 'text';
  * Tool metadata structure parsed from skill responses
  */
 export interface ToolMetadata {
-  skill: string;      // e.g., "westock-quote", "westock-market"
-  action: string;     // e.g., "stock_quote_snapshot", "hot_stock"
+  skill: string; // e.g., "westock-quote", "westock-market"
+  action: string; // e.g., "stock_quote_snapshot", "hot_stock"
   list_code?: string; // Optional: for screener list queries like "macro_cpi_ppi"
 }
 
@@ -26,28 +26,28 @@ export interface ToolMetadata {
  */
 const SKILL_ACTION_MAPPING: Record<string, Record<string, MappingType>> = {
   'westock-quote': {
-    'stock_quote_snapshot': 'quote-card',
-    'stock_quote_history': 'kline-chart',
+    stock_quote_snapshot: 'quote-card',
+    stock_quote_history: 'kline-chart',
   },
   'westock-market': {
-    'stock_search': 'text',
-    'hot_stock': 'data-table',
-    'hot_board': 'data-table',
-    'ipo_calendar': 'data-table',
-    'finance_calendar': 'data-table',
-    'watchlist_rank': 'data-table',
+    stock_search: 'text',
+    hot_stock: 'data-table',
+    hot_board: 'data-table',
+    ipo_calendar: 'data-table',
+    finance_calendar: 'data-table',
+    watchlist_rank: 'data-table',
   },
   'westock-research': {
-    'stock_report': 'data-table',
-    'research_report_curated': 'data-table',
-    'announcement_list': 'data-table',
-    'announcement_content': 'text',
-    'market_news': 'news-list',
+    stock_report: 'data-table',
+    research_report_curated: 'data-table',
+    announcement_list: 'data-table',
+    announcement_content: 'text',
+    market_news: 'news-list',
   },
   'westock-screener': {
-    'stock_filter_query': 'data-table',
+    stock_filter_query: 'data-table',
     // For query_list_data_by_date, artifact type depends on list_code
-    'query_list_data_by_date': 'data-table', // default fallback
+    query_list_data_by_date: 'data-table', // default fallback
   },
 };
 
@@ -57,32 +57,34 @@ const SKILL_ACTION_MAPPING: Record<string, Record<string, MappingType>> = {
  */
 const SCREENER_LIST_CODE_MAPPING: Record<string, MappingType> = {
   // Index and board lists
-  'index_list': 'data-table',
-  'industry_list': 'data-table',
-  'industry_list_sw1': 'data-table',
-  'industry_list_sw2': 'data-table',
-  'industry_list_sw3': 'data-table',
-  'sh_connected_stocks': 'data-table',
-  'sz_connected_stocks': 'data-table',
+  index_list: 'data-table',
+  industry_list: 'data-table',
+  industry_list_sw1: 'data-table',
+  industry_list_sw2: 'data-table',
+  industry_list_sw3: 'data-table',
+  sh_connected_stocks: 'data-table',
+  sz_connected_stocks: 'data-table',
   // Macro indicators (time series)
-  'macro_cpi_ppi': 'line-chart',
-  'macro_gdp': 'line-chart',
-  'macro_pmi': 'line-chart',
-  'macro_fundquantity': 'line-chart',
-  'macro_consumption': 'line-chart',
+  macro_cpi_ppi: 'line-chart',
+  macro_gdp: 'line-chart',
+  macro_pmi: 'line-chart',
+  macro_fundquantity: 'line-chart',
+  macro_consumption: 'line-chart',
   // Macro indicators (snapshot/summary)
-  'macro_financing': 'data-table',
-  'macro_profit': 'data-table',
-  'macro_core_indicatros_cur': 'data-table',
+  macro_financing: 'data-table',
+  macro_profit: 'data-table',
+  macro_core_indicatros_cur: 'data-table',
 };
 
 /**
  * Determine artifact type from tool metadata
- * 
+ *
  * @param metadata - Tool metadata extracted from skill response
  * @returns Artifact type to render, or null if not determinable
  */
-export function determineArtifactType(metadata: ToolMetadata): ArtifactType | null {
+export function determineArtifactType(
+  metadata: ToolMetadata
+): ArtifactType | null {
   const { skill, action, list_code } = metadata;
 
   // Validate inputs
@@ -92,7 +94,11 @@ export function determineArtifactType(metadata: ToolMetadata): ArtifactType | nu
   }
 
   // Handle westock-screener with list_code
-  if (skill === 'westock-screener' && action === 'query_list_data_by_date' && list_code) {
+  if (
+    skill === 'westock-screener' &&
+    action === 'query_list_data_by_date' &&
+    list_code
+  ) {
     const mapped = SCREENER_LIST_CODE_MAPPING[list_code];
     if (mapped && mapped !== 'text') {
       return mapped;
@@ -126,11 +132,13 @@ export function determineArtifactType(metadata: ToolMetadata): ArtifactType | nu
 
 /**
  * Parse tool metadata from JSON string (as stored in database)
- * 
+ *
  * @param jsonStr - JSON string of ToolMetadata from database
  * @returns Parsed metadata or null if invalid
  */
-export function parseToolMetadata(jsonStr: string | null | undefined): ToolMetadata | null {
+export function parseToolMetadata(
+  jsonStr: string | null | undefined
+): ToolMetadata | null {
   if (!jsonStr) return null;
   try {
     return JSON.parse(jsonStr) as ToolMetadata;
@@ -154,12 +162,12 @@ export function getRegisteredArtifactTypes(): ArtifactType[] {
   const types = new Set<MappingType>();
 
   // Collect from skill-action mapping
-  Object.values(SKILL_ACTION_MAPPING).forEach(actionMap => {
-    Object.values(actionMap).forEach(type => types.add(type));
+  Object.values(SKILL_ACTION_MAPPING).forEach((actionMap) => {
+    Object.values(actionMap).forEach((type) => types.add(type));
   });
 
   // Collect from list code mapping
-  Object.values(SCREENER_LIST_CODE_MAPPING).forEach(type => types.add(type));
+  Object.values(SCREENER_LIST_CODE_MAPPING).forEach((type) => types.add(type));
 
   // Filter out 'text' sentinel
   types.delete('text');

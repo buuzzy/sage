@@ -43,9 +43,10 @@ export interface ProfileUpdate {
  * GitHub: full_name / name / user_name + avatar_url
  * Google: full_name / name + avatar_url / picture
  */
-export function deriveFallbackFromUser(
-  user: User | null
-): { display_name: string | null; avatar_url: string | null } {
+export function deriveFallbackFromUser(user: User | null): {
+  display_name: string | null;
+  avatar_url: string | null;
+} {
   if (!user) return { display_name: null, avatar_url: null };
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const display_name =

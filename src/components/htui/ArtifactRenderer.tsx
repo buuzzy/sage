@@ -16,11 +16,11 @@ import type {
   StockSnapshotData,
 } from '@/shared/types/artifact';
 
+import DataTable from './DataTable/DataTable';
+import KLineChart from './KLineChart/KLineChart';
 // High-frequency components: static import to avoid Suspense flash on first render.
 // These chunks are tiny (2-8KB each) so the bundle size cost is negligible.
 import QuoteCard from './QuoteCard/QuoteCard';
-import KLineChart from './KLineChart/KLineChart';
-import DataTable from './DataTable/DataTable';
 
 // Low-frequency components: keep lazy to reduce initial bundle size.
 const NewsCard = lazy(() => import('./NewsCard/NewsCard'));

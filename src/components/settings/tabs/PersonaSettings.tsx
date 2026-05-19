@@ -13,9 +13,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useLanguage } from '@/shared/providers/language-provider';
-import { supabase } from '@/shared/lib/supabase';
 import { getCurrentBoundUid } from '@/shared/db/database';
+import { supabase } from '@/shared/lib/supabase';
+import { useLanguage } from '@/shared/providers/language-provider';
 import {
   EMPTY_PROFILE,
   type FocusUniverseDeclared,
@@ -134,17 +134,15 @@ export function PersonaSettings() {
     setBusy(true);
     try {
       // upsert：如果 row 不存在（用户从未蒸馏过）也允许写入空 row + 删除标记
-      const { error: dbErr } = await supabase
-        .from('persona_memory')
-        .upsert(
-          {
-            user_id: uid,
-            profile: next,
-            recent_threads: row?.recent_threads ?? [],
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        );
+      const { error: dbErr } = await supabase.from('persona_memory').upsert(
+        {
+          user_id: uid,
+          profile: next,
+          recent_threads: row?.recent_threads ?? [],
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
       if (dbErr) throw new Error(dbErr.message);
       setRow((prev) =>
         prev
@@ -207,7 +205,7 @@ export function PersonaSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-2 py-12 text-sm">
         <Loader2 className="size-4 animate-spin" />
         {lang === 'zh' ? '加载中…' : 'Loading…'}
       </div>
@@ -247,13 +245,13 @@ export function PersonaSettings() {
     <div className="space-y-6">
       {/* Header: distilled time + refresh */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-muted-foreground text-sm">
           {lang === 'zh' ? '上次更新：' : 'Last updated: '}
           {formatTime(row?.last_distilled_at ?? null, lang)}
         </div>
         <button
           onClick={() => void fetchPersona()}
-          className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          className="border-border text-muted-foreground hover:bg-accent hover:text-foreground flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors disabled:opacity-50"
           disabled={busy}
           title={lang === 'zh' ? '刷新' : 'Refresh'}
         >
@@ -272,19 +270,19 @@ export function PersonaSettings() {
       {/* Explicit section */}
       <section>
         <div className="mb-2 flex items-center gap-2">
-          <UserCircle className="size-4 text-foreground" />
+          <UserCircle className="text-foreground size-4" />
           <h3 className="text-sm font-semibold">
             {lang === 'zh' ? '你的明确声明' : 'Your declared rules'}
           </h3>
         </div>
-        <p className="mb-3 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mb-3 text-xs">
           {lang === 'zh'
             ? 'Sage 从对话中识别你立的规则、关注与排除。可在此撤销。'
             : 'Rules, focus, and exclusions identified from your conversations. You can revoke any item here.'}
         </p>
 
         {noExplicit ? (
-          <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+          <div className="border-border bg-muted/30 text-muted-foreground rounded-md border px-3 py-3 text-xs">
             {lang === 'zh'
               ? '尚无明确声明。在对话中告诉 Sage「以后不要 X」、「我开始研究 Y 了」等表达，蒸馏后会出现在这里。'
               : 'No declarations yet. Tell Sage things like "Never recommend X" or "I focus on Y" — they will appear here after distillation.'}
@@ -292,7 +290,7 @@ export function PersonaSettings() {
         ) : (
           <div className="space-y-3">
             <div>
-              <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <div className="text-muted-foreground mb-1.5 text-xs font-medium">
                 {lang === 'zh' ? '硬规则' : 'Hard rules'}
               </div>
               {hardRules.length > 0 ? (
@@ -300,13 +298,13 @@ export function PersonaSettings() {
                   {hardRules.map((r: HardRule) => (
                     <li
                       key={r.id}
-                      className="flex items-start gap-2 rounded-md border border-border bg-background px-3 py-2"
+                      className="border-border bg-background flex items-start gap-2 rounded-md border px-3 py-2"
                     >
                       <span className="flex-1 text-sm">{r.content}</span>
                       <button
                         onClick={() => deleteHardRule(r.id)}
                         disabled={busy}
-                        className="flex cursor-pointer items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive flex cursor-pointer items-center justify-center rounded p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                         title={lang === 'zh' ? '删除' : 'Delete'}
                       >
                         <Trash2 className="size-3.5" />
@@ -315,16 +313,14 @@ export function PersonaSettings() {
                   ))}
                 </ul>
               ) : (
-                <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                  {lang === 'zh'
-                    ? '暂无硬规则'
-                    : 'No hard rules yet'}
+                <div className="border-border bg-muted/20 text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
+                  {lang === 'zh' ? '暂无硬规则' : 'No hard rules yet'}
                 </div>
               )}
             </div>
 
             <div>
-              <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <div className="text-muted-foreground mb-1.5 text-xs font-medium">
                 {lang === 'zh' ? '主动关注' : 'Focused on'}
               </div>
               {declared.length > 0 ? (
@@ -332,12 +328,12 @@ export function PersonaSettings() {
                   {declared.map((d: FocusUniverseDeclared, idx) => (
                     <li
                       key={idx}
-                      className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2"
+                      className="border-border bg-background flex items-center gap-2 rounded-md border px-3 py-2"
                     >
                       <span className="flex-1 text-sm">
                         {d.name}
                         {d.code ? (
-                          <span className="ml-1 text-muted-foreground">
+                          <span className="text-muted-foreground ml-1">
                             ({d.code})
                           </span>
                         ) : null}
@@ -345,7 +341,7 @@ export function PersonaSettings() {
                       <button
                         onClick={() => deleteDeclared(idx)}
                         disabled={busy}
-                        className="flex cursor-pointer items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive flex cursor-pointer items-center justify-center rounded p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                         title={lang === 'zh' ? '删除' : 'Delete'}
                       >
                         <Trash2 className="size-3.5" />
@@ -354,7 +350,7 @@ export function PersonaSettings() {
                   ))}
                 </ul>
               ) : (
-                <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                <div className="border-border bg-muted/20 text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
                   {lang === 'zh'
                     ? '暂无主动关注的对象'
                     : 'No declared focus yet'}
@@ -363,7 +359,7 @@ export function PersonaSettings() {
             </div>
 
             <div>
-              <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <div className="text-muted-foreground mb-1.5 text-xs font-medium">
                 {lang === 'zh' ? '主动排除' : 'Excluded from focus'}
               </div>
               {exclusions.length > 0 ? (
@@ -371,13 +367,13 @@ export function PersonaSettings() {
                   {exclusions.map((e: FocusUniverseExclusion, idx) => (
                     <li
                       key={idx}
-                      className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2"
+                      className="border-border bg-background flex items-center gap-2 rounded-md border px-3 py-2"
                     >
                       <span className="flex-1 text-sm">{e.value}</span>
                       <button
                         onClick={() => deleteExclusion(idx)}
                         disabled={busy}
-                        className="flex cursor-pointer items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive flex cursor-pointer items-center justify-center rounded p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                         title={lang === 'zh' ? '删除' : 'Delete'}
                       >
                         <Trash2 className="size-3.5" />
@@ -386,10 +382,8 @@ export function PersonaSettings() {
                   ))}
                 </ul>
               ) : (
-                <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                  {lang === 'zh'
-                    ? '暂无主动排除的对象'
-                    : 'No exclusions yet'}
+                <div className="border-border bg-muted/20 text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
+                  {lang === 'zh' ? '暂无主动排除的对象' : 'No exclusions yet'}
                 </div>
               )}
             </div>
@@ -400,32 +394,30 @@ export function PersonaSettings() {
       {/* Implicit section */}
       <section>
         <div className="mb-2 flex items-center gap-2">
-          <Sparkles className="size-4 text-foreground" />
+          <Sparkles className="text-foreground size-4" />
           <h3 className="text-sm font-semibold">
-            {lang === 'zh'
-              ? 'Sage 对你的观察'
-              : "Sage's observations of you"}
+            {lang === 'zh' ? 'Sage 对你的观察' : "Sage's observations of you"}
           </h3>
         </div>
-        <p className="mb-3 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mb-3 text-xs">
           {lang === 'zh'
             ? '基于以往对话蒸馏的画像，由 AI 每天自动更新，仅供参考。'
             : 'Distilled from past conversations, refreshed daily by AI. Inferences only.'}
         </p>
 
         {noImplicit ? (
-          <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+          <div className="border-border bg-muted/30 text-muted-foreground rounded-md border px-3 py-3 text-xs">
             {lang === 'zh'
               ? '画像还没建立。多和 Sage 聊一些金融问题，蒸馏会逐步识别你的偏好。'
               : 'Profile is still empty. Talk more with Sage so it can identify your preferences.'}
           </div>
         ) : (
-          <div className="space-y-3 rounded-md border border-border bg-background p-4">
+          <div className="border-border bg-background space-y-3 rounded-md border p-4">
             {/* Risk + capability + preferences */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {profile.implicit?.risk_tolerance && (
                 <div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {lang === 'zh' ? '风险偏好' : 'Risk tolerance'}
                   </div>
                   <div className="text-sm">
@@ -436,7 +428,7 @@ export function PersonaSettings() {
               )}
               {profile.implicit?.capability_level && (
                 <div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {lang === 'zh' ? '能力水平' : 'Capability level'}
                   </div>
                   <div className="text-sm">
@@ -447,7 +439,7 @@ export function PersonaSettings() {
               )}
               {prefs.language && (
                 <div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {lang === 'zh' ? '语言偏好' : 'Language preference'}
                   </div>
                   <div className="text-sm">{prefs.language}</div>
@@ -455,7 +447,7 @@ export function PersonaSettings() {
               )}
               {prefs.explanation_style && (
                 <div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {lang === 'zh' ? '解释风格' : 'Explanation style'}
                   </div>
                   <div className="text-sm">{prefs.explanation_style}</div>
@@ -463,7 +455,7 @@ export function PersonaSettings() {
               )}
               {prefs.response_length && (
                 <div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {lang === 'zh' ? '回应详略' : 'Response length'}
                   </div>
                   <div className="text-sm">{prefs.response_length}</div>
@@ -474,20 +466,18 @@ export function PersonaSettings() {
             {/* Active focus */}
             {active.length > 0 && (
               <div>
-                <div className="mb-1.5 text-xs text-muted-foreground">
-                  {lang === 'zh'
-                    ? '近期常聊到的对象'
-                    : 'Frequently discussed'}
+                <div className="text-muted-foreground mb-1.5 text-xs">
+                  {lang === 'zh' ? '近期常聊到的对象' : 'Frequently discussed'}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {active.slice(0, 12).map((a, idx) => (
                     <span
                       key={idx}
-                      className="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs"
+                      className="border-border bg-muted/50 rounded-md border px-2 py-0.5 text-xs"
                     >
                       {a.name}
                       {a.code ? (
-                        <span className="ml-1 text-muted-foreground">
+                        <span className="text-muted-foreground ml-1">
                           ({a.code})
                         </span>
                       ) : null}
@@ -500,12 +490,12 @@ export function PersonaSettings() {
             {/* Phase 4 / L4-light 行为摘要 */}
             {behaviorSummary && (
               <div>
-                <div className="mb-1.5 text-xs text-muted-foreground">
+                <div className="text-muted-foreground mb-1.5 text-xs">
                   {lang === 'zh'
                     ? '最近这阵子整体印象（90 天行为聚合）'
                     : 'Recent activity summary (90-day rollup)'}
                 </div>
-                <div className="rounded-md bg-muted/40 p-2.5 text-xs leading-relaxed">
+                <div className="bg-muted/40 rounded-md p-2.5 text-xs leading-relaxed">
                   {behaviorSummary}
                 </div>
               </div>
@@ -514,7 +504,7 @@ export function PersonaSettings() {
             {/* Recent views */}
             {views.length > 0 && (
               <div>
-                <div className="mb-1.5 text-xs text-muted-foreground">
+                <div className="text-muted-foreground mb-1.5 text-xs">
                   {lang === 'zh'
                     ? '近期观点（用户当前持有的看法，可能会变）'
                     : 'Recent views (current opinions, may evolve)'}
@@ -535,7 +525,7 @@ export function PersonaSettings() {
         )}
       </section>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         {lang === 'zh'
           ? '画像由 AI 蒸馏自动产生，每天更新一次。明确声明可在此撤销；观察类信息会跟随你的对话演化。'
           : 'Profile is auto-distilled and refreshed daily. Declared rules can be revoked here; observation fields evolve with your conversations.'}

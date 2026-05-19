@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useLanguage } from '@/shared/providers/language-provider';
 import { useDisplayIdentity, useProfile } from '@/shared/sync';
 import { Camera, User } from 'lucide-react';
+
 import { AvatarImage } from '@/components/layout/avatar-image';
 
 import type { SettingsTabProps } from '../types';

@@ -120,17 +120,21 @@ export function enqueueMessageInsert(msg: Message): void {
 }
 
 export function enqueueTaskUpsert(task: Task, userId: string): void {
-  void enqueueSync('tasks', 'upsert', transformTaskForCloud(task, userId)).catch(
-    (err) => {
-      console.error('[messages-sync] task enqueue failed:', err);
-    }
-  );
+  void enqueueSync(
+    'tasks',
+    'upsert',
+    transformTaskForCloud(task, userId)
+  ).catch((err) => {
+    console.error('[messages-sync] task enqueue failed:', err);
+  });
 }
 
 export function enqueueFileUpsert(file: LibraryFile): void {
-  void enqueueSync('files', 'upsert', transformFileForCloud(file)).catch((err) => {
-    console.error('[messages-sync] file enqueue failed:', err);
-  });
+  void enqueueSync('files', 'upsert', transformFileForCloud(file)).catch(
+    (err) => {
+      console.error('[messages-sync] file enqueue failed:', err);
+    }
+  );
 }
 
 // ─── Worker ──────────────────────────────────────────────────────────────────

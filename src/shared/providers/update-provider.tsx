@@ -20,8 +20,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { check, type Update } from '@tauri-apps/plugin-updater';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -247,17 +247,13 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
 
   const dismiss = useCallback(() => {
     setState((s) =>
-      s.latestVersion
-        ? { ...s, dismissedVersion: s.latestVersion }
-        : s
+      s.latestVersion ? { ...s, dismissedVersion: s.latestVersion } : s
     );
   }, []);
 
   const markAboutSeen = useCallback(() => {
     setState((s) =>
-      s.latestVersion
-        ? { ...s, aboutSeenVersion: s.latestVersion }
-        : s
+      s.latestVersion ? { ...s, aboutSeenVersion: s.latestVersion } : s
     );
   }, []);
 

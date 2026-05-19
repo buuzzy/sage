@@ -200,7 +200,8 @@ function ResearchConsensus({ data }: Props) {
                     className="rc-rating-badge"
                     style={{
                       color:
-                        RATING_COLORS[normalizeRating(item.rating)] ?? 'var(--text-secondary)',
+                        RATING_COLORS[normalizeRating(item.rating)] ??
+                        'var(--text-secondary)',
                     }}
                   >
                     {normalizeRating(item.rating)}

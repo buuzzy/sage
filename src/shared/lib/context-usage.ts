@@ -111,7 +111,8 @@ function formatEstimatedConversationContext(
   if (conversation.length === 0) return '';
 
   const parts = ['## Recent Conversation\n'];
-  let tokenBudget = Math.max(1, maxHistoryTokens || 12000) - estimateTokens(parts.join(''));
+  let tokenBudget =
+    Math.max(1, maxHistoryTokens || 12000) - estimateTokens(parts.join(''));
   const recentParts: string[] = [];
 
   for (let i = conversation.length - 1; i >= 0; i--) {

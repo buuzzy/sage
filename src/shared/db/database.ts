@@ -1158,7 +1158,10 @@ export async function importBackupData(
   }
 
   const db = await getIndexedDB();
-  const tx = db.transaction(['sessions', 'tasks', 'messages', 'files'], 'readwrite');
+  const tx = db.transaction(
+    ['sessions', 'tasks', 'messages', 'files'],
+    'readwrite'
+  );
   const sessionStore = tx.objectStore('sessions');
   const taskStore = tx.objectStore('tasks');
   const messageStore = tx.objectStore('messages');
@@ -1335,7 +1338,12 @@ export async function updateTaskFromMessage(
       );
     } else {
       // Other errors
-      await updateTask(taskId, { status: 'error', cost, duration, provider_usage });
+      await updateTask(taskId, {
+        status: 'error',
+        cost,
+        duration,
+        provider_usage,
+      });
     }
   } else if (messageType === 'error') {
     await updateTask(taskId, { status: 'error' });

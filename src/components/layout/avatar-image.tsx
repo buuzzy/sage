@@ -15,9 +15,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { cn } from '@/shared/lib/utils';
 import { useSyncStatus } from '@/shared/sync';
 import { User } from 'lucide-react';
-import { cn } from '@/shared/lib/utils';
 
 interface Props {
   src: string;
@@ -41,12 +41,7 @@ function bustUrl(url: string, n: number): string {
   }
 }
 
-export function AvatarImage({
-  src,
-  alt,
-  className,
-  iconClassName,
-}: Props) {
+export function AvatarImage({ src, alt, className, iconClassName }: Props) {
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const prevOverallRef = useRef(useSyncStatus().overall);

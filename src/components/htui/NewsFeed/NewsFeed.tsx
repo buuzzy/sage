@@ -1,5 +1,9 @@
 import { formatPercent } from '@/shared/lib/format';
-import type { NewsFeedData, NewsFeedItem, NewsFeedSentimentSummary } from '@/shared/types/artifact';
+import type {
+  NewsFeedData,
+  NewsFeedItem,
+  NewsFeedSentimentSummary,
+} from '@/shared/types/artifact';
 
 import './NewsFeed.css';
 
@@ -41,9 +45,15 @@ function SentimentBar({ summary }: { summary: NewsFeedSentimentSummary }) {
           {overallCfg.label}偏多
         </span>
         <div className="nf-ss-counts">
-          <span style={{ color: SENTIMENT_CONFIG.bullish.dot }}>{summary.bullish} 利好</span>
-          <span style={{ color: SENTIMENT_CONFIG.neutral.dot }}>{summary.neutral} 中性</span>
-          <span style={{ color: SENTIMENT_CONFIG.bearish.dot }}>{summary.bearish} 利空</span>
+          <span style={{ color: SENTIMENT_CONFIG.bullish.dot }}>
+            {summary.bullish} 利好
+          </span>
+          <span style={{ color: SENTIMENT_CONFIG.neutral.dot }}>
+            {summary.neutral} 中性
+          </span>
+          <span style={{ color: SENTIMENT_CONFIG.bearish.dot }}>
+            {summary.bearish} 利空
+          </span>
         </div>
       </div>
       <div className="nf-ss-bar">
@@ -57,9 +67,7 @@ function SentimentBar({ summary }: { summary: NewsFeedSentimentSummary }) {
           <div className="nf-ss-seg bearish" style={{ width: `${bearPct}%` }} />
         )}
       </div>
-      {summary.summary && (
-        <p className="nf-ss-text">{summary.summary}</p>
-      )}
+      {summary.summary && <p className="nf-ss-text">{summary.summary}</p>}
     </div>
   );
 }

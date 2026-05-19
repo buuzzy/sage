@@ -1,6 +1,6 @@
 /**
  * Tool Metadata Extraction Utilities
- * 
+ *
  * Handles extraction and parsing of tool_metadata from skill responses
  * for deterministic artifact mapping.
  */
@@ -9,7 +9,7 @@ import type { ToolMetadata } from '@/shared/config/artifactMapping';
 
 /**
  * Extract tool metadata from tool output JSON string
- * 
+ *
  * Looks for _metadata field in the JSON response, following this structure:
  * ```json
  * {
@@ -22,7 +22,7 @@ import type { ToolMetadata } from '@/shared/config/artifactMapping';
  *   }
  * }
  * ```
- * 
+ *
  * @param toolOutput - JSON string returned by tool
  * @param toolName - Name of the tool (for context/debugging)
  * @returns Parsed ToolMetadata or null if not found/invalid
@@ -48,7 +48,9 @@ export function extractToolMetadata(
         return {
           skill: String(metadata.skill),
           action: String(metadata.action),
-          list_code: metadata.list_code ? String(metadata.list_code) : undefined,
+          list_code: metadata.list_code
+            ? String(metadata.list_code)
+            : undefined,
         };
       }
     }
@@ -68,7 +70,7 @@ export function extractToolMetadata(
 
 /**
  * Extract metadata from a tool result message
- * 
+ *
  * @param toolName - Name of the tool
  * @param toolOutput - Tool output string
  * @returns Metadata object or null
@@ -88,12 +90,17 @@ export function extractMetadataFromToolResult(
 /**
  * Serialize metadata for storage in database
  */
-export function serializeMetadata(metadata: ToolMetadata | null): string | null {
+export function serializeMetadata(
+  metadata: ToolMetadata | null
+): string | null {
   if (!metadata) return null;
   try {
     return JSON.stringify(metadata);
   } catch (error) {
-    console.error('[toolMetadataExtractor] Failed to serialize metadata:', error);
+    console.error(
+      '[toolMetadataExtractor] Failed to serialize metadata:',
+      error
+    );
     return null;
   }
 }

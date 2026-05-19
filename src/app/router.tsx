@@ -1,5 +1,11 @@
 import { createBrowserRouter } from 'react-router-dom';
-import { HomePage, LibraryPage, LoginPage, SetupPage, TaskDetailPage } from '@/app/pages';
+import {
+  HomePage,
+  LibraryPage,
+  LoginPage,
+  SetupPage,
+  TaskDetailPage,
+} from '@/app/pages';
 
 import { AuthGuard } from '@/components/auth-guard';
 import { SetupGuard } from '@/components/setup-guard';

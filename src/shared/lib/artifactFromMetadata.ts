@@ -6,13 +6,15 @@
  * based on skill/action combinations without requiring explicit artifact blocks.
  */
 
+import {
+  determineArtifactType,
+  parseToolMetadata,
+} from '@/shared/config/artifactMapping';
 import type { Artifact } from '@/shared/types/artifact';
-import { determineArtifactType } from '@/shared/config/artifactMapping';
-import { parseToolMetadata } from '@/shared/config/artifactMapping';
 
 /**
  * Generate an Artifact from tool metadata and output
- * 
+ *
  * @param toolName - Name of the tool (e.g., "Skill")
  * @param toolOutput - Raw tool output string
  * @param toolMetadataJson - JSON string of tool metadata from database
@@ -73,9 +75,9 @@ export function generateArtifactFromMetadata(
 
 /**
  * Generate artifacts from a message that has tool metadata
- * 
+ *
  * Typically called for tool_result messages to create implicit artifacts
- * 
+ *
  * @param message - Message object with tool metadata fields
  * @returns Array of generated artifacts (0 or 1 items)
  */

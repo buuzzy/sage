@@ -13,6 +13,7 @@ import {
   getAllFiles,
   getAllSessions,
   getAllTasks,
+  getCurrentBoundUid,
   getMessagesByTaskId,
 } from '@/shared/db/database';
 import {
@@ -20,10 +21,8 @@ import {
   getSettings,
   type Settings,
 } from '@/shared/db/settings';
-import { getPathSeparator } from '@/shared/lib/paths';
-import { getSessionsDir } from '@/shared/lib/paths';
+import { getPathSeparator, getSessionsDir } from '@/shared/lib/paths';
 import { getUserSessionsDir } from '@/shared/lib/user-scoped-paths';
-import { getCurrentBoundUid } from '@/shared/db/database';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
 import { clearCloudConversations } from '@/shared/sync';
@@ -490,7 +489,7 @@ export function DataSettings({ settings, defaultPaths }: DataSettingsProps) {
 
       {/* ── Danger Zone ── */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold tracking-wide uppercase text-red-500">
+        <h3 className="text-sm font-semibold tracking-wide text-red-500 uppercase">
           {t.settings.dataDangerSection}
         </h3>
 

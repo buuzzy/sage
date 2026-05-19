@@ -20,6 +20,7 @@
  */
 
 import { supabase } from '@/shared/lib/supabase';
+
 import { markFailed, markOk, markSyncing } from './sync-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -146,9 +147,8 @@ async function appendToQueue(row: ErrorRow): Promise<void> {
   const path = await getQueueFilePath();
   if (!path) return;
   try {
-    const { writeTextFile, readTextFile } = await import(
-      '@tauri-apps/plugin-fs'
-    );
+    const { writeTextFile, readTextFile } =
+      await import('@tauri-apps/plugin-fs');
     const line = JSON.stringify(row) + '\n';
     let existing = '';
     try {

@@ -49,9 +49,7 @@ export function markSessionDeleted(sessionId: string): void {
 /**
  * 订阅 dirty 刷写事件。返回解绑函数。
  */
-export function subscribeSessionDirty(
-  listener: DirtyListener
-): () => void {
+export function subscribeSessionDirty(listener: DirtyListener): () => void {
   dirtyListeners.add(listener);
   return () => {
     dirtyListeners.delete(listener);

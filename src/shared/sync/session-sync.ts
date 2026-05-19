@@ -25,7 +25,6 @@
  *   updated_at    ← 本地 sessions.updated_at
  */
 
-import { supabase } from '@/shared/lib/supabase';
 import {
   getAllTasks,
   getFilesByTaskId,
@@ -33,6 +32,7 @@ import {
   getSession,
   getTasksBySessionId,
 } from '@/shared/db/database';
+import { supabase } from '@/shared/lib/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

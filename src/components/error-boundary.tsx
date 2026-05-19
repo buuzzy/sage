@@ -66,9 +66,7 @@ export class ErrorBoundary extends Component<Props, State> {
             我们已经收到自动报告，稍后会排查这个问题。你可以尝试刷新继续使用。
           </p>
           <details className="text-muted-foreground mt-4 text-xs">
-            <summary className="cursor-pointer select-none">
-              技术细节
-            </summary>
+            <summary className="cursor-pointer select-none">技术细节</summary>
             <pre className="bg-muted mt-2 max-h-40 overflow-auto rounded p-2 text-[11px] leading-relaxed">
               {error.message}
               {error.stack ? `\n\n${error.stack}` : ''}
