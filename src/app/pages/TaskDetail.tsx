@@ -24,6 +24,7 @@ import {
   type MessageAttachment,
 } from '@/shared/hooks/useAgent';
 import { useChannelSync } from '@/shared/hooks/useChannelSync';
+import { isMobile } from '@/shared/lib/platform';
 import { useVitePreview } from '@/shared/hooks/useVitePreview';
 import { extractArtifacts } from '@/shared/lib/artifactParser';
 import { estimateConversationContextTokens } from '@/shared/lib/context-usage';
@@ -929,7 +930,10 @@ function TaskDetailContent() {
 
   return (
     <ToolSelectionContext.Provider value={toolSelectionValue}>
-      <div className="bg-sidebar flex h-screen overflow-hidden">
+      <div className={cn(
+        "bg-sidebar flex h-screen overflow-hidden",
+        isMobile && "pt-[var(--safe-area-top)]"
+      )}>
         {/* Left Sidebar */}
         <LeftSidebar
           tasks={allTasks}
@@ -947,7 +951,10 @@ function TaskDetailContent() {
         {/* Main Content Area with Responsive Layout */}
         <div
           ref={containerRef}
-          className="bg-background my-2 mr-2 flex min-w-0 flex-1 overflow-hidden rounded-2xl shadow-sm"
+          className={cn(
+            "bg-background flex min-w-0 flex-1 overflow-hidden",
+            isMobile ? "rounded-none" : "my-2 mr-2 rounded-2xl shadow-sm"
+          )}
         >
           {/* Left Panel - Agent Chat (flex-1 to fill available space) */}
           <div
