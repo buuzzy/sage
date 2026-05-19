@@ -6,6 +6,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { isMobile } from '@/shared/lib/platform';
+
 interface SidebarContextType {
   leftOpen: boolean;
   rightOpen: boolean;
@@ -18,8 +20,9 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  // Mobile: sidebars start closed; Desktop: sidebars start open
+  const [leftOpen, setLeftOpen] = useState(!isMobile);
+  const [rightOpen, setRightOpen] = useState(!isMobile);
 
   const toggleLeft = useCallback(() => setLeftOpen((prev) => !prev), []);
   const toggleRight = useCallback(() => setRightOpen((prev) => !prev), []);
