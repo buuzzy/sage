@@ -1,63 +1,88 @@
 # Sage — Claude Code 项目笔记
 
+## 文档分层机制
+
+本项目采用**分层 CLAUDE.md** 架构管理上下文。根文件提供全局概览，各子目录的 CLAUDE.md 提供该模块的详细文档。
+
+**规则**：
+- 修改某个模块前，**先读该模块的 CLAUDE.md**（了解文件清单、不变量、扩展步骤）
+- 根 CLAUDE.md 只保留全局信息（技术栈、构建命令、环境变量、发布流程、经验教训）
+- 模块内部的架构细节、文件职责、接口约定由子目录 CLAUDE.md 负责
+
+**子目录文档索引**：
+
+| 路径 | 覆盖范围 |
+|------|---------|
+| `src/CLAUDE.md` | 前端架构、页面路由、状态管理、平台分叉 |
+| `src/shared/CLAUDE.md` | hooks / db / sync / lib / providers 职责边界 |
+| `src/components/htui/CLAUDE.md` | 14 个金融可视化组件协议 + 新增模板 |
+| `src-api/CLAUDE.md` | 后端架构、API 路由一览、中间件 |
+| `src-api/src/extensions/agent/codeany/CLAUDE.md` | Agent 适配器完整流程 + 拦截机制 |
+| `src-api/src/shared/CLAUDE.md` | 后端子系统职责 + 依赖关系 |
+| `src-api/src/shared/memory/CLAUDE.md` | 四层记忆系统 + 双模式鉴权 |
+| `src-api/src/shared/context/CLAUDE.md` | 上下文组装 + compaction 规则 |
+| `src-tauri/CLAUDE.md` | Rust 桌面壳 + sidecar 生命周期 + 不可修改项 |
+
+---
+
 ## 项目概览
 
-Sage 是一个 AI 金融助手，支持桌面端（macOS）和移动端（iOS）。桌面端用 Tauri 2，iOS 端用 Capacitor，共享同一套 React 19 前端代码。
+Sage 是一个 AI 金融助手（v1.4.16），支持桌面端（macOS ARM/Intel）和移动端（iOS）。桌面端用 Tauri 2，iOS 端用 Capacitor 8，共享同一套 React 19 前端代码。后端是 Hono HTTP sidecar，内嵌 Agent 运行时、17 个金融技能、记忆系统和定时调度器。
 
 ## 技术栈
 
 | 层 | 桌面端 | iOS 端 |
 |---|---|---|
 | 壳 | Tauri 2 (Rust) | Capacitor 8 |
-| 前端 | React 19 + Vite + TailwindCSS | 同左（共享 `src/`） |
-| 后端 | Hono sidecar (localhost:2026) | Railway 云端 (`sage-production.up.railway.app`) |
-| Agent SDK | `@codeany/open-agent-sdk` | 同左（后端共享） |
+| 前端 | React 19 + Vite 7 + TailwindCSS 4 | 同左（共享 `src/`） |
+| 后端 | Hono sidecar (localhost:2026) | Railway 云端 (`sage-production-28e1.up.railway.app`) |
+| Agent SDK | `@codeany/open-agent-sdk@0.2.1` (+ pnpm patch) | 同左（后端共享） |
+| 默认模型 | `claude-sonnet-4-20250514` | 同左 |
 | 数据库 | 本地 SQLite + Supabase | 纯 Supabase |
-| 图表 | ECharts (K线/柱/线/热力) + lightweight-charts | 同左 |
-| 认证 | OAuth (GitHub/Google) via deep-link | 邮箱/密码（OAuth 待适配） |
+| 图表 | ECharts 6 (柱/线/热力) + TradingView Lightweight Charts v5 (K线/分时) | 同左 |
+| UI 库 | Ant Design 6 + Radix UI + shadcn/ui | 同左 |
+| 认证 | OAuth (GitHub/Google) via deep-link (`sage://auth/callback`) | 邮箱/密码（OAuth 待适配） |
 
-## 关键文件路径
+**运行时要求**: Node.js >= 22.13, pnpm 10.33.0 (`packageManager` 字段锁定)
 
-| 文件 | 作用 |
-|------|------|
-| `src-api/src/extensions/agent/codeany/index.ts` | Agent 适配器主文件（plan/run/processMessage、工具拦截、artifact 生成） |
-| `src/shared/hooks/useAgent.ts` | 前端请求路由（决定走 chat/agent/plan+execute 哪条路径） |
-| `src/app/pages/TaskDetail.tsx` | 会话消息渲染（TextMessageItem、artifact 提取） |
-| `src/components/htui/ArtifactRenderer.tsx` | Artifact 组件渲染器（13 个 HTUIKit 组件分发） |
-| `src/shared/config/artifactMapping.ts` | URL→artifact 类型映射 |
-| `src-api/resources/skills/` | 17 个内置金融技能的 SKILL.md 和配置 |
-| `src-api/resources/defaults/AGENTS.md` | Agent 工作流规范 |
-| `src-api/resources/defaults/SOUL.md` | 角色设定 |
-| `capacitor.config.ts` | Capacitor iOS 配置 |
-| `ios/` | Capacitor 生成的 Xcode 项目 |
-| `Dockerfile` | Railway 部署用多阶段构建 |
-| `.env.ios` | iOS 构建环境变量（VITE_API_URL） |
-
-## 项目目录结构
+## 关键目录（详细文件清单见各子目录 CLAUDE.md）
 
 ```
-sage/
-├── src/                ← React 前端（桌面 + iOS 共享）
-├── src-api/            ← Hono 后端（桌面本地 sidecar / iOS 走 Railway）
-├── src-tauri/          ← Tauri 桌面壳（Rust）
-├── ios/                ← Capacitor iOS 壳（Xcode 项目）
-├── capacitor.config.ts ← Capacitor 配置
-├── Dockerfile          ← Railway 部署
-└── docs/
-    ├── TODO.md
-    └── ios/IOS_PLAN.md ← iOS 完整方案文档
+sage/                          ← pnpm workspace root
+├── src/                       ← React 前端（详见 src/CLAUDE.md）
+├── src-api/                   ← Hono 后端（详见 src-api/CLAUDE.md）
+├── src-tauri/                 ← Rust 桌面壳（详见 src-tauri/CLAUDE.md）
+├── ios/                       ← Capacitor iOS 壳
+├── supabase/migrations/       ← Supabase 数据库 migration
+├── scripts/                   ← 构建/发布脚本
+├── docs/                      ← 项目文档（TODO.md 是唯一权威 TODO）
+├── .github/workflows/         ← CI（tag push → 多平台构建）
+└── patches/                   ← SDK pnpm patch
 ```
 
 ## 构建与部署
 
 ```bash
-pnpm build:api           # TS→JS 编译（不生成二进制）
-pnpm build:api:binary:mac-arm   # 生成 sage-api 独立二进制
-pnpm build:api:binary:mac-intel # 生成 Intel macOS sage-api 独立二进制
-pnpm tauri:build:mac-arm        # 完整 .app 打包（含前端+后端二进制）
-pnpm tauri:build:mac-intel      # Intel macOS .app 打包
-pnpm build:ios                  # iOS: 前端构建 + cap sync
-pnpm open:ios                   # 打开 Xcode iOS 项目
+# 开发模式
+pnpm dev:api                        # 后端 Hono sidecar (tsx --watch)
+pnpm dev                            # 前端 Vite dev server (localhost:1420)
+pnpm tauri:dev                      # 完整桌面开发（含 sidecar + Tauri）
+
+# 生产构建
+pnpm build:api                      # TS→JS 编译（不生成二进制）
+pnpm build:api:binary:mac-arm       # 生成 sage-api ARM 独立二进制 (pkg → node18)
+pnpm build:api:binary:mac-intel     # 生成 sage-api Intel 独立二进制
+pnpm build:app:mac-arm              # 完整 .app 打包（API binary + 前端 + Tauri）
+pnpm build:app:mac-arm:release      # 带签名的发布构建
+pnpm tauri:build:mac-arm            # Tauri 原生构建（需预编译 API binary）
+pnpm tauri:build:mac-intel          # Intel macOS Tauri 构建
+pnpm build:ios                      # iOS: vite build --mode ios + cap sync
+pnpm open:ios                       # 打开 Xcode iOS 项目
+
+# 代码质量
+pnpm lint                           # ESLint (src/)
+pnpm lint:fix                       # ESLint auto-fix
+pnpm format                         # Prettier
 ```
 
 **桌面端注意**: App 运行的是 `.app/Contents/MacOS/sage-api` 二进制，不是 tsx 源码。改了后端代码必须重新生成二进制并打包。
@@ -67,10 +92,10 @@ pnpm open:ios                   # 打开 Xcode iOS 项目
 **固定桌面 release 流程**:
 1. 只有用户明确要求 release，或改动涉及 `src-tauri/tauri.conf.json` / updater / 桌面 sidecar 行为时，才发布新桌面版本。
 2. 先提交功能修复，再用 `./scripts/version.sh <next>` bump 版本并单独提交 `chore: bump version to <next>`。
-3. 发布前必须通过 `pnpm build:api`、`pnpm build`，正式桌面包还必须用本地签名密钥运行 `pnpm tauri:build:mac-arm`；维护 Intel 时同步运行 `pnpm tauri:build:mac-intel`。
+3. 发布前必须通过 `pnpm build:api`、`pnpm build`，正式桌面包还必须用本地签名密钥运行 `pnpm build:app:mac-arm:release`；维护 Intel 时同步运行 `pnpm build:app:mac-intel:release`。
 4. GitHub Release 必须上传每个平台的 DMG、`.app.tar.gz`、`.app.tar.gz.sig`、`latest.json`；二进制下载源保持 GitHub。
 5. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本、`darwin-aarch64` / `darwin-x86_64` 平台项与有效签名。
-6. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布；如更新它，优先记录“上一稳定版本”，避免把自引用签名当成唯一真源。
+6. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布。
 
 **iOS 端注意**: 每次改前端代码后需要 `pnpm build:ios` 重新构建同步到 Xcode，然后在 Xcode 里 ▶️ 运行。`.env.ios` 包含 `VITE_API_URL` 指向 Railway。
 
@@ -80,13 +105,13 @@ pnpm open:ios                   # 打开 Xcode iOS 项目
 ```typescript
 const isTauri = '__TAURI_INTERNALS__' in window;
 export const API_BASE_URL = isTauri
-  ? 'http://localhost:2026'          // 桌面端本地 sidecar
-  : import.meta.env.VITE_API_URL;     // iOS/Web → Railway
+  ? 'http://127.0.0.1:2026'            // 桌面端本地 sidecar
+  : import.meta.env.VITE_API_URL;       // iOS/Web → Railway
 ```
 
 ### 认证（`src/shared/providers/auth-provider.tsx`）
 - **桌面端**: OAuth → 系统浏览器 → deep-link (`sage://auth/callback`) 回调
-- **iOS 端**: 邮箱/密码登录（`signInWithPassword`）。OAuth 在 Capacitor WebView 内未完成适配（deep-link 回调不通）
+- **iOS 端**: 邮箱/密码登录（`signInWithPassword`）。OAuth 在 Capacitor WebView 内未完成适配
 - **Supabase client** (`src/shared/lib/supabase.ts`): `detectSessionInUrl` 和 `flowType` 按 `isTauri` 分叉
 
 ### 鉴权（`src-api/src/app/middleware/local-only.ts`）
@@ -94,10 +119,34 @@ export const API_BASE_URL = isTauri
 - 未设置时 → loopback IP 检测（桌面端 sidecar）
 
 ### Railway 部署
-- URL: `https://sage-production.up.railway.app`
+- URL: `https://sage-production-28e1.up.railway.app`
 - 环境变量: `SAGE_API_TOKEN`（Bearer auth）
-- Dockerfile 在项目根目录，多阶段构建（pnpm bundle → node:20-alpine）
-- Railway Hobby Plan $5/月，含 $5 credit，可设 Hard Limit 防超支
+- Dockerfile 在项目根目录，多阶段构建（pnpm bundle → node:22-alpine）
+- Builder 强制走 Dockerfile（`RAILWAY_DOCKERFILE_PATH=Dockerfile`），不要让 Railpack 自动检测
+
+## 前端执行策略（概览，详见 `src/shared/CLAUDE.md`）
+
+- `route: 'direct'` → POST `/agent`（跳过 plan 直接执行）
+- `route: 'plan'` → POST `/agent/plan` → 用户审批 → POST `/agent/execute`
+- 7 种策略分类：image / openai_provider / conversation / memory_recall / simple_lookup / multi_target / complex_task
+
+## 记忆系统（概览，详见 `src-api/src/shared/memory/CLAUDE.md`）
+
+四层架构：Persona 注入 → Active Recall → MCP Tool → Persona 蒸馏
+
+## 工具拦截（概览，详见 `src-api/src/extensions/agent/codeany/CLAUDE.md`）
+
+PostToolUse hook 确定性拦截 API 响应 → summary 替换 + artifact 生成
+
+## SDK 补丁（pnpm patch，可复现）
+
+| 文件 | 改动 |
+|------|------|
+| `@codeany/open-agent-sdk/dist/hooks.js` | 新增 `modifiedOutput` 字段 |
+| `@codeany/open-agent-sdk/dist/engine.js` | PostToolUse 应用 modifiedOutput |
+| `@codeany/open-agent-sdk/dist/hooks.d.ts` | 类型声明更新 |
+
+`patches/@codeany__open-agent-sdk@0.2.1.patch` 仍需短期保留：上游 SDK 未提供正式的"替换 tool output 后继续进入模型上下文"扩展点。不要把 westock artifact 映射、summary 或 UI 协议写进 SDK patch。
 
 ## iOS 当前状态（Phase 0 完成）
 
@@ -110,68 +159,38 @@ export const API_BASE_URL = isTauri
 - **下一步: iOS UI 适配**（侧边栏→底部 Tab Bar、移动端布局、Safe Area、虚拟键盘）
 - 详细方案: `docs/ios/IOS_PLAN.md`
 
-## 前端请求路由（useAgent.ts 决策树）
+## CI/CD
 
-```
-用户提问 →
-  ├─ isDirectExecuteQuery (简单金融查询) → /agent (直接 run()，跳过 plan)
-  ├─ hasImages                          → /agent (直接 run()，跳过 plan)
-  └─ 其他                               → /agent/plan → /agent/execute (两阶段)
-```
-
-- v1.0.4 起移除了 fast chat 路径，所有查询统一走 Agent + 工具链路
-- MiniMax 已切换到 Anthropic Messages 协议（`api.minimaxi.com/anthropic`），不再走 OpenAI-format
-
-## 工具输出拦截机制（PostToolUse Hook）
-
-在 `index.ts` 中通过 SDK 的 `PostToolUse` hook 实现确定性拦截：
-
-1. **Layer 1**: URL/route 模式匹配（`detectFromCommand()`）
-2. **Layer 2**: JSON 响应结构匹配（`detectFromResponseStructure()`）
-3. **Layer 0**: `_metadata` 字段 fallback
-
-拦截后：
-- `transformForComponent()` 将 API 响应格式转为前端组件数据格式
-- `generateSummary()` 生成简洁摘要（100~200 字符）替换原始 tool_output，节省 token
-- artifact block 推入 `pendingArtifacts` 队列，在 `processMessage()` 中 flush
-- SDK `PostToolUse` hook 组装集中在 `src-api/src/extensions/agent/codeany/tool-output-interceptor.ts`；Sage 产品逻辑保留在 adapter，SDK patch 只承载通用 `modifiedOutput` 传输能力和 provider/tool 兼容 shim。
-
-## SDK 补丁（pnpm patch，可复现）
-
-| 文件 | 改动 |
-|------|------|
-| `@codeany/open-agent-sdk/dist/hooks.js` | 新增 `modifiedOutput` 字段 |
-| `@codeany/open-agent-sdk/dist/engine.js` | PostToolUse 应用 modifiedOutput |
-| `@codeany/open-agent-sdk/dist/hooks.d.ts` | 类型声明更新 |
-
-`patches/@codeany__open-agent-sdk@0.2.1.patch` 仍需短期保留：上游 SDK 未提供正式的“替换 tool output 后继续进入模型上下文”扩展点。不要把 westock artifact 映射、summary 或 UI 协议写进 SDK patch。
+- **GitHub Actions** (`.github/workflows/`): tag `v*` push → 多平台构建（mac-arm on macos-14, mac-intel on macos-15-intel）→ 自动创建 GitHub Release + 上传 DMG/tar.gz/sig/latest.json
+- **Railway**: Dockerfile 自动部署，`SAGE_ENABLE_BACKGROUND_JOBS=true` 启用后台 cron
+- **Windows 暂缓**: WiX MSI 中文编码 bug，workflow 里保留代码但注释掉
 
 ## 经验教训
 
 > **修改 Agent 行为前，先从 `useAgent.ts` 的路由入口追到 `engine.ts` 的 agentic loop，画清完整链路再动手。不要从中间层开始改。**
 
-> **不为单一弱模型加特殊路由 / 兜底**：架构应按"合理强模型"的能力标准设计，模型升级后产品自然受益。如果某个模型表现不佳（如 MiniMax 在 plan 阶段不调工具），方案是**在文档里推荐换模型**，而不是写硬编码的 `if model == 'minimax'` 兜底层。后者会变成永远删不掉的技术债。
+> **不为单一弱模型加特殊路由 / 兜底**：架构应按"合理强模型"的能力标准设计，模型升级后产品自然受益。如果某个模型表现不佳，方案是**在文档里推荐换模型**，而不是写硬编码的 `if model == 'xxx'` 兜底层。
 
-- 曾尝试在 `plan()` 方法中加 synthetic plan/isAnnounceOnly 等逻辑处理 MiniMax "只说不做"问题，导致前端 UI 结构混乱（raw JSON 泄漏到 UI）。最终正确方案极其简单：在 `useAgent.ts` 加一行 `isOpenAiProvider` 判断跳过 plan 阶段。
 - Artifact 空壳闪烁有两个原因：① `React.lazy()` Suspense 延迟（已改高频组件为静态 import）；② API 响应格式 ≠ 组件数据格式（需要 `transformForComponent()` 转换）。
 - API 错误响应（如 `{"code": -1, "msg": "鉴权失败"}`）也会被结构匹配误拦截，需检查 `parsed.code !== 0 && !parsed.data` 提前退出。
-- MiniMax 在 OpenAI-format 下会对简单问题泛滥调用工具（73 次 tool calls），根因是协议不匹配。切换到 Anthropic Messages 协议后彻底解决。
-- Fast chat 路径看似节省 token，但制造了能力边界问题（"没有该能力"）。移除后所有查询走 Agent + 工具，用户体验反而更好。
-- iwencai API 升级后需要 X-Claw-* 系列 Header，否则 401。注意两类端点格式不同：`/v1/query2data`（8 个数据查询技能）vs `/v1/comprehensive/search`（新闻/公告/研报 3 个搜索技能）。
-- API Key 不要硬编码在源码中。公共仓库 + 硬编码 = 立即泄露。用 `.env` + gitignore。清理 git 历史用 `git-filter-repo --replace-text`。
-- **Phase 2 调试**：定位「记忆工具没被调用」的根因花了多轮假设（context 污染 / sampling 抖动 / 模型 judgment）。最终对照测试 E（MiniMax，0 次工具调用）vs F+G（Sonnet，每次 3 次工具调用）才证实是模型差异而非代码问题。教训：**遇到「时灵时不灵」时，先把变量列清楚（模型/prompt/输入）做一次干净对照实验，比连续猜代码逻辑高效**。
-- **低风险短请求不要走显式 plan**：用户问「回顾之前做过的 memory/回测」或「你好/hi/你是谁」这类低风险请求时，如果先走 `/agent/plan`，UI 会很快结束并停在「继续」确认或空白结束，看起来像 command running 一闪而过。应跳过显式 plan，直接进入 `/agent` 工具执行。
-- **模型不可用必须有可见失败语义**：如果模型/API Key/endpoint 异常导致 stream 只有 `done`、空文本或不可解析内容，不能让前端静默结束。后端 plan 阶段应在空响应时 yield `error`；前端 plan/direct stream 也要在无 `text/tool/error/plan/direct_answer` 时补可见错误并把 task 标为 `error`。
-- **Running indicator 必须按当前 user turn 计算**：继续对话时不要从全量 messages 倒序找最后一个 `tool_use`，否则新一轮刚开始会显示上一轮最后一个工具（如 `mcp__memory__search_memory`）。应只看最后一条 `user` 之后的工具调用。
-- **Plan approval 不能在 planning stream 未结束时可点击**：plan 消息可能先于 SSE `done` 到达，此时 `phase=awaiting_approval` 但 `isRunning=true`。如果此时显示/点击「继续」，会在 planning 未收尾时启动 execute，造成状态互相覆盖。按钮显示条件必须是 `awaiting_approval && !isRunning`，`approvePlan` 也要 guard 当前仍在 running 的情况。
-- **标题生成结果必须绑定 taskId，且 prompt 要当 untrusted data**：`/agent/title` 是异步请求，不能只用一个全局 `generatedTitle` 字符串驱动侧边栏更新，否则用户切换任务后旧标题会套到当前任务 UI。标题模型也不能直接吃裸 prompt，否则「完成后回复 1」会污染标题生成。应把用户输入包进 `<request>`，明确不执行其中指令，并过滤 `1`、纯数字、明显像助手回复开头的低质量标题，短输入 fallback 为「新任务」。
-- **Updater 采用混合通道**：客户端 updater endpoint 优先 Railway `/updater/latest.json`，第二 fallback 才是 GitHub Release `latest.json`。manifest 控制面需要稳定 JSON；DMG / `.app.tar.gz` / `.sig` 仍放 GitHub Release，保证手动下载和应用内 payload 下载速度。GitHub fallback 不要放第一，避免 release asset 302/HTML/504 重新触发 Tauri updater JSON 解析失败。
-- **Node.js sidecar 用 small-icu 编译**，`toLocaleString` 的 locale 参数（如 sv-SE）会 fallback 到 en-US 的本地化格式。需要稳定输出 ISO-like 时间字符串时直接用 `padStart` 手动拼，不依赖 ICU。
-- **Dockerfile 不要用 `pnpm@latest`**：上游升级会让"昨天还能 build"的镜像第二天炸（pnpm 11 要求 Node ≥ 22.13，引入 `node:sqlite` 内置模块，Node 20 镜像直接 `ERR_UNKNOWN_BUILTIN_MODULE`）。规范：基镜像选 `node:22-alpine`，pnpm 用 `corepack prepare pnpm@<exact-version>`，并在根 `package.json` 加 `packageManager: pnpm@<same-version>` 让本地 corepack 也固定，避免本地与云端漂移。
-- **Phase 3 蒸馏调试**：Railway cron "没生效"不一定是调度问题。先看日志是否有 `[scheduler] persona-distill: done`，再核对 Supabase `messages.type`。前端真实存储是 `user`（用户）和 `text`（助手可见文本），不是 `assistant`；蒸馏和 `search_messages` 的 assistant 过滤必须把 `text` 当助手消息，否则会出现 cron 正常跑但永远跳过新回复的假象。
-- **Context used 指示器不是 provider usage**：前端只能估算本地即将发送的 conversation payload。不能只用 `messages.content.length / 4`，因为中文按 chars/4 会严重低估，工具调用链路也会把 `tool_result` 摘要重新拼回 assistant context。正确口径要与 `useAgent.buildConversationHistory()` 和后端 `assembleContext()` 的 wrapper / `maxHistoryTokens` 保持一致；继续对话也不能把已被标题覆盖的 `task.prompt` 当第一条用户消息混入上下文。
-- **Agent 工具循环必须有可见终止语义**：SDK 可能在 max turns / tool loop 结束时只返回 `done` 或 `error_max_turns`，没有最终自然语言总结。后端和前端都需要兜底：如果工具调用后没有最终 text，追加”已停止继续调用工具，避免空转”的可见提示；`error_max_turns` 不能让 task 继续保持 running。
-- **Supabase 列类型必须与前端 ID 生成方式一致**：`createTask()` 用 `Date.now().toString()` 生成 task_id（纯数字字符串如 `1777630441077`），`messages.task_id` 是 TEXT 所以能存。但 `user_behavior.task_id` 建表时误设为 UUID，导致所有 INSERT 报 `22P02: invalid input syntax for type uuid`，sync_queue 里 166 条行为日志无限重试。Supabase client 抛的 `PostgrestError` 不是 `Error` 实例（是 `{code, message, details, hint}` 对象），`String(err)` 序列化为 `[object Object]` 而不是有用信息。两个教训：① 新建 Supabase 表时 FK/引用列的类型要与已有表一致（TEXT vs UUID）；② catch 里序列化 error 要覆盖 `typeof err === 'object' && 'message' in err` 的 case。
+- MiniMax 在 OpenAI-format 下会对简单问题泛滥调用工具（73 次 tool calls），切换到 Anthropic Messages 协议后彻底解决。
+- Fast chat 路径看似节省 token，但制造了能力边界问题。移除后所有查询走 Agent + 工具，体验反而更好。
+- iwencai API 需要 X-Claw-* 系列 Header。两类端点格式不同：`/v1/query2data`（8 个数据查询技能）vs `/v1/comprehensive/search`（新闻/公告/研报）。
+- API Key 不要硬编码在源码中。公共仓库 + 硬编码 = 立即泄露。清理 git 历史用 `git-filter-repo --replace-text`。
+- **遇到「时灵时不灵」时**，先把变量列清楚（模型/prompt/输入）做一次干净对照实验，比连续猜代码逻辑高效。
+- **低风险短请求不要走显式 plan**：用户问「你好/hi/回顾回测」时跳过 plan 直接执行。
+- **模型不可用必须有可见失败语义**：stream 只有 `done` / 空文本时必须 yield `error`，前端补可见错误提示。
+- **Running indicator 必须按当前 user turn 计算**：只看最后一条 `user` 之后的工具调用。
+- **Plan approval 不能在 planning stream 未结束时可点击**：按钮显示条件必须是 `awaiting_approval && !isRunning`。
+- **标题生成结果必须绑定 taskId**：`/agent/title` 是异步请求，不能用全局 `generatedTitle` 驱动。过滤纯数字和低质量标题。
+- **Updater 采用混合通道**：Railway → GitHub fallback。GitHub 不放第一，避免 302/504。
+- **Node.js sidecar 用 small-icu 编译**，`toLocaleString` 的 locale 参数会 fallback。需要稳定 ISO 时间字符串时用 `padStart` 手动拼。
+- **Dockerfile 固定 pnpm 版本**：基镜像 `node:22-alpine`，pnpm 用 `corepack prepare pnpm@<exact-version>`，`packageManager` 字段锁定。
+- **Phase 3 蒸馏**：前端存储 `type` 是 `user`（用户）和 `text`（助手），不是 `assistant`。蒸馏过滤必须用 `text`。
+- **Context used 指示器**：中文按 chars/4 严重低估 tokens。正确口径要与后端 `assembleContext()` 的 `estimateTokens()` 一致。
+- **Agent 工具循环必须有可见终止语义**：`error_max_turns` 不能让 task 继续保持 running。
+- **Supabase 列类型必须与前端 ID 生成方式一致**：`createTask()` 用 `Date.now().toString()`（TEXT），新建表的 FK 不要误用 UUID。`PostgrestError` 不是 `Error` 实例，序列化时需要特殊处理。
+- **启动体验**：v1.4.15 移除了 blocking startup screen，App 直接进入主 UI，sidecar readiness 异步检查。
 
 ## 待办事项
 
@@ -186,18 +205,34 @@ export const API_BASE_URL = isTauri
 | `IWENCAI_API_KEY` | 11 个 iwencai 技能 | `~/.sage/.env` → Tauri sidecar 注入 |
 | `WESTOCK_API_KEY` | 4 个 westock 技能 | 同上 |
 | `MIMO_API_KEY` | Phase 3 persona 蒸馏（Railway 凌晨 2 点 cron） | Railway env only |
-| `MIMO_BASE_URL` | MiMo 入口（默认官方 `api.xiaomimimo.com/v1`，Coding Plan 用 `token-plan-sgp.xiaomimimo.com/v1`） | Railway env only |
-| `MIMO_MODEL` | 蒸馏模型（默认 `mimo-v2-flash`，但 Coding Plan 没该模型，必须显式设为 `mimo-v2-pro` / `mimo-v2.5` / `mimo-v2.5-pro`，否则 400） | Railway env only |
+| `MIMO_BASE_URL` | MiMo 入口（默认官方 `api.xiaomimimo.com/v1`） | Railway env only |
+| `MIMO_MODEL` | 蒸馏模型（默认 `mimo-v2-flash`） | Railway env only |
 | `SAGE_ENABLE_BACKGROUND_JOBS` | 设 `true` 才注册 cron。本地桌面端不设（避免双跑） | Railway env only |
 | `SAGE_API_TOKEN` | 云端 Bearer 鉴权（设了走 token check，未设走 loopback IP 白名单） | Railway env only |
-| `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 优先返回；缺失时用代码内置 manifest 兜底，避免 GitHub release asset 302/504） | Railway env only |
-| `SAGE_UPDATER_DARWIN_AARCH64_URL` / `SAGE_UPDATER_DARWIN_AARCH64_SIGNATURE` / `SAGE_UPDATER_DARWIN_X86_64_URL` / `SAGE_UPDATER_DARWIN_X86_64_SIGNATURE` | updater manifest 分项 env fallback；优先仍用完整 `SAGE_UPDATER_MANIFEST_JSON`，分项 env 只适合临时发布或排障 | Railway env only |
+| `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 优先返回；缺失时用代码内置兜底） | Railway env only |
+| `SAGE_UPDATER_DARWIN_AARCH64_URL` / `..._SIGNATURE` / `..._X86_64_URL` / `..._SIGNATURE` | updater manifest 分项 env fallback | Railway env only |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | 云端数据 + RLS user-scoped 客户端 | Railway env (service role 仅云端) |
+| `SAGE_INJECT_PERSONA` | Phase 3 persona 注入开关（默认 on） | 可选 |
+| `SAGE_ENABLE_ACTIVE_RECALL` | Phase 4 主动召回开关（默认 on） | 可选 |
+| `SAGE_APP_DIR` | 沙箱环境下覆盖 `~/.sage/` 路径 | Mac App Store sandbox |
 
 Tauri 启动 sidecar 时从 `~/.sage/.env` 读取并传递环境变量（`src-tauri/src/lib.rs` 中的 `load_dotenv()`）。
 Railway 部署需在环境变量中单独配置。
 
-**Railway 当前部署**：URL `https://sage-production-28e1.up.railway.app`（旧 `sage-production` 子域被占用，加了 `-28e1` 后缀），项目名 `sage`，service 名 `sage`。Builder 强制走 Dockerfile（`RAILWAY_DOCKERFILE_PATH=Dockerfile`），不要让 Railpack 自动检测。
+**Railway 当前部署**：URL `https://sage-production-28e1.up.railway.app`，项目名 `sage`，service 名 `sage`。Builder 强制走 Dockerfile（`RAILWAY_DOCKERFILE_PATH=Dockerfile`），不要让 Railpack 自动检测。
+
+## Supabase 数据模型
+
+| 表 | 用途 |
+|---|---|
+| `profiles` | 用户档案（扩展 auth.users） |
+| `sessions` | 会话元数据（不含消息体，用于列表和跨设备同步） |
+| `user_settings` | 用户偏好备份（不含 API Key） |
+| `error_logs` | 客户端报错日志 |
+| `messages` | 完整对话消息（按 user_id RLS 隔离） |
+| `persona_memory` | Phase 3 蒸馏出的用户画像（profile + recent_threads） |
+| `user_behavior` | 用户行为日志（task_id 为 TEXT） |
+| `tasks` | 任务元数据（含 `provider_usage` JSON 字段） |
 
 ## 敏感凭证保险库
 
@@ -205,7 +240,7 @@ Railway 部署需在环境变量中单独配置。
 
 | 文件 | 用途 |
 |------|------|
-| `sage-tauri-signing-key-v2.txt` | Tauri 自动更新签名私钥（对应 env: `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；该文件是说明文档格式，不能直接 `source`，需按「【私钥 PRIVATE KEY】」和「【密码 PASSPHRASE】」段落抽取） |
+| `sage-tauri-signing-key-v2.txt` | Tauri 自动更新签名私钥（对应 env: `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；需按段落抽取） |
 | `AuthKey_*.p8` | Apple Developer Auth Key（App Store Connect API / push） |
 | `mac_app.cer` / `mac_installer.cer` | Mac App / Installer distribution 证书 |
 | `Sage_Mac_App_Store.provisionprofile` | Mac App Store provisioning profile |

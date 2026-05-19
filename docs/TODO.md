@@ -1,7 +1,7 @@
 # Sage — TODO & Feature Roadmap
 
 > 本文件是项目唯一权威 TODO。只保留真实待解决项、明确产品规划和暂不做事项；已完成内容通过 git commit / release 记录追溯。
-> 最后更新：2026-05-16（v1.4.12，P0/P1 已发布，剩余验证项已记录）
+> 最后更新：2026-05-19（v1.4.16，启动体验重构完成，设置面板精简，CI 修复）
 
 ---
 
@@ -12,28 +12,37 @@
 - 桌面端维护 macOS Apple Silicon 与 macOS Intel。
 - SDK 不是 Sage 产品能力的归属地；工具输出拦截、artifact 生成、tool output 压缩等能力最终应属于 Sage adapter / wrapper。
 - `session-sync` 当前只同步 session 元数据；`message_count` 语义暂不作为线上 bug 处理，等云端会话 UI 使用前统一。
+- 启动不再使用 blocking screen；App 直接进入主 UI，sidecar readiness 后台异步检查。
+- 独立 Import Data 功能已移除，云端恢复（Restore Cloud History）覆盖所有备份还原需求。
 
 ---
 
 ## P0 / P1 — 已收口
 
-2026-05-16 已完成 P0/P1 的最小可交付闭环：
+2026-05-16 已完成 P0/P1 的最小可交付闭环（v1.4.12），后续 v1.4.13~v1.4.16 补充修复：
 
 - `SDK patch 去产品化`：`PostToolUse` hook 组装已迁入 `src-api/src/extensions/agent/codeany/tool-output-interceptor.ts`。westock artifact、summary、artifact queue 等 Sage 产品逻辑保留在 adapter；`pnpm patch` 只短期承载 SDK 通用 `modifiedOutput` 传输能力和 provider/tool 兼容 shim。
 - `macOS Intel release manifest 闭环`：`updater.ts`、`docs/RELEASE.md`、`CLAUDE.md` 已支持 `darwin-aarch64` + `darwin-x86_64` 双平台 manifest/env/校验流程。
 - `复杂多标的查询体验` + `意图识别驱动的执行策略分层`：`useAgent.ts` 已引入统一执行策略分类器，识别多标的 / 图片 / OpenAI-compatible provider / 低风险直跑 / 显式 plan，并为多标的直跑路径追加批量聚合约束。
 - `结构化错误分类器`：Agent fetch 错误已分类为 `auth`、`rate_limit`、`timeout`、`network`、`context_overflow`、`model_empty_response`、`server_error`、`tool_loop_limit`、`unknown`，并写入错误消息 metadata。
-- `Provider token usage 与费用追踪`：任务完成时记录 SDK result 的 `cost_usd` / `duration_ms` 快照到本地 `tasks.provider_usage`，并同步到云端 `tasks.provider_usage`。逐 provider 的 input/output token 账本仍取决于 SDK/provider 是否暴露 usage 事件，不再作为 P1 阻塞项。
-- `数据导入功能补齐`：`DataSettings` 已支持导入 `sessions`、`tasks`、`messages`、`files`、`settings`，保留导出 ID，导入时重写 `user_id`，并避免走普通 `createMessage()` 的云同步副作用。
-- `完整消息跨设备恢复`：新增云端恢复入口，拉取 `sessions` / `tasks` / `messages` / `files` 并复用本地导入路径；后续新建 `tasks` / `files` 也会进入云端同步队列。
-- `Skills 从 GitHub 导入`：前端入口已恢复，后端 `/files/import-skill` 支持公开 GitHub repo/subdir 导入，校验目标路径、`SKILL.md`、文件数量和体积上限。
-- `v1.4.12` release：GitHub Release assets、Railway updater endpoint、GitHub fallback `latest.json` 已验证包含 `darwin-aarch64` / `darwin-x86_64`。
+- `Provider token usage 与费用追踪`：任务完成时记录 SDK result 的 `cost_usd` / `duration_ms` 快照到本地 `tasks.provider_usage`，并同步到云端 `tasks.provider_usage`。
+- `数据导入功能补齐` → **v1.4.15 已移除独立 Import 入口**：云端恢复完全覆盖备份需求，`DataSettings` 合并为 Storage → Backup & Restore → Danger Zone 三段式布局。
+- `完整消息跨设备恢复`：新增云端恢复入口，拉取 `sessions` / `tasks` / `messages` / `files` 并复用本地导入路径。
+- `Skills 从 GitHub 导入`：前端入口已恢复，后端 `/files/import-skill` 支持公开 GitHub repo/subdir 导入。
+- `启动体验` (v1.4.13~v1.4.16):
+  - v1.4.13: 完整启动状态体验（品牌 Logo 动效、阶段进度、sidecar 诊断面板）
+  - v1.4.14: 桌面 sidecar readiness 等待修复
+  - v1.4.15: **移除 blocking 启动屏**，App 直接进入主 UI，sidecar 就绪状态改为后台轮询 + 头像状态徽章（绿/红点）
+- `设置面板精简` (v1.4.15): 「工作区」合并入「数据」tab（11→10 菜单项），移除独立 Import Data。
+- `user_behavior sync 修复` (v1.4.14): Supabase `user_behavior.task_id` 从 UUID 改为 TEXT，匹配前端 `Date.now().toString()` 生成方式。
+- `CI 修复` (v1.4.16): 移除 GitHub Actions 中显式 pnpm version 声明，让 `pnpm/action-setup@v4` 直接读 `package.json` 的 `packageManager` 字段。
 
 **仍需环境 / 实机验证**：
 
-- 在 Intel Mac 上验证 `v1.4.12` DMG 安装和应用内更新。
+- 在 Intel Mac 上验证最新版 DMG 安装和应用内更新。
 - 在已应用 Supabase migration 的环境验证云端 `tasks.provider_usage`、`tasks` / `files` upsert 与云端恢复。
 - 用真实公开 GitHub skill repo 验证 `/files/import-skill`。
+- 验证 v1.4.16 CI 能否在 tag push 后成功完成双平台构建。
 
 ---
 
@@ -88,25 +97,21 @@
 
 ### 启动可靠性与状态可见性
 
-**真实现状**：
+**真实现状**（v1.4.16 已完成）：
 
-- 已完成：`StartupScreen` 统一承接 settings 初始化、桌面 sidecar/API 健康检查、登录态恢复、本地 DB 绑定等阶段。
-- 已完成：品牌 Logo 动效、阶段进度、启动诊断面板、sidecar endpoint / HTTP 状态 / latency / uptime 展示。
-- 已完成：settings、sidecar/API、本地 DB 绑定失败时提供可理解提示和重试入口。
-- 视觉风格使用 Sage Logo、CSS theme variables，适配黑色、白色、浅黄色主题。
+- ✅ v1.4.13: 完整启动状态体验（品牌 Logo 动效、阶段进度、sidecar 诊断面板）
+- ✅ v1.4.14: 桌面 sidecar readiness 等待
+- ✅ v1.4.15: **移除 blocking 启动屏**，改为非阻塞后台轮询 + 头像状态徽章
+- ✅ settings、sidecar/API、本地 DB 绑定失败时提供可理解提示和重试入口
+- ✅ 视觉风格使用 Sage Logo、CSS theme variables，适配黑色、白色、浅黄色主题
 
-**目标**：
+**决策变更**：v1.4.15 决定不再用 blocking startup screen。App 启动后直接进入主 UI，sidecar 就绪状态通过头像绿/红点反映。用户体验优先于”确保一切就绪才进入”的策略。
 
-- 把 App 从点击图标到可对话之间的关键初始化状态讲清楚：前端加载、sidecar/API ready、本地 DB 绑定、登录态恢复、云同步状态。
-- 本地能力可用但云同步失败时允许进入，并明确提示“云同步暂不可用”。
-- sidecar、DB、auth 等关键步骤失败时给出可理解原因和重试入口，避免表现成空白页或按钮无响应。
-- 设计风格必须与 Sage 品牌一致，不做突兀的重视觉动画；优先信息清晰、过渡克制。
-- 必须适配三种主题色：黑色、白色、浅黄色，保证对比度、Logo 可读性和 loading 状态一致。
+**待手动验证**：
 
-**范围**：
-
-- 已完成：启动阶段状态可见、失败原因可见、可重试、品牌化 Logo 动效、启动诊断面板。
-- 待手动验证：三种主题下的视觉一致性、sidecar 未就绪 / DB 绑定失败 / 离线登录恢复等异常路径。
+- 三种主题下头像状态徽章的视觉一致性
+- sidecar 未就绪时的降级体验（红点 + 无法对话的提示）
+- 离线登录恢复路径
 
 ---
 
