@@ -64,6 +64,8 @@ import {
   extractArtifacts,
 } from './right-sidebar-helpers';
 
+const DEFAULT_VISIBLE_COUNT = 5;
+
 export function RightSidebar({
   messages,
   isRunning: _isRunning,
