@@ -1,7 +1,7 @@
 # Sage — TODO & Feature Roadmap
 
 > 本文件是项目唯一权威 TODO。只保留真实待解决项、明确产品规划和暂不做事项；已完成内容通过 git commit / release 记录追溯。
-> 最后更新：2026-05-19（v1.4.16，启动体验重构完成，设置面板精简，CI 修复）
+> 最后更新：2026-05-19（v1.5.0，项目架构优化完成，进入 iOS Phase 1）
 
 ---
 
@@ -36,6 +36,13 @@
 - `设置面板精简` (v1.4.15): 「工作区」合并入「数据」tab（11→10 菜单项），移除独立 Import Data。
 - `user_behavior sync 修复` (v1.4.14): Supabase `user_behavior.task_id` 从 UUID 改为 TEXT，匹配前端 `Date.now().toString()` 生成方式。
 - `CI 修复` (v1.4.16): 移除 GitHub Actions 中显式 pnpm version 声明，让 `pnpm/action-setup@v4` 直接读 `package.json` 的 `packageManager` 字段。
+- `v1.5.0 项目架构优化`:
+  - 分层 CLAUDE.md 文档体系（10 个文件，渐进式 AI 上下文管理）
+  - useAgent.ts 模块化拆分（3470 → 2382 + 7 子模块）
+  - TaskDetail.tsx 子组件提取（2540 → 1197 + 9 个独立组件）
+  - database.ts 按实体拆分（1568 → 555 + 4 个实体模块）
+  - RightSidebar.tsx 辅助函数提取（1519 → 585 + helpers 模块）
+  - 新增 platform.ts 统一平台检测基础设施（isTauri/isCapacitor/isMobile/isDesktop）
 
 **仍需环境 / 实机验证**：
 
