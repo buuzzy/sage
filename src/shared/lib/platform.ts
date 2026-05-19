@@ -14,9 +14,12 @@ export const isTauri =
 /** Running inside Capacitor native shell (iOS/Android) */
 export const isCapacitor =
   typeof window !== 'undefined' &&
-  'Capacitor' in window &&
+  // Capacitor injects window.Capacitor before any JS runs in the WebView.
+  // Check both the object existence and the native platform flag.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  !!(window as any).Capacitor?.isNativePlatform?.();
+  ('Capacitor' in window && !!(window as any).Capacitor?.isNativePlatform?.()) ||
+  // Fallback: Capacitor also sets this on the navigator
+  (typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent) && !isTauri);
 
 /** Running in a plain browser (not wrapped by native shell) */
 export const isWeb = !isTauri && !isCapacitor;
