@@ -173,6 +173,12 @@ struct MainView: View {
                 .font(.system(size: 18, weight: .regular))
                 .foregroundColor(.secondary)
 
+            // 快捷操作（对标桌面端 Home 3 个分类）
+            if settingsService.isModelConfigured {
+                quickActionsSection
+                    .padding(.top, 24)
+            }
+
             // Model not configured warning
             if !settingsService.isModelConfigured {
                 Button {
@@ -286,6 +292,41 @@ struct MainView: View {
                 chatVM.stopGeneration()
             }
         )
+    }
+
+    // MARK: - Quick Actions (对标桌面端首页 3 个分类)
+
+    private var quickActionsSection: some View {
+        VStack(spacing: 10) {
+            quickActionButton(icon: "chart.line.uptrend.xyaxis", title: "行情查询", prompt: "帮我查一下今天 A 股大盘走势和热门板块")
+            quickActionButton(icon: "doc.text.magnifyingglass", title: "研报分析", prompt: "搜索最新的券商研报，分析当前市场观点")
+            quickActionButton(icon: "clock.arrow.circlepath", title: "定时监控", prompt: "帮我设置一个每天早上 9 点的市场简报定时任务")
+        }
+        .padding(.horizontal, 32)
+    }
+
+    private func quickActionButton(icon: String, title: String, prompt: String) -> some View {
+        Button {
+            Task { await chatVM.sendMessage(prompt) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(.blue)
+                    .frame(width: 28)
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+        }
     }
 
     // MARK: - Helpers
