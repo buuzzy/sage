@@ -1,0 +1,121 @@
+import Foundation
+
+/// 云端数据同步服务 — 火忘式双写
+/// 本地 UserDefaults 写成功后，异步同步到 Supabase
+/// 对标桌面端 sync/ 模块（简化版）
+class CloudSyncService {
+    static let shared = CloudSyncService()
+
+    private let supabaseUrl = "https://wymqgwtagpsjuonsclye.supabase.co"
+    private let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5bXFnd3RhZ3BzanVvbnNjbHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU3OTcwMTUsImV4cCI6MjA1MTM3MzAxNX0.eO7VZFXQ_VeMkTwKI3V1gq-9F5jAqS-y7yJCJy-xEq4"
+
+    private var syncQueue: [(table: String, data: [String: Any])] = []
+    private var isSyncing = false
+
+    private init() {}
+
+    // MARK: - Session Sync
+
+    /// 同步会话元数据到云端
+    func syncSession(sessionId: String, title: String, userId: String) {
+        let data: [String: Any] = [
+            "id": sessionId,
+            "user_id": userId,
+            "title": title,
+            "created_at": ISO8601DateFormatter().string(from: Date()),
+            "platform": "ios"
+        ]
+        enqueue(table: "sessions", data: data)
+    }
+
+    /// 同步消息到云端
+    func syncMessage(taskId: String, type: String, content: String, userId: String) {
+        let data: [String: Any] = [
+            "id": UUID().uuidString,
+            "task_id": taskId,
+            "user_id": userId,
+            "type": type,
+            "content": content,
+            "created_at": ISO8601DateFormatter().string(from: Date())
+        ]
+        enqueue(table: "messages", data: data)
+    }
+
+    /// 同步设置到云端
+    func syncSettings(userId: String, settings: [String: Any]) {
+        var data = settings
+        data["user_id"] = userId
+        data["updated_at"] = ISO8601DateFormatter().string(from: Date())
+        enqueue(table: "user_settings", data: data)
+    }
+
+    // MARK: - Cloud Restore
+
+    /// 从云端恢复会话列表
+    func restoreSessions(userId: String) async -> [SessionItem] {
+        guard let token = await AuthService.shared.getAccessToken() else { return [] }
+
+        do {
+            var request = URLRequest(url: URL(string: "\(supabaseUrl)/rest/v1/sessions?user_id=eq.\(userId)&order=created_at.desc&limit=50")!)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }
+
+            if let sessions = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                return sessions.compactMap { dict in
+                    guard let id = dict["id"] as? String,
+                          let title = dict["title"] as? String else { return nil }
+                    let createdAt: Date
+                    if let dateStr = dict["created_at"] as? String {
+                        createdAt = ISO8601DateFormatter().date(from: dateStr) ?? Date()
+                    } else {
+                        createdAt = Date()
+                    }
+                    return SessionItem(id: id, title: title, createdAt: createdAt)
+                }
+            }
+        } catch { }
+        return []
+    }
+
+    // MARK: - Queue Worker
+
+    private func enqueue(table: String, data: [String: Any]) {
+        syncQueue.append((table: table, data: data))
+        processQueue()
+    }
+
+    private func processQueue() {
+        guard !isSyncing, !syncQueue.isEmpty else { return }
+        isSyncing = true
+
+        Task {
+            while !syncQueue.isEmpty {
+                let item = syncQueue.removeFirst()
+                await upload(table: item.table, data: item.data)
+            }
+            isSyncing = false
+        }
+    }
+
+    private func upload(table: String, data: [String: Any]) async {
+        guard let token = await AuthService.shared.getAccessToken() else { return }
+
+        do {
+            var request = URLRequest(url: URL(string: "\(supabaseUrl)/rest/v1/\(table)")!)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
+            request.httpBody = try JSONSerialization.data(withJSONObject: data)
+
+            _ = try await URLSession.shared.data(for: request)
+        } catch {
+            // 火忘式 — 失败不阻塞用户
+            print("[CloudSync] Upload failed for \(table): \(error.localizedDescription)")
+        }
+    }
+}

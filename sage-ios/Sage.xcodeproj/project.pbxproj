@@ -26,6 +26,7 @@
 		C726F9A7CF656F290E88B94C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5F5E40A859731C554CEC012 /* APIClient.swift */; };
 		C75FDBB75AF22B665FB30185 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCEEA60168B7DC21805DB87 /* NotificationService.swift */; };
 		C7E81A1E19D336DF40EF22C4 /* RunningIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA905465D20ACF67D7612988 /* RunningIndicatorView.swift */; };
+		D3D15A9DB3DECA05759D7C0A /* CloudSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27B7EE01C66AB3AAA4A980A /* CloudSyncService.swift */; };
 		EBDD0CB79729F45C51104556 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E369738C2F3877B0797B7A45 /* SidebarView.swift */; };
 		F12A8292E650A9510A232189 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C35001255FB02FDC730F882 /* SettingsView.swift */; };
 		F1E1D11B79794231E6426AD2 /* ArtifactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EEE0E6AE8A92121E7334C86 /* ArtifactView.swift */; };
@@ -52,6 +53,7 @@
 		B24DA73D9616FC01E8E5A65A /* Sage.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8ED8000B2E965ABA3EA381C /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		CB69E085D2785A94448F0943 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
+		D27B7EE01C66AB3AAA4A980A /* CloudSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncService.swift; sourceTree = "<group>"; };
 		D5DB2469CC4F53FE7EEDBA51 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D5F5E40A859731C554CEC012 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		DA905465D20ACF67D7612988 /* RunningIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningIndicatorView.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 			children = (
 				D5F5E40A859731C554CEC012 /* APIClient.swift */,
 				B8ED8000B2E965ABA3EA381C /* AuthService.swift */,
+				D27B7EE01C66AB3AAA4A980A /* CloudSyncService.swift */,
 				ADCEEA60168B7DC21805DB87 /* NotificationService.swift */,
 				7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */,
 			);
@@ -291,6 +294,7 @@
 				BD6A7EE7617143F99585E9CE /* AssistantTextRow.swift in Sources */,
 				20C39E0D5760FFDD2F9070AA /* AuthService.swift in Sources */,
 				24B8746173142CFBCB5B50C6 /* ChatViewModel.swift in Sources */,
+				D3D15A9DB3DECA05759D7C0A /* CloudSyncService.swift in Sources */,
 				658CEFC1D9F0A48A85575BA9 /* InputBarView.swift in Sources */,
 				15EB865398B182EF9E0EF19C /* LoginView.swift in Sources */,
 				073859AD5046F6C96AE4D00E /* MainView.swift in Sources */,
