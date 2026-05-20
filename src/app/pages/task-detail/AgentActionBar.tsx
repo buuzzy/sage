@@ -3,8 +3,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Copy, FileText } from 'lucide-react';
 import { getSettings } from '@/shared/db/settings';
 import type { AgentMessage } from '@/shared/hooks/useAgent';
+import { useLanguage } from '@/shared/providers/language-provider';
 
 import { serializeMessagesForCopy } from './helpers';
 

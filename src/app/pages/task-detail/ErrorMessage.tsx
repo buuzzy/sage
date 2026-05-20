@@ -3,9 +3,10 @@
  * API key issues, model configuration, and structured error categories.
  */
 
-import { useState, useState } from 'react';
+import { useState } from 'react';
 
 import { SettingsModal } from '@/components/settings';
+import { useLanguage } from '@/shared/providers/language-provider';
 
 function ErrorMessage({ message }: { message: string }) {
   const { t } = useLanguage();
