@@ -93,3 +93,4 @@ github-recovery-codes*.txt
 *.p12
 *.cer
 *.mobileprovision
+sage-ios/.build/
