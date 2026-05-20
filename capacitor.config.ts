@@ -5,9 +5,9 @@ const config: CapacitorConfig = {
   appName: 'Sage',
   webDir: 'dist',
   server: {
-    // Use https scheme so OAuth redirects work properly
-    // (capacitor:// is not a valid HTTP redirect URL)
-    iosScheme: 'https',
+    // Use capacitor:// scheme (default) — avoids CORS issues with https://localhost
+    // allowNavigation allows the WebView to make requests to these domains
+    allowNavigation: ['sage-production-28e1.up.railway.app'],
   },
 };
 

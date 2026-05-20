@@ -113,7 +113,7 @@ export function MobileChatPage({
       </div>
 
       {/* Bottom input */}
-      <div className="border-border/30 shrink-0 border-t px-4 pt-2 pb-[calc(8px+var(--safe-area-bottom))]">
+      <div className="bg-background border-border/30 shrink-0 border-t px-4 pt-2 pb-[calc(8px+var(--safe-area-bottom))]">
         <div className="border-border bg-muted/30 flex items-end gap-2 rounded-2xl border px-4 py-2.5">
           <textarea
             value={value}
@@ -122,6 +122,7 @@ export function MobileChatPage({
             placeholder={isRunning ? '等待回复...' : '继续对话...'}
             disabled={isRunning}
             className="text-foreground placeholder:text-muted-foreground max-h-32 min-h-[24px] flex-1 resize-none bg-transparent text-base leading-6 outline-none disabled:opacity-50"
+            style={{ WebkitAppearance: 'none', backgroundColor: 'transparent' }}
             rows={1}
           />
           {isRunning ? (

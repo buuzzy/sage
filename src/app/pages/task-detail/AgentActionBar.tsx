@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Copy, FileText } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, FileText, Image as ImageIcon } from 'lucide-react';
 import { getSettings } from '@/shared/db/settings';
 import type { AgentMessage } from '@/shared/hooks/useAgent';
 import { useLanguage } from '@/shared/providers/language-provider';
@@ -316,7 +316,7 @@ function AgentActionBar({
         className="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors disabled:opacity-40"
         title="导出为图片（保存到下载目录）"
       >
-        <Image className="size-3" />
+        <ImageIcon className="size-3" />
         <span>{exportingImage ? '导出中…' : '导出图片'}</span>
       </button>
 

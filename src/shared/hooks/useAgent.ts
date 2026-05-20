@@ -104,19 +104,41 @@ async function getSessionsBaseDir(): Promise<string> {
 
 const AGENT_SERVER_URL = API_BASE_URL;
 
-// ─── 通用请求 header（非 Tauri 时自动注入 Supabase JWT 作为 Bearer token）─────
+// ─── 通用请求 header（非 Tauri 时自动注入 Bearer token）─────
 const isTauriEnv =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+// Auth strategy for non-Tauri environments (iOS/Web):
+// 1. Prefer: Supabase JWT from getCurrentAccessToken() (user-scoped)
+// 2. Fallback: VITE_RAILWAY_API_TOKEN env var (for testing/CI)
+//
+// For Railway backend (cloud) deployment, either strategy works:
+// - Supabase JWT: validated against supabase instance
+// - Railway token: validated against SAGE_API_TOKEN environment variable
+//
+// See: CLAUDE.md > API Key 管理 section for token lifecycle
 
 async function getRequestHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  // 非 Tauri（iOS / Web）→ Railway 云端，需要 Bearer auth
+  // Non-Tauri (iOS/Web) → Railway cloud backend requires Bearer auth
   if (!isTauriEnv) {
-    const token = await getCurrentAccessToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    // Try Supabase JWT first (preferred for authenticated users)
+    const supabaseToken = await getCurrentAccessToken();
+    if (supabaseToken) {
+      headers['Authorization'] = `Bearer ${supabaseToken}`;
+    } else {
+      // Fallback to environment variable (for testing/CI)
+      const fallbackToken = import.meta.env.VITE_RAILWAY_API_TOKEN;
+      if (fallbackToken) {
+        headers['Authorization'] = `Bearer ${fallbackToken}`;
+        if (!import.meta.env.PROD) {
+          console.warn(
+            '[API] No Supabase token available, using VITE_RAILWAY_API_TOKEN fallback'
+          );
+        }
+      }
     }
   }
   return headers;
@@ -1406,6 +1428,14 @@ export function useAgent(): UseAgentReturn {
           );
           setPhase('executing');
 
+          // Add user message to UI immediately
+          const userMessage: AgentMessage = {
+            type: 'user',
+            content: prompt,
+            attachments: attachments,
+          };
+          setMessages([userMessage]);
+
           try {
             const allRefs = [...savedFileRefs];
             await createMessage({
@@ -1825,9 +1855,7 @@ export function useAgent(): UseAgentReturn {
         `${AGENT_SERVER_URL}/agent/execute`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: await getRequestHeaders(),
           body: JSON.stringify({
             planId: plan.id,
             prompt: initialPrompt,
@@ -2101,9 +2129,7 @@ export function useAgent(): UseAgentReturn {
         // Send conversation with full history (agent SDK path)
         const response = await fetchWithRetry(`${AGENT_SERVER_URL}/agent`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: await getRequestHeaders(),
           body: JSON.stringify({
             prompt: executionPrompt,
             conversation: conversationHistory,
@@ -2249,9 +2275,7 @@ export function useAgent(): UseAgentReturn {
       try {
         const response = await fetch(`${AGENT_SERVER_URL}/agent/permission`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: await getRequestHeaders(),
           body: JSON.stringify({
             sessionId: sessionIdRef.current,
             permissionId,

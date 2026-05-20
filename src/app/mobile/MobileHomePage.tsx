@@ -58,7 +58,7 @@ export function MobileHomePage({
       </div>
 
       {/* Bottom input */}
-      <div className="shrink-0 px-4 pb-[calc(12px+var(--safe-area-bottom))]">
+      <div className="bg-background shrink-0 px-4 pb-[calc(12px+var(--safe-area-bottom))]">
         <div className="border-border bg-muted/30 flex items-end gap-2 rounded-2xl border px-4 py-3">
           <textarea
             ref={inputRef}
@@ -67,6 +67,7 @@ export function MobileHomePage({
             onKeyDown={handleKeyDown}
             placeholder="问问 Sage..."
             className="text-foreground placeholder:text-muted-foreground max-h-32 min-h-[24px] flex-1 resize-none bg-transparent text-base leading-6 outline-none"
+            style={{ WebkitAppearance: 'none', backgroundColor: 'transparent' }}
             rows={1}
           />
           <button

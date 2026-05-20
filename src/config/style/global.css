@@ -101,6 +101,8 @@ input,
 select,
 textarea {
   @apply border-border outline-ring/50 bg-background;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 button {
