@@ -48,8 +48,8 @@ export default [
       '@typescript-eslint/no-unused-vars': 'off',
       'no-unused-vars': 'off',
 
-      // Unused imports - auto-fix
-      'unused-imports/no-unused-imports': 'error',
+      // Unused imports - WARN only, never auto-fix (auto-fix deletes runtime-needed imports)
+      'unused-imports/no-unused-imports': 'warn',
       'unused-imports/no-unused-vars': [
         'warn',
         {
