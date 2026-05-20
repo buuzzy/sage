@@ -88,8 +88,9 @@ async function signInWithProvider(provider: 'github' | 'google') {
       await openUrl(data.url);
     }
   } else if (isCapacitor) {
-    // iOS (Capacitor): use ASWebAuthenticationSession via @capacitor/browser.
-    // Redirect to a custom URL scheme that iOS will route back to our app.
+    // iOS (Capacitor): use in-app browser for OAuth.
+    // After OAuth, Supabase redirects to ai.sage.app://auth/callback
+    // which triggers appUrlOpen → we close the browser.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -100,6 +101,18 @@ async function signInWithProvider(provider: 'github' | 'google') {
     if (error) throw error;
     if (data.url) {
       const { Browser } = await import('@capacitor/browser');
+      const { App } = await import('@capacitor/app');
+
+      // Pre-register a one-shot listener to close the browser when redirect fires
+      const closeHandler = async ({ url }: { url: string }) => {
+        if (url.startsWith('ai.sage.app://')) {
+          console.log('[Auth] OAuth redirect received, closing browser');
+          try { await Browser.close(); } catch { /* already closed */ }
+          App.removeAllListeners();
+        }
+      };
+      App.addListener('appUrlOpen', closeHandler);
+
       await Browser.open({ url: data.url, windowName: '_self' });
     }
   } else {
@@ -294,7 +307,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then(({ App }) => {
           App.addListener('appUrlOpen', async ({ url }) => {
             console.log('[Auth] Capacitor appUrlOpen:', url);
-            // Check for OAuth tokens or PKCE code in the URL
+
+            // Close browser FIRST (before any async work) for instant dismiss
+            if (url.startsWith('ai.sage.app://')) {
+              try {
+                const { Browser } = await import('@capacitor/browser');
+                await Browser.close();
+                console.log('[Auth] Browser closed successfully');
+              } catch {
+                /* already closed */
+              }
+            }
+
+            // Then handle OAuth tokens
             if (
               url.includes('access_token=') ||
               url.includes('code=') ||
@@ -328,13 +353,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                       data.user?.email
                     );
                   }
-                  // Close the browser regardless of error
-                  try {
-                    const { Browser } = await import('@capacitor/browser');
-                    await Browser.close();
-                  } catch {
-                    /* browser may already be closed */
-                  }
                   return;
                 }
 
@@ -360,27 +378,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     );
                   }
                 }
-                // Close the browser
-                try {
-                  const { Browser } = await import('@capacitor/browser');
-                  await Browser.close();
-                } catch {
-                  /* browser may already be closed */
-                }
               } catch (err) {
                 console.error('[Auth] Capacitor OAuth callback error:', err);
               }
             }
           });
-
-          // Also listen for browserFinished event (ASWebAuthenticationSession closed by user)
-          import('@capacitor/browser')
-            .then(({ Browser }) => {
-              Browser.addListener('browserFinished', () => {
-                console.log('[Auth] Browser finished/closed by user');
-              });
-            })
-            .catch(() => {});
         })
         .catch((err) =>
           console.warn('[Auth] @capacitor/app not available:', err)
