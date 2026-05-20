@@ -42,8 +42,9 @@ import {
   classifyFetchError,
   fetchWithRetry,
   MODEL_EMPTY_RESPONSE_MESSAGE,
+  throwForBadResponse,
 } from './useAgent/errors';
-import { extractAndSaveFiles } from './useAgent/files';
+import { extractAndSaveFiles, extractFilesFromText } from './useAgent/files';
 import {
   applyAgentStrategyHint,
   classifyAgentExecutionStrategy,
@@ -53,6 +54,7 @@ import { sanitizeTitle } from './useAgent/title';
 import type {
   AgentMessage,
   AgentPhase,
+  AgentQuestion,
   MessageAttachment,
   PendingQuestion,
   PermissionRequest,
@@ -101,6 +103,24 @@ async function getSessionsBaseDir(): Promise<string> {
 }
 
 const AGENT_SERVER_URL = API_BASE_URL;
+
+// ─── 通用请求 header（非 Tauri 时自动注入 Supabase JWT 作为 Bearer token）─────
+const isTauriEnv =
+  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+async function getRequestHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  // 非 Tauri（iOS / Web）→ Railway 云端，需要 Bearer auth
+  if (!isTauriEnv) {
+    const token = await getCurrentAccessToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return headers;
+}
 
 console.log(
   `[API] Environment: ${import.meta.env.PROD ? 'production' : 'development'}, Port: ${API_PORT}`
@@ -991,12 +1011,13 @@ export function useAgent(): UseAgentReturn {
                       }
                       // Also stop backend agent
                       if (sessionIdRef.current) {
-                        fetch(
+                        getRequestHeaders().then(headers => fetch(
                           `${AGENT_SERVER_URL}/agent/stop/${sessionIdRef.current}`,
                           {
                             method: 'POST',
+                            headers,
                           }
-                        ).catch(() => {});
+                        )).catch(() => {});
                       }
                       reader.cancel();
                       return; // Stop processing this stream
@@ -1216,7 +1237,7 @@ export function useAgent(): UseAgentReturn {
               });
               const res = await fetch(`${AGENT_SERVER_URL}/agent/title`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: await getRequestHeaders(),
                 body: JSON.stringify({ prompt, modelConfig, language }),
               });
               console.log('[useAgent] Title response status:', res.status);
@@ -1406,7 +1427,7 @@ export function useAgent(): UseAgentReturn {
 
           const response = await fetchWithRetry(`${AGENT_SERVER_URL}/agent`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await getRequestHeaders(),
             body: JSON.stringify({
               prompt: executionPrompt,
               workDir,
@@ -1490,9 +1511,7 @@ export function useAgent(): UseAgentReturn {
           // Use direct execution endpoint with images
           const response = await fetchWithRetry(`${AGENT_SERVER_URL}/agent`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: await getRequestHeaders(),
             body: JSON.stringify({
               prompt: executionPrompt,
               workDir,
@@ -1534,9 +1553,7 @@ export function useAgent(): UseAgentReturn {
           `${AGENT_SERVER_URL}/agent/plan`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: await getRequestHeaders(),
             body: JSON.stringify({
               prompt: executionPrompt,
               modelConfig,
@@ -2176,6 +2193,7 @@ export function useAgent(): UseAgentReturn {
       try {
         await fetch(`${AGENT_SERVER_URL}/agent/stop/${sessionIdRef.current}`, {
           method: 'POST',
+          headers: await getRequestHeaders(),
         });
       } catch {
         // Ignore errors

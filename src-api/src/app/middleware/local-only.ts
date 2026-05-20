@@ -1,13 +1,17 @@
 /**
  * Local-Only / Token Auth Middleware
  *
- * Two modes based on environment:
+ * Three modes based on environment:
  *
- * 1. **Cloud mode** (SAGE_API_TOKEN is set):
- *    Validates `Authorization: Bearer <token>` header.
- *    Used when sage-api is deployed to Railway / cloud.
+ * 1. **Cloud mode — API Token** (SAGE_API_TOKEN is set):
+ *    Validates `Authorization: Bearer <SAGE_API_TOKEN>` header.
+ *    Used for server-to-server / internal calls on Railway.
  *
- * 2. **Local mode** (SAGE_API_TOKEN is NOT set):
+ * 2. **Cloud mode — Supabase JWT** (SAGE_API_TOKEN is set, token doesn't match):
+ *    Falls back to validating the Bearer token as a Supabase JWT.
+ *    Used by iOS / Web frontend clients that send their user JWT.
+ *
+ * 3. **Local mode** (SAGE_API_TOKEN is NOT set):
  *    Restricts access to loopback addresses (127.x.x.x / ::1).
  *    Used when sage-api runs as Tauri desktop sidecar.
  *
@@ -21,8 +25,16 @@
 
 import type { Context, Next } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
+import { createClient } from '@supabase/supabase-js';
 
 const API_TOKEN = process.env.SAGE_API_TOKEN;
+
+// Supabase client for JWT verification (only needed in cloud mode)
+const supabaseUrl = process.env.SUPABASE_URL || 'https://wymqgwtagpsjuonsclye.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseAdmin = supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
 
 /**
  * Returns true if the address is a loopback (local) address.
@@ -42,7 +54,8 @@ function isLoopback(addr: string | undefined): boolean {
 /**
  * Middleware that guards sensitive routes.
  *
- * Cloud mode:  checks Authorization: Bearer <SAGE_API_TOKEN>
+ * Cloud mode:  checks Authorization: Bearer <SAGE_API_TOKEN> first,
+ *              then falls back to Supabase JWT verification.
  * Local mode:  checks source IP is loopback
  */
 export async function localOnlyMiddleware(c: Context, next: Next): Promise<Response | void> {
@@ -53,12 +66,28 @@ export async function localOnlyMiddleware(c: Context, next: Next): Promise<Respo
       ? authHeader.slice(7)
       : undefined;
 
-    if (token !== API_TOKEN) {
-      return c.json({ error: 'Unauthorized' }, 401);
+    // Priority 1: exact match with SAGE_API_TOKEN (server-to-server)
+    if (token === API_TOKEN) {
+      await next();
+      return;
     }
 
-    await next();
-    return;
+    // Priority 2: validate as Supabase JWT (iOS / Web user clients)
+    if (token && supabaseAdmin) {
+      try {
+        const { data, error } = await supabaseAdmin.auth.getUser(token);
+        if (!error && data.user) {
+          // Valid Supabase user — allow request
+          await next();
+          return;
+        }
+      } catch {
+        // JWT verification failed — fall through to reject
+      }
+    }
+
+    // Neither token matched
+    return c.json({ error: 'Unauthorized' }, 401);
   }
 
   // ── Local mode: loopback check (desktop sidecar) ──────────────────────────
