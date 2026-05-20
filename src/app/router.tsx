@@ -1,6 +1,5 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
-
 import {
   HomePage,
   LibraryPage,
@@ -8,9 +7,10 @@ import {
   SetupPage,
   TaskDetailPage,
 } from '@/app/pages';
+import { isMobile } from '@/shared/lib/platform';
+
 import { AuthGuard } from '@/components/auth-guard';
 import { SetupGuard } from '@/components/setup-guard';
-import { isMobile } from '@/shared/lib/platform';
 
 // Mobile app shell (lazy-loaded, only on mobile)
 const MobileApp = lazy(() => import('./mobile/MobileApp'));

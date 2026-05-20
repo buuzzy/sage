@@ -17,48 +17,24 @@ import {
   type LibraryFile,
   type Task,
 } from '@/shared/db';
-import {
-  useAgent,
-  type AgentMessage,
-  type AgentPhase,
-  type MessageAttachment,
-} from '@/shared/hooks/useAgent';
+import { useAgent, type MessageAttachment } from '@/shared/hooks/useAgent';
 import { useChannelSync } from '@/shared/hooks/useChannelSync';
-import { isMobile } from '@/shared/lib/platform';
 import { useVitePreview } from '@/shared/hooks/useVitePreview';
-import { extractArtifacts } from '@/shared/lib/artifactParser';
 import { estimateConversationContextTokens } from '@/shared/lib/context-usage';
+import { isMobile } from '@/shared/lib/platform';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
-import {
-  AlertTriangle,
-  ArrowDown,
-  CheckCircle2,
-  ChevronDown,
-  Copy,
-  FileText,
-  Image,
-  PanelLeft,
-  Pencil,
-} from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { ArrowDown, PanelLeft, Pencil } from 'lucide-react';
 
 import {
   ArtifactPreview,
   hasValidSearchResults,
   type Artifact,
 } from '@/components/artifacts';
-import { Logo } from '@/components/common/logo';
-import { ArtifactRenderer } from '@/components/htui/ArtifactRenderer';
 import { LeftSidebar, SidebarProvider, useSidebar } from '@/components/layout';
-import { SettingsModal } from '@/components/settings';
 import { ChatInput, type ChatMode } from '@/components/shared/ChatInput';
-import { LazyImage } from '@/components/shared/LazyImage';
-import { PlanApproval } from '@/components/task/PlanApproval';
 import { QuestionInput } from '@/components/task/QuestionInput';
 import { RightSidebar } from '@/components/task/RightSidebar';
-import { ToolExecutionItem } from '@/components/task/ToolExecutionItem';
 import {
   Dialog,
   DialogContent,
@@ -67,15 +43,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-import { AgentActionBar } from './task-detail/AgentActionBar';
-import { ErrorMessage } from './task-detail/ErrorMessage';
-import { MessageItem } from './task-detail/MessageItem';
 import { MessageList } from './task-detail/MessageList';
 import { RunningIndicator } from './task-detail/RunningIndicator';
-import { TaskGroupComponent } from './task-detail/TaskGroupComponent';
-import { TextMessageItem } from './task-detail/TextMessageItem';
 import { UserMessage } from './task-detail/UserMessage';
-import { serializeMessagesForCopy } from './task-detail/helpers';
 
 interface LocationState {
   prompt?: string;
@@ -930,10 +900,12 @@ function TaskDetailContent() {
 
   return (
     <ToolSelectionContext.Provider value={toolSelectionValue}>
-      <div className={cn(
-        "bg-sidebar flex h-screen overflow-hidden",
-        isMobile && "pt-[var(--safe-area-top)]"
-      )}>
+      <div
+        className={cn(
+          'bg-sidebar flex h-screen overflow-hidden',
+          isMobile && 'pt-[var(--safe-area-top)]'
+        )}
+      >
         {/* Left Sidebar */}
         <LeftSidebar
           tasks={allTasks}
@@ -952,8 +924,8 @@ function TaskDetailContent() {
         <div
           ref={containerRef}
           className={cn(
-            "bg-background flex min-w-0 flex-1 overflow-hidden",
-            isMobile ? "rounded-none" : "my-2 mr-2 rounded-2xl shadow-sm"
+            'bg-background flex min-w-0 flex-1 overflow-hidden',
+            isMobile ? 'rounded-none' : 'my-2 mr-2 rounded-2xl shadow-sm'
           )}
         >
           {/* Left Panel - Agent Chat (flex-1 to fill available space) */}
@@ -1201,4 +1173,3 @@ function TaskDetailContent() {
     </ToolSelectionContext.Provider>
   );
 }
-

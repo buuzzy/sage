@@ -57,6 +57,8 @@
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.3.1",
     "@capacitor/core": "^8.3.1",
     "@capacitor/ios": "^8.3.1",

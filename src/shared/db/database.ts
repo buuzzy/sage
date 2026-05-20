@@ -2,29 +2,6 @@ import {
   ensureUserDirs,
   getUserDbConnString,
 } from '@/shared/lib/user-scoped-paths';
-import { enqueueUserBehavior } from '@/shared/sync/behavior-sync';
-import {
-  enqueueFileUpsert,
-  enqueueMessageInsert,
-  enqueueTaskUpsert,
-} from '@/shared/sync/messages-sync';
-import {
-  markSessionDeleted,
-  markSessionDirty,
-} from '@/shared/sync/session-dirty-queue';
-import { uuidv7 } from 'uuidv7';
-
-import type {
-  CreateFileInput,
-  CreateMessageInput,
-  CreateSessionInput,
-  CreateTaskInput,
-  LibraryFile,
-  Message,
-  Session,
-  Task,
-  UpdateTaskInput,
-} from './types';
 
 export interface BackupImportData {
   sessions?: unknown[];
@@ -69,7 +46,7 @@ const IDB_NAME = 'sage';
 const IDB_VERSION = 4;
 
 // Check if running in Tauri environment synchronously
-function isTauriSync(): boolean {
+export function isTauriSync(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
@@ -82,21 +59,21 @@ function isTauriSync(): boolean {
   return hasTauriInternals || hasTauri;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
+export function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object'
     ? (value as Record<string, unknown>)
     : null;
 }
 
-function str(value: unknown, fallback = ''): string {
+export function str(value: unknown, fallback = ''): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 }
 
-function nullableStr(value: unknown): string | null {
+export function nullableStr(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function nullableJsonString(value: unknown): string | null {
+export function nullableJsonString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   return typeof value === 'string' ? value : JSON.stringify(value);
 }
@@ -104,7 +81,7 @@ function nullableJsonString(value: unknown): string | null {
 // ============ IndexedDB for Browser Mode ============
 let idb: IDBDatabase | null = null;
 
-async function getIndexedDB(): Promise<IDBDatabase> {
+export async function getIndexedDB(): Promise<IDBDatabase> {
   if (idb) return idb;
 
   return new Promise((resolve, reject) => {
@@ -198,7 +175,7 @@ async function getIndexedDB(): Promise<IDBDatabase> {
 }
 
 // Helper to promisify IDB requests
-function idbRequest<T>(request: IDBRequest<T>): Promise<T> {
+export function idbRequest<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -211,7 +188,7 @@ type SqliteHandle = Awaited<
 >;
 
 let sqliteDb: SqliteHandle | null = null;
-let currentUid: string | null = null;
+export let currentUid: string | null = null;
 let bindInFlight: Promise<void> | null = null;
 // 监听器：供 settings 缓存失效 / UI 重新查询使用
 const bindListeners = new Set<(uid: string | null) => void>();

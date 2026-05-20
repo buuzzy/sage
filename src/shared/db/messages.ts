@@ -2,9 +2,31 @@
  * Message CRUD operations + backup import.
  */
 
-import type { CreateMessageInput, Message, Task } from './types';
+import { enqueueUserBehavior } from '@/shared/sync/behavior-sync';
+import { enqueueMessageInsert } from '@/shared/sync/messages-sync';
+import { markSessionDirty } from '@/shared/sync/session-dirty-queue';
+import { uuidv7 } from 'uuidv7';
+
 import type { BackupImportData, BackupImportResult } from './database';
-import { getSQLiteDatabase } from './database';
+import {
+  asRecord,
+  currentUid,
+  getIndexedDB,
+  getSQLiteDatabase,
+  idbRequest,
+  isTauriSync,
+  nullableJsonString,
+  nullableStr,
+  str,
+} from './database';
+import { getTask, updateTask } from './tasks';
+import type {
+  CreateMessageInput,
+  LibraryFile,
+  Message,
+  Session,
+  Task,
+} from './types';
 
 export async function createMessage(
   input: CreateMessageInput
@@ -410,4 +432,3 @@ export function isDatabaseAvailable(): boolean {
 }
 
 // ============ Library File Operations ============
-

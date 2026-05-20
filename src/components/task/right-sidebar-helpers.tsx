@@ -3,37 +3,41 @@
  * Utility functions for file icons, tool detection, artifact extraction, etc.
  */
 
-import { useMemo, useState } from 'react';
-import {
-  Braces,
-  Code,
-  Database,
-  File,
-  FileText,
-  Globe,
-  Image,
-  Music,
-  Presentation,
-  Sheet,
-  Video,
-  ChevronDown,
-  Eye,
-  ExternalLink,
-  Folder,
-  Plus,
-  Star,
-  X,
-} from 'lucide-react';
-
-import { type Artifact } from '@/components/artifacts';
-import { ArtifactPreview } from '@/components/artifacts';
-import { ArtifactRenderer } from '@/components/htui/ArtifactRenderer';
+import { useState } from 'react';
+import { API_BASE_URL } from '@/config';
 import type { AgentMessage } from '@/shared/hooks/useAgent';
 import { cn } from '@/shared/lib/utils';
 import {
-  Dialog,
-  DialogContent,
-} from '@/components/ui/dialog';
+  ChevronDown,
+  ChevronRight,
+  Code2,
+  File,
+  FileCode2,
+  FileEdit,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileType,
+  FolderOpen,
+  FolderSearch,
+  Globe,
+  Layers,
+  ListTodo,
+  Loader2,
+  Music,
+  Presentation,
+  Search,
+  Table,
+  Terminal,
+  Type,
+  Video,
+  Wrench,
+  X,
+} from 'lucide-react';
+
+import { type Artifact, type ArtifactType } from '@/components/artifacts';
+
+const API_URL = API_BASE_URL;
 
 interface ToolUsage {
   id: string;
@@ -991,6 +995,26 @@ function extractArtifacts(messages: AgentMessage[]): Artifact[] {
   return artifacts;
 }
 
-
-
-export { ToolUsage, WorkingFile, getFileIconByExt, getArtifactTypeByExt, getToolIcon, isMcpTool, isSkillTool, getSkillMCPInfo, extractMcpTools, ToolPreviewModal, FileTreeItem, EmptyState, CollapsibleSection, SkillsDirInfo, extractUsedSkillNames, extractExternalFolders, getFileIcon, getArtifactType, extractArtifacts };
+export {
+  ToolUsage,
+  WorkingFile,
+  getFileIconByExt,
+  getArtifactTypeByExt,
+  getToolIcon,
+  isMcpTool,
+  isSkillTool,
+  getSkillMCPInfo,
+  extractMcpTools,
+  ToolPreviewModal,
+  FileTreeItem,
+  EmptyState,
+  CollapsibleSection,
+  SkillsDirInfo,
+  extractUsedSkillNames,
+  extractExternalFolders,
+  getFileIcon,
+  getArtifactType,
+  extractArtifacts,
+  fetchSkillsDirs,
+};
+export type { RightSidebarProps };

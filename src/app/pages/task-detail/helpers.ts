@@ -42,5 +42,4 @@ function serializeMessagesForCopy(msgs: AgentMessage[]): string {
     .join('\n\n---\n\n');
 }
 
-
 export { serializeMessagesForCopy };

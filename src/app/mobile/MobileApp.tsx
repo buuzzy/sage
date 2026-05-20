@@ -11,8 +11,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
 import { createSession, getAllTasks, type Task } from '@/shared/db';
+import { isModelConfigured } from '@/shared/db/settings';
 import { useAgent } from '@/shared/hooks/useAgent';
 import {
   subscribeToBackgroundTasks,
@@ -25,8 +25,9 @@ import { MobileChatPage } from './MobileChatPage';
 import { MobileDrawer } from './MobileDrawer';
 import { MobileHeader } from './MobileHeader';
 import { MobileHomePage } from './MobileHomePage';
+import { MobileSettings } from './MobileSettings';
 
-export type MobileView = 'home' | 'chat';
+export type MobileView = 'home' | 'chat' | 'settings';
 
 export default function MobileApp() {
   const { t } = useLanguage();
@@ -95,20 +96,37 @@ export default function MobileApp() {
 
   const handleSubmit = useCallback(
     async (prompt: string) => {
-      const sessionId = generateSessionId(prompt);
-      await createSession({ id: sessionId, prompt });
+      try {
+        console.log('[MobileApp] handleSubmit called with:', prompt);
+        const sessionId = generateSessionId(prompt);
+        console.log('[MobileApp] sessionId:', sessionId);
 
-      const taskId = Date.now().toString();
-      setCurrentTaskId(taskId);
-      setCurrentView('chat');
+        // createSession may fail if user not bound (no auth) — non-blocking
+        try {
+          await createSession({ id: sessionId, prompt });
+          console.log('[MobileApp] session created');
+        } catch (e) {
+          console.warn('[MobileApp] createSession failed (non-fatal):', e);
+        }
 
-      await runAgent(prompt, taskId, {
-        sessionId,
-        taskIndex: 1,
-      });
+        const taskId = Date.now().toString();
+        setCurrentTaskId(taskId);
+        setCurrentView('chat');
+        console.log('[MobileApp] calling runAgent with taskId:', taskId);
 
-      // Refresh task list
-      loadTasks();
+        await runAgent(prompt, taskId, {
+          sessionId,
+          taskIndex: 1,
+        });
+
+        console.log('[MobileApp] runAgent completed');
+        loadTasks();
+      } catch (error) {
+        console.error('[MobileApp] handleSubmit error:', error);
+        const msg =
+          error instanceof Error ? error.message : JSON.stringify(error);
+        alert(`发送失败: ${msg}`);
+      }
     },
     [runAgent, loadTasks]
   );
@@ -123,6 +141,15 @@ export default function MobileApp() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   const displayTitle = generatedTitle || (currentTaskId ? '对话' : 'Sage');
 
+  // Settings view (full-screen, no header/drawer)
+  if (currentView === 'settings') {
+    return (
+      <div className="bg-background flex h-screen flex-col pt-[var(--safe-area-top)]">
+        <MobileSettings onClose={() => setCurrentView('home')} />
+      </div>
+    );
+  }
+
   return (
     <div className="bg-background flex h-screen flex-col overflow-hidden pt-[var(--safe-area-top)]">
       {/* Header */}
@@ -136,7 +163,10 @@ export default function MobileApp() {
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {currentView === 'home' ? (
-          <MobileHomePage onSubmit={handleSubmit} />
+          <MobileHomePage
+            onSubmit={handleSubmit}
+            onOpenSettings={() => setCurrentView('settings')}
+          />
         ) : (
           <MobileChatPage
             messages={messages}

@@ -4,12 +4,14 @@
  */
 
 import { useRef } from 'react';
+import type { AgentMessage } from '@/shared/hooks/useAgent';
+import { extractArtifacts } from '@/shared/lib/artifactParser';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { Logo } from '@/components/common/logo';
 import { ArtifactRenderer } from '@/components/htui/ArtifactRenderer';
-import type { AgentMessage } from '@/shared/hooks/useAgent';
-import { extractArtifacts } from '@/shared/lib/artifactParser';
+
 import { AgentActionBar } from './AgentActionBar';
 
 function TextMessageItem({
@@ -118,7 +120,5 @@ function TextMessageItem({
     </div>
   );
 }
-
-
 
 export { TextMessageItem };

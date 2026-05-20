@@ -4,15 +4,21 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { Send } from 'lucide-react';
+import { isModelConfigured } from '@/shared/db/settings';
+import { AlertCircle, Send } from 'lucide-react';
 
 interface MobileHomePageProps {
   onSubmit: (prompt: string) => void;
+  onOpenSettings?: () => void;
 }
 
-export function MobileHomePage({ onSubmit }: MobileHomePageProps) {
+export function MobileHomePage({
+  onSubmit,
+  onOpenSettings,
+}: MobileHomePageProps) {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const modelReady = isModelConfigured();
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
@@ -36,6 +42,19 @@ export function MobileHomePage({ onSubmit }: MobileHomePageProps) {
           你好
         </h1>
         <p className="text-muted-foreground text-base">有什么可以帮你的？</p>
+
+        {/* Model not configured banner */}
+        {!modelReady && (
+          <button
+            onClick={onOpenSettings}
+            className="mt-6 flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30"
+          >
+            <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="text-sm text-amber-800 dark:text-amber-200">
+              尚未配置模型，点击前往设置
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Bottom input */}
@@ -52,7 +71,7 @@ export function MobileHomePage({ onSubmit }: MobileHomePageProps) {
           />
           <button
             onClick={handleSubmit}
-            disabled={!value.trim()}
+            disabled={!value.trim() || !modelReady}
             className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-full disabled:opacity-30"
           >
             <Send className="size-4" />

@@ -2,8 +2,18 @@
  * Library file CRUD operations.
  */
 
-import type { CreateFileInput, LibraryFile } from './types';
-import { getSQLiteDatabase } from './database';
+import { enqueueFileUpsert } from '@/shared/sync/messages-sync';
+import { markSessionDirty } from '@/shared/sync/session-dirty-queue';
+import { uuidv7 } from 'uuidv7';
+
+import {
+  currentUid,
+  getIndexedDB,
+  getSQLiteDatabase,
+  idbRequest,
+} from './database';
+import { getAllTasks, getTask } from './tasks';
+import type { CreateFileInput, LibraryFile, Task } from './types';
 
 export async function createFile(input: CreateFileInput): Promise<LibraryFile> {
   // Phase 1: files 也用 UUID v7（跨设备唯一，与 messages 一致）
@@ -215,4 +225,3 @@ export async function getFilesGroupedByTask(): Promise<
 
   return result;
 }
-

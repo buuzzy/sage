@@ -1,68 +1,42 @@
 import { startTransition, useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/config';
-import type { AgentMessage } from '@/shared/hooks/useAgent';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
 import {
   ChevronDown,
   ChevronRight,
-  Code2,
   ExternalLink,
-  File,
-  FileCode2,
-  FileEdit,
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  FileType,
   Folder,
   FolderOpen,
-  FolderSearch,
-  Globe,
-  Layers,
-  ListTodo,
   Loader2,
-  Music,
   Package,
-  Presentation,
-  Search,
   Sparkles,
-  Table,
-  Terminal,
-  Type,
-  Video,
   Wrench,
-  X,
 } from 'lucide-react';
 
 import type { Artifact, ArtifactType } from '@/components/artifacts';
+
+import {
+  CollapsibleSection,
+  EmptyState,
+  extractArtifacts,
+  extractExternalFolders,
+  extractMcpTools,
+  extractMcpTools,
+  extractMcpTools,
+  extractUsedSkillNames,
+  getFileIcon,
+  getToolIcon,
+  ToolPreviewModal,
+  type RightSidebarProps,
+  type ToolUsage,
+  type WorkingFile,
+} from './right-sidebar-helpers';
 
 const API_URL = API_BASE_URL;
 
 // Re-export types for backwards compatibility
 export type { Artifact, ArtifactType };
-
-
-import {
-  type ToolUsage,
-  type WorkingFile,
-  type SkillsDirInfo,
-  getFileIconByExt,
-  getToolIcon,
-  isMcpTool,
-  isSkillTool,
-  getSkillMCPInfo,
-  extractMcpTools,
-  ToolPreviewModal,
-  FileTreeItem,
-  EmptyState,
-  CollapsibleSection,
-  extractUsedSkillNames,
-  extractExternalFolders,
-  getFileIcon,
-  getArtifactType,
-  extractArtifacts,
-} from './right-sidebar-helpers';
 
 const DEFAULT_VISIBLE_COUNT = 5;
 

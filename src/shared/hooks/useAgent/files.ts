@@ -4,6 +4,7 @@
  */
 
 import { createFile, type FileType } from '@/shared/db';
+import { getFileName } from '@/shared/lib/paths';
 
 function getFileTypeFromPath(path: string): FileType {
   const ext = path.split('.').pop()?.toLowerCase() || '';

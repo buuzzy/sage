@@ -2,10 +2,10 @@
  * UserMessage — renders a user's message bubble with optional attachments.
  */
 
-import { Image } from 'lucide-react';
+import type { MessageAttachment } from '@/shared/hooks/useAgent';
+import { FileText } from 'lucide-react';
 
 import { LazyImage } from '@/components/shared/LazyImage';
-import type { MessageAttachment } from '@/shared/hooks/useAgent';
 
 function UserMessage({
   content,
@@ -63,7 +63,5 @@ function UserMessage({
     </div>
   );
 }
-
-
 
 export { UserMessage };

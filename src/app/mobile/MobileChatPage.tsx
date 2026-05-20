@@ -4,20 +4,18 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Send, Square } from 'lucide-react';
-
-import { PlanApproval } from '@/components/task/PlanApproval';
-import { QuestionInput } from '@/components/task/QuestionInput';
+import { MessageList } from '@/app/pages/task-detail/MessageList';
+import { RunningIndicator } from '@/app/pages/task-detail/RunningIndicator';
 import type {
   AgentMessage,
   AgentPhase,
   PendingQuestion,
   TaskPlan,
 } from '@/shared/hooks/useAgent';
+import { Send, Square } from 'lucide-react';
 
-import { MessageList } from '@/app/pages/task-detail/MessageList';
-import { RunningIndicator } from '@/app/pages/task-detail/RunningIndicator';
-import { UserMessage } from '@/app/pages/task-detail/UserMessage';
+import { PlanApproval } from '@/components/task/PlanApproval';
+import { QuestionInput } from '@/components/task/QuestionInput';
 
 interface MobileChatPageProps {
   messages: AgentMessage[];
@@ -27,7 +25,10 @@ interface MobileChatPageProps {
   approvePlan: () => Promise<void>;
   rejectPlan: () => void;
   pendingQuestion: PendingQuestion | null;
-  respondToQuestion: (id: string, answers: Record<string, string>) => Promise<void>;
+  respondToQuestion: (
+    id: string,
+    answers: Record<string, string>
+  ) => Promise<void>;
   onSubmit: (text: string) => void;
   onStop: () => Promise<void>;
 }
@@ -73,13 +74,20 @@ export function MobileChatPage({
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
         {/* Message list */}
-        <MessageList messages={messages} />
+        <MessageList
+          messages={messages}
+          isRunning={isRunning}
+          phase={phase}
+          onApprovePlan={approvePlan}
+          onRejectPlan={rejectPlan}
+        />
 
         {/* Plan approval */}
         {phase === 'awaiting_approval' && plan && !isRunning && (
           <div className="my-3">
             <PlanApproval
               plan={plan}
+              isWaitingApproval={true}
               onApprove={approvePlan}
               onReject={rejectPlan}
             />
@@ -90,8 +98,8 @@ export function MobileChatPage({
         {pendingQuestion && (
           <div className="my-3">
             <QuestionInput
-              question={pendingQuestion}
-              onRespond={respondToQuestion}
+              pendingQuestion={pendingQuestion}
+              onSubmit={respondToQuestion}
             />
           </div>
         )}
@@ -105,7 +113,7 @@ export function MobileChatPage({
       </div>
 
       {/* Bottom input */}
-      <div className="border-border/30 shrink-0 border-t px-4 pb-[calc(8px+var(--safe-area-bottom))] pt-2">
+      <div className="border-border/30 shrink-0 border-t px-4 pt-2 pb-[calc(8px+var(--safe-area-bottom))]">
         <div className="border-border bg-muted/30 flex items-end gap-2 rounded-2xl border px-4 py-2.5">
           <textarea
             value={value}

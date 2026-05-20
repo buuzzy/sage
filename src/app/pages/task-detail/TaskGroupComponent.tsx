@@ -2,12 +2,13 @@
  * TaskGroupComponent — collapsible group of tool executions with a text header.
  */
 
-import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-
-import { ToolExecutionItem } from '@/components/task/ToolExecutionItem';
+import { useEffect, useState } from 'react';
 import type { AgentMessage } from '@/shared/hooks/useAgent';
 import { cn } from '@/shared/lib/utils';
+import { useLanguage } from '@/shared/providers/language-provider';
+import { CheckCircle2, ChevronDown } from 'lucide-react';
+
+import { ToolExecutionItem } from '@/components/task/ToolExecutionItem';
 
 function TaskGroupComponent({
   title,
@@ -103,7 +104,5 @@ function TaskGroupComponent({
     </div>
   );
 }
-
-
 
 export { TaskGroupComponent };

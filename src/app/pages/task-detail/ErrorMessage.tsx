@@ -3,11 +3,9 @@
  * API key issues, model configuration, and structured error categories.
  */
 
-import { AlertTriangle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useState } from 'react';
 
 import { SettingsModal } from '@/components/settings';
-import { useLanguage } from '@/shared/providers/language-provider';
 
 function ErrorMessage({ message }: { message: string }) {
   const { t } = useLanguage();
@@ -227,7 +225,5 @@ function ErrorMessage({ message }: { message: string }) {
     </div>
   );
 }
-
-
 
 export { ErrorMessage };

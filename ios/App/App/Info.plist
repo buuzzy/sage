@@ -47,5 +47,16 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ai.sage.app</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>ai.sage.app</string>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -17,9 +17,9 @@ import {
   subscribeToBackgroundTasks,
   type BackgroundTask,
 } from '@/shared/lib/background-tasks';
+import { isMobile } from '@/shared/lib/platform';
 import { generateSessionId } from '@/shared/lib/session';
 import { cn } from '@/shared/lib/utils';
-import { isMobile } from '@/shared/lib/platform';
 import { useLanguage } from '@/shared/providers/language-provider';
 import { ArrowUpRight, Cog, FileText, FolderOpen } from 'lucide-react';
 
@@ -171,10 +171,12 @@ function HomeContent() {
   const activeCategoryData = activeCategory ? categories[activeCategory] : null;
 
   return (
-    <div className={cn(
-      "bg-sidebar flex h-screen overflow-hidden",
-      isMobile && "pt-[var(--safe-area-top)]"
-    )}>
+    <div
+      className={cn(
+        'bg-sidebar flex h-screen overflow-hidden',
+        isMobile && 'pt-[var(--safe-area-top)]'
+      )}
+    >
       {/* Left Sidebar */}
       <LeftSidebar
         tasks={tasks}
@@ -186,10 +188,12 @@ function HomeContent() {
       />
 
       {/* Main Content */}
-      <div className={cn(
-        "bg-background flex min-w-0 flex-1 flex-col overflow-hidden",
-        isMobile ? "rounded-none" : "my-2 mr-2 rounded-2xl shadow-sm"
-      )}>
+      <div
+        className={cn(
+          'bg-background flex min-w-0 flex-1 flex-col overflow-hidden',
+          isMobile ? 'rounded-none' : 'my-2 mr-2 rounded-2xl shadow-sm'
+        )}
+      >
         {/* Content Area - Vertically Centered */}
         <div className="flex flex-1 flex-col items-center justify-center overflow-auto px-4">
           <div className="flex w-full max-w-2xl flex-col items-center gap-6">

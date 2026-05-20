@@ -2,12 +2,25 @@
  * AgentActionBar — action buttons (copy, export, feedback) for agent responses.
  */
 
-import { useCallback, useRef, useState } from 'react';
-import { CheckCircle2, Copy, FileText } from 'lucide-react';
-
+import { useEffect, useRef, useState } from 'react';
+import { getSettings } from '@/shared/db/settings';
 import type { AgentMessage } from '@/shared/hooks/useAgent';
-import { useLanguage } from '@/shared/providers/language-provider';
+
 import { serializeMessagesForCopy } from './helpers';
+
+type BugCategory =
+  | '回答错误'
+  | '工具调用异常'
+  | '界面问题'
+  | '性能问题'
+  | '其他';
+const BUG_CATEGORIES: BugCategory[] = [
+  '回答错误',
+  '工具调用异常',
+  '界面问题',
+  '性能问题',
+  '其他',
+];
 
 function AgentActionBar({
   cleanText,
@@ -393,7 +406,5 @@ function AgentActionBar({
     </div>
   );
 }
-
-
 
 export { AgentActionBar };

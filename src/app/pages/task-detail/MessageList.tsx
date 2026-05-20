@@ -3,9 +3,8 @@
  * and renders them in order.
  */
 
-import { useMemo } from 'react';
-
 import type { AgentMessage } from '@/shared/hooks/useAgent';
+
 import { MessageItem } from './MessageItem';
 import { TaskGroupComponent } from './TaskGroupComponent';
 
@@ -292,7 +291,5 @@ function MessageList({
     </div>
   );
 }
-
-
 
 export { MessageList };

@@ -2,7 +2,6 @@
  * RunningIndicator — shows current activity status during agent execution.
  */
 
-import { Logo } from '@/components/common/logo';
 import type { AgentMessage, AgentPhase } from '@/shared/hooks/useAgent';
 
 function RunningIndicator({
@@ -97,6 +96,5 @@ function RunningIndicator({
     </div>
   );
 }
-
 
 export { RunningIndicator };

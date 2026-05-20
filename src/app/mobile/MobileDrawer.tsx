@@ -3,11 +3,10 @@
  * Slides in from the left, similar to ChatGPT iOS sidebar.
  */
 
-import { SquarePen } from 'lucide-react';
-
 import type { Task } from '@/shared/db';
 import type { BackgroundTask } from '@/shared/lib/background-tasks';
 import { cn } from '@/shared/lib/utils';
+import { SquarePen } from 'lucide-react';
 
 interface MobileDrawerProps {
   open: boolean;
@@ -63,7 +62,7 @@ export function MobileDrawer({
 
         {/* Task list */}
         <div className="flex-1 overflow-y-auto px-3">
-          <div className="text-muted-foreground mb-2 px-2 text-xs font-medium uppercase tracking-wider">
+          <div className="text-muted-foreground mb-2 px-2 text-xs font-medium tracking-wider uppercase">
             对话
           </div>
           {tasks.length === 0 ? (

@@ -101,7 +101,7 @@ export function ArtifactRenderer({ artifacts }: ArtifactRendererProps) {
 
   return (
     <Suspense fallback={null}>
-      <div className="my-3 flex flex-col gap-4">
+      <div className="my-3 flex max-w-full flex-col gap-4 overflow-hidden">
         {artifacts.map((artifact, i) => renderSingleArtifact(artifact, i))}
       </div>
     </Suspense>

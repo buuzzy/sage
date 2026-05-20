@@ -5,7 +5,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-
 import { isMobile } from '@/shared/lib/platform';
 
 interface SidebarContextType {

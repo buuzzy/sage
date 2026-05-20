@@ -4,12 +4,17 @@
  */
 
 import type { AgentMessage } from '@/shared/hooks/useAgent';
+
+import { PlanApproval } from '@/components/task/PlanApproval';
+
 import { ErrorMessage } from './ErrorMessage';
 import { TextMessageItem } from './TextMessageItem';
+import { UserMessage } from './UserMessage';
 
 function MessageItem({
   message,
   phase,
+  isRunning,
   onApprovePlan,
   onRejectPlan,
   allMessages,
@@ -17,6 +22,7 @@ function MessageItem({
 }: {
   message: AgentMessage;
   phase?: string;
+  isRunning?: boolean;
   onApprovePlan?: () => void;
   onRejectPlan?: () => void;
   allMessages?: AgentMessage[];
@@ -62,7 +68,5 @@ function MessageItem({
 
   return null;
 }
-
-
 
 export { MessageItem };

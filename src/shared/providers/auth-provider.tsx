@@ -17,6 +17,11 @@ import {
 const isTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+const isCapacitor =
+  typeof window !== 'undefined' &&
+  'Capacitor' in window &&
+  !!(window as any).Capacitor?.isNativePlatform?.();
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
@@ -82,8 +87,23 @@ async function signInWithProvider(provider: 'github' | 'google') {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       await openUrl(data.url);
     }
+  } else if (isCapacitor) {
+    // iOS (Capacitor): use ASWebAuthenticationSession via @capacitor/browser.
+    // Redirect to a custom URL scheme that iOS will route back to our app.
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: 'ai.sage.app://auth/callback',
+        skipBrowserRedirect: true,
+      },
+    });
+    if (error) throw error;
+    if (data.url) {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: data.url, windowName: '_self' });
+    }
   } else {
-    // iOS / Web: in-page redirect, Supabase handles everything
+    // Web: in-page redirect, Supabase handles everything
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -265,10 +285,107 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void switchDbTo(session?.user?.id ?? null);
     });
 
-    // Deep link 回调处理（仅 Tauri 桌面端）
+    // Deep link / OAuth callback handling
     let unlisten: (() => void) | undefined;
 
-    if (isTauri) {
+    if (isCapacitor) {
+      // Capacitor: listen for app URL open events (OAuth redirect back)
+      import('@capacitor/app')
+        .then(({ App }) => {
+          App.addListener('appUrlOpen', async ({ url }) => {
+            console.log('[Auth] Capacitor appUrlOpen:', url);
+            // Check for OAuth tokens or PKCE code in the URL
+            if (
+              url.includes('access_token=') ||
+              url.includes('code=') ||
+              url.includes('refresh_token=')
+            ) {
+              try {
+                // Parse both query params and hash fragments
+                const urlObj = new URL(url);
+                const queryParams = urlObj.searchParams;
+                const hashParams = url.includes('#')
+                  ? new URLSearchParams(url.split('#')[1])
+                  : new URLSearchParams();
+
+                // Try PKCE code flow first (Supabase default for mobile)
+                const code = queryParams.get('code') || hashParams.get('code');
+                if (code) {
+                  console.log(
+                    '[Auth] Capacitor PKCE code received:',
+                    code.slice(0, 8) + '...'
+                  );
+                  const { data, error } =
+                    await supabase.auth.exchangeCodeForSession(code);
+                  if (error) {
+                    console.error(
+                      '[Auth] Capacitor exchangeCodeForSession error:',
+                      error
+                    );
+                  } else {
+                    console.log(
+                      '[Auth] Capacitor session set via PKCE for:',
+                      data.user?.email
+                    );
+                  }
+                  // Close the browser regardless of error
+                  try {
+                    const { Browser } = await import('@capacitor/browser');
+                    await Browser.close();
+                  } catch {
+                    /* browser may already be closed */
+                  }
+                  return;
+                }
+
+                // Fallback: implicit flow with access_token + refresh_token
+                const accessToken =
+                  queryParams.get('access_token') ||
+                  hashParams.get('access_token');
+                const refreshToken =
+                  queryParams.get('refresh_token') ||
+                  hashParams.get('refresh_token');
+
+                if (accessToken && refreshToken) {
+                  const { data, error } = await supabase.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                  });
+                  if (error) {
+                    console.error('[Auth] Capacitor setSession error:', error);
+                  } else {
+                    console.log(
+                      '[Auth] Capacitor session set successfully for:',
+                      data.user?.email
+                    );
+                  }
+                }
+                // Close the browser
+                try {
+                  const { Browser } = await import('@capacitor/browser');
+                  await Browser.close();
+                } catch {
+                  /* browser may already be closed */
+                }
+              } catch (err) {
+                console.error('[Auth] Capacitor OAuth callback error:', err);
+              }
+            }
+          });
+
+          // Also listen for browserFinished event (ASWebAuthenticationSession closed by user)
+          import('@capacitor/browser')
+            .then(({ Browser }) => {
+              Browser.addListener('browserFinished', () => {
+                console.log('[Auth] Browser finished/closed by user');
+              });
+            })
+            .catch(() => {});
+        })
+        .catch((err) =>
+          console.warn('[Auth] @capacitor/app not available:', err)
+        );
+    } else if (isTauri) {
       const handleDeepLinkUrls = async (urls: string[]) => {
         for (const callbackUrl of urls) {
           console.log('[Auth] Deep link received:', callbackUrl);

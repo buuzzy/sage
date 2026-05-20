@@ -2,8 +2,21 @@
  * Task CRUD operations.
  */
 
+import { enqueueTaskUpsert } from '@/shared/sync/messages-sync';
+import {
+  markSessionDeleted,
+  markSessionDirty,
+} from '@/shared/sync/session-dirty-queue';
+
+import {
+  currentUid,
+  getIndexedDB,
+  getSQLiteDatabase,
+  idbRequest,
+} from './database';
+import { deleteMessagesByTaskId } from './messages';
+import { getTasksBySessionId, updateSessionTaskCount } from './sessions';
 import type { CreateTaskInput, Task, UpdateTaskInput } from './types';
-import { getSQLiteDatabase } from './database';
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
   const now = new Date().toISOString();
@@ -241,4 +254,3 @@ export async function deleteTask(id: string): Promise<boolean> {
 }
 
 // ============ Message Operations ============
-

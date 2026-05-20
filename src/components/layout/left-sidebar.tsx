@@ -140,7 +140,7 @@ export function LeftSidebar({
   runningTaskIds = [],
 }: LeftSidebarProps) {
   const navigate = useNavigate();
-  const { leftOpen, toggleLeft } = useSidebar();
+  const { leftOpen, toggleLeft, setLeftOpen } = useSidebar();
   const { signOut } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useLanguage();
@@ -259,7 +259,8 @@ export function LeftSidebar({
           'border-sidebar-border bg-sidebar flex h-full shrink-0 flex-col border-none transition-all duration-300',
           leftOpen ? 'w-72' : 'w-14',
           // Mobile: fixed overlay drawer
-          isMobile && 'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[320px] shadow-2xl',
+          isMobile &&
+            'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[320px] shadow-2xl',
           isMobile && !leftOpen && '-translate-x-full',
           isMobile && leftOpen && 'translate-x-0',
           // Mobile: add safe area padding

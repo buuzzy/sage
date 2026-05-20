@@ -2,8 +2,10 @@
  * Session CRUD operations.
  */
 
+import { markSessionDirty } from '@/shared/sync/session-dirty-queue';
+
+import { getIndexedDB, getSQLiteDatabase, idbRequest } from './database';
 import type { CreateSessionInput, Session, Task } from './types';
-import { getSQLiteDatabase } from './database';
 
 export async function createSession(
   input: CreateSessionInput
@@ -168,4 +170,3 @@ export async function getTasksBySessionId(sessionId: string): Promise<Task[]> {
 }
 
 // ============ Task Operations ============
-
