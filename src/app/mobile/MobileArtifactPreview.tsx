@@ -11,7 +11,8 @@
  *   />
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { cn } from '@/shared/lib/utils';
 import { ChevronDown, Download, Share2, X } from 'lucide-react';
 
 import { ArtifactRenderer } from '@/components/artifacts/ArtifactRenderer';
@@ -182,7 +183,3 @@ export function MobileArtifactPreview({
   );
 }
 
-// Helper for cn() styling
-function cn(...classes: (string | false | undefined)[]): string {
-  return classes.filter(Boolean).join(' ');
-}
