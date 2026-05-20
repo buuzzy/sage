@@ -39,9 +39,13 @@ struct SageApp: App {
                     chatVM.willEnterBackground()
                 case .active:
                     chatVM.resumeFromBackground()
+                    NotificationService.shared.clearBadge()
                 default:
                     break
                 }
+            }
+            .onAppear {
+                NotificationService.shared.requestPermission()
             }
         }
     }

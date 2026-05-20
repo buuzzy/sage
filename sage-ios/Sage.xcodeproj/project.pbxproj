@@ -24,6 +24,7 @@
 		BD6A7EE7617143F99585E9CE /* AssistantTextRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF5A8963DEA9503B903A8FDF /* AssistantTextRow.swift */; };
 		C167A820DE946235CC2981DF /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = C58F4678ACB6ED1830642DF4 /* Supabase */; };
 		C726F9A7CF656F290E88B94C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5F5E40A859731C554CEC012 /* APIClient.swift */; };
+		C75FDBB75AF22B665FB30185 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCEEA60168B7DC21805DB87 /* NotificationService.swift */; };
 		C7E81A1E19D336DF40EF22C4 /* RunningIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA905465D20ACF67D7612988 /* RunningIndicatorView.swift */; };
 		EBDD0CB79729F45C51104556 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E369738C2F3877B0797B7A45 /* SidebarView.swift */; };
 		F12A8292E650A9510A232189 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C35001255FB02FDC730F882 /* SettingsView.swift */; };
@@ -46,8 +47,9 @@
 		7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
 		8580F2BE4CB44035E3CA3E4A /* TaskGroupRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskGroupRow.swift; sourceTree = "<group>"; };
 		A63EC817532C0FBF8D15BEC0 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		ADCEEA60168B7DC21805DB87 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		AE0F213D67D68B7006883A36 /* SageApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SageApp.swift; sourceTree = "<group>"; };
-		B24DA73D9616FC01E8E5A65A /* Sage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B24DA73D9616FC01E8E5A65A /* Sage.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8ED8000B2E965ABA3EA381C /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		CB69E085D2785A94448F0943 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		D5DB2469CC4F53FE7EEDBA51 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -125,6 +127,7 @@
 			children = (
 				D5F5E40A859731C554CEC012 /* APIClient.swift */,
 				B8ED8000B2E965ABA3EA381C /* AuthService.swift */,
+				ADCEEA60168B7DC21805DB87 /* NotificationService.swift */,
 				7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */,
 			);
 			path = Services;
@@ -238,6 +241,7 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					7D8EA646F019024E2FB9437D = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -292,6 +296,7 @@
 				073859AD5046F6C96AE4D00E /* MainView.swift in Sources */,
 				02522A474D50EA578CE14C82 /* MarkdownContentView.swift in Sources */,
 				914380C41EFD2E4B3F24C9B4 /* Message.swift in Sources */,
+				C75FDBB75AF22B665FB30185 /* NotificationService.swift in Sources */,
 				C7E81A1E19D336DF40EF22C4 /* RunningIndicatorView.swift in Sources */,
 				FFC9A9D0A482246C12E134F6 /* SageApp.swift in Sources */,
 				6B583865173F1339120311F9 /* SessionListViewModel.swift in Sources */,
@@ -313,7 +318,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = QB576QUT2S;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sage/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -396,7 +401,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = QB576QUT2S;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sage/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -61,8 +61,13 @@ class ChatViewModel: ObservableObject {
     private var currentPlan: PlanData?
     private var initialPrompt: String = "" // 用户首次发送的 prompt（plan execute 需要）
 
+    /// Plan steps 进度追踪
+    private var completedToolCount: Int = 0
+    private var totalToolCount: Int = 0
+
     private var backendSessionId: String?
     private var streamTask: Task<Void, Never>?
+    private var retryCount: Int = 0
 
     // ─── 分组状态机 ───────────────────────────────────────────
     // 收到 text 时暂存到 pendingText；收到 tool_use 时，如果有 pendingText 则创建 TaskGroup
@@ -80,6 +85,41 @@ class ChatViewModel: ObservableObject {
     // MARK: - Legacy compatibility
     /// 暴露 messages（供 MainView 判断 isEmpty）
     var messages: [DisplayGroup] { displayGroups }
+
+    // MARK: - Export (对标桌面端 "复制过程")
+
+    /// 导出完整对话为文本（包括工具调用）
+    func exportConversationAsText() -> String {
+        var parts: [String] = []
+        for group in displayGroups {
+            switch group {
+            case .userMessage(_, let content):
+                parts.append("👤 用户:\n\(content)")
+            case .assistantText(_, let content, _):
+                if !content.isEmpty {
+                    parts.append("🤖 Sage:\n\(content)")
+                }
+            case .taskGroup(_, let title, let tools, _):
+                var taskText = "🔧 \(title)"
+                for tool in tools {
+                    taskText += "\n  ├ \(tool.name)"
+                    if let input = tool.input { taskText += ": \(String(input.prefix(100)))" }
+                    taskText += tool.isComplete ? (tool.isError ? " ❌" : " ✅") : " ⏳"
+                }
+                parts.append(taskText)
+            case .plan(_, let data):
+                var planText = "📋 计划: \(data.goal)"
+                for step in data.steps {
+                    let icon = step.status == "completed" ? "✅" : (step.status == "in_progress" ? "🔄" : "⬜")
+                    planText += "\n  \(icon) \(step.description)"
+                }
+                parts.append(planText)
+            case .error(_, let message):
+                parts.append("⚠️ 错误: \(message)")
+            }
+        }
+        return parts.joined(separator: "\n\n---\n\n")
+    }
 
     // MARK: - Public API
 
@@ -106,6 +146,9 @@ class ChatViewModel: ObservableObject {
         pendingText = ""
         currentTaskGroupIndex = nil
         lastToolName = nil
+        retryCount = 0
+        completedToolCount = 0
+        totalToolCount = 0
 
         // Build request with conversation history
         let settings = SettingsService.shared.currentSettings
@@ -130,10 +173,30 @@ class ChatViewModel: ObservableObject {
                 let stream = await APIClient.shared.streamAgent(request: request)
                 for try await event in stream {
                     handleSSEEvent(event)
+                    lastEventSeq += 1
                 }
             } catch {
                 if !Task.isCancelled {
-                    displayGroups.append(.error(id: UUID(), message: error.localizedDescription))
+                    let classified = classifyError(error)
+                    if classified.retryable && retryCount < 2 {
+                        // 自动重试（最多 2 次）
+                        retryCount += 1
+                        displayGroups.append(.error(id: UUID(), message: "\(classified.message)（正在重试...）"))
+                        try? await Task.sleep(nanoseconds: UInt64(retryCount) * 2_000_000_000)
+                        if !Task.isCancelled {
+                            do {
+                                let retryStream = await APIClient.shared.streamAgent(request: request)
+                                for try await event in retryStream {
+                                    handleSSEEvent(event)
+                                    lastEventSeq += 1
+                                }
+                            } catch {
+                                displayGroups.append(.error(id: UUID(), message: classifyError(error).message))
+                            }
+                        }
+                    } else {
+                        displayGroups.append(.error(id: UUID(), message: classified.message))
+                    }
                 }
             }
 
@@ -402,6 +465,7 @@ class ChatViewModel: ObservableObject {
         case .toolUse:
             let toolName = event.name ?? "工具"
             lastToolName = toolName
+            totalToolCount += 1
 
             let inputStr: String? = {
                 if let input = event.input {
@@ -460,6 +524,9 @@ class ChatViewModel: ObservableObject {
                     }
                 }
             }
+            // 更新 Plan steps 进度
+            completedToolCount += 1
+            updatePlanStepsProgress()
 
         case .result, .done:
             // 流结束 — 关闭所有 pending 状态
@@ -505,6 +572,77 @@ class ChatViewModel: ObservableObject {
             return lastIdx
         }
         return nil
+    }
+
+    // MARK: - Error Classification (对标桌面端 classifyFetchError)
+
+    private struct ClassifiedError {
+        let category: String
+        let message: String
+        let retryable: Bool
+    }
+
+    private func classifyError(_ error: Error) -> ClassifiedError {
+        let msg = error.localizedDescription
+
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .httpError(let code):
+                if code == 401 || code == 403 {
+                    return ClassifiedError(category: "auth", message: "认证失败或权限不足", retryable: false)
+                }
+                if code == 429 {
+                    return ClassifiedError(category: "rate_limit", message: "请求过于频繁，请稍后重试", retryable: true)
+                }
+                if code >= 500 {
+                    return ClassifiedError(category: "server_error", message: "服务端错误 (\(code))", retryable: true)
+                }
+                return ClassifiedError(category: "http", message: "请求失败 (HTTP \(code))", retryable: false)
+            case .invalidResponse:
+                return ClassifiedError(category: "network", message: "无效响应", retryable: true)
+            case .decodingError(let detail):
+                return ClassifiedError(category: "decode", message: "数据解析失败: \(detail)", retryable: false)
+            }
+        }
+
+        if msg.contains("network") || msg.contains("connection") || msg.contains("NSURLError") {
+            return ClassifiedError(category: "network", message: "网络连接失败，请检查网络", retryable: true)
+        }
+        if msg.contains("timeout") || msg.contains("timed out") {
+            return ClassifiedError(category: "timeout", message: "请求超时，请稍后重试", retryable: true)
+        }
+
+        return ClassifiedError(category: "unknown", message: msg, retryable: false)
+    }
+
+    // MARK: - Plan Steps Progress (对标桌面端 completedToolCount 启发式)
+
+    /// tool_result 完成时更新 Plan 步骤的视觉进度
+    private func updatePlanStepsProgress() {
+        guard let plan = currentPlan, !plan.steps.isEmpty else { return }
+
+        let stepCount = plan.steps.count
+        let progressRatio = Double(completedToolCount) / Double(max(totalToolCount, stepCount * 2))
+        let completedSteps = min(Int(progressRatio * Double(stepCount)), stepCount - 1)
+
+        // 找到 plan 在 displayGroups 中的位置并更新
+        for i in 0..<displayGroups.count {
+            if case .plan(let id, var data) = displayGroups[i] {
+                var updatedSteps = data.steps
+                for j in 0..<updatedSteps.count {
+                    if j < completedSteps {
+                        updatedSteps[j].status = "completed"
+                    } else if j == completedSteps {
+                        updatedSteps[j].status = "in_progress"
+                    } else {
+                        updatedSteps[j].status = "pending"
+                    }
+                }
+                data = PlanData(id: data.id, goal: data.goal, steps: updatedSteps, notes: data.notes)
+                displayGroups[i] = .plan(id: id, data: data)
+                break
+            }
+        }
     }
 
     // MARK: - Title Generation
