@@ -6,8 +6,8 @@ class SessionListViewModel: ObservableObject {
     @Published var sessions: [SessionItem] = []
 
     func loadSessions() {
-        // TODO: Load from SwiftData / Supabase
-        // For now, sessions are added dynamically when user chats
+        // Load from UserDefaults on app launch
+        sessions = ChatViewModel.loadAllSessionsFromStorage()
     }
 
     func addSession(_ session: SessionItem) {
@@ -19,6 +19,10 @@ class SessionListViewModel: ObservableObject {
 
     func deleteSession(_ id: String) {
         sessions.removeAll { $0.id == id }
+        // Persist deletion
+        ChatViewModel.saveAllSessionsToStorage(sessions)
+        // Also remove messages
+        UserDefaults.standard.removeObject(forKey: "sage_messages_\(id)")
     }
 
     func updateTitle(_ id: String, title: String) {

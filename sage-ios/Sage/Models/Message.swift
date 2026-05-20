@@ -32,11 +32,20 @@ struct SSEEvent: Codable {
     var output: String?     // tool_result output
     var toolUseId: String?
     var isError: Bool?
+    var permission: PermissionRequestData?  // permission_request 数据
 
     enum CodingKeys: String, CodingKey {
         case type, content, name, id, input, subtype, cost, duration
-        case message, sessionId, plan, output, toolUseId, isError
+        case message, sessionId, plan, output, toolUseId, isError, permission
     }
+}
+
+/// 权限请求数据
+struct PermissionRequestData: Codable, Identifiable {
+    let id: String
+    let tool: String?          // 请求执行的工具名
+    let description: String?   // 描述
+    let command: String?       // 具体命令
 }
 
 /// 计划数据
@@ -67,6 +76,7 @@ struct AgentRequest: Codable {
     var accessToken: String?
     var conversation: [ConversationMessage]?
     var images: [ImageAttachment]?
+    var planId: String?  // 用于 /agent/execute
 }
 
 struct ModelConfig: Codable {

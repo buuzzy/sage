@@ -1,7 +1,10 @@
 import Foundation
+import UIKit
 
 /// API 客户端 — 负责与 Railway 后端通信
-/// 使用 URLSession 实现 SSE 流式传输，支持后台运行
+/// 使用 URLSession 实现 SSE 流式传输
+/// 通过 beginBackgroundTask 实现后台保活（最多约 30 秒）
+/// 通过 background URLSession configuration 实现长时间后台传输
 actor APIClient {
     static let shared = APIClient()
 
@@ -53,21 +56,83 @@ actor APIClient {
         _ = try await URLSession.shared.data(for: request)
     }
 
-    // MARK: - SSE Stream Implementation
+    /// 响应权限请求
+    func respondToPermission(sessionId: String, permissionId: String, approved: Bool) async throws {
+        struct PermissionResponse: Codable {
+            let sessionId: String
+            let permissionId: String
+            let approved: Bool
+        }
+        let body = PermissionResponse(sessionId: sessionId, permissionId: permissionId, approved: approved)
+        _ = try await postJSON(endpoint: "/agent/permission", body: body)
+    }
+
+    /// 获取 Cron 任务列表
+    func getCronJobs() async throws -> Data {
+        return try await getJSON(endpoint: "/cron/jobs")
+    }
+
+    /// 切换 Cron 任务启用状态
+    func toggleCronJob(jobId: String, enabled: Bool) async throws {
+        struct ToggleBody: Codable { let enabled: Bool }
+        _ = try await postJSON(endpoint: "/cron/jobs/\(jobId)/toggle", body: ToggleBody(enabled: enabled))
+    }
+
+    /// 删除 Cron 任务
+    func deleteCronJob(jobId: String) async throws {
+        let url = URL(string: "\(baseURL)/cron/jobs/\(jobId)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+        _ = try await URLSession.shared.data(for: request)
+    }
+
+    /// 手动触发 Cron 任务
+    func triggerCronJob(jobId: String) async throws {
+        struct EmptyBody: Codable {}
+        _ = try await postJSON(endpoint: "/cron/jobs/\(jobId)/trigger", body: EmptyBody())
+    }
+
+    // MARK: - SSE Stream Implementation (with background task support)
 
     private func streamRequest<T: Encodable>(endpoint: String, body: T) -> AsyncThrowingStream<SSEEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
+                // 请求后台执行时间（防止切后台时连接被立即杀掉）
+                let bgTaskId = await MainActor.run {
+                    UIApplication.shared.beginBackgroundTask(withName: "SageSSEStream") {
+                        // 系统要求结束后台任务时的回调
+                    }
+                }
+
+                defer {
+                    // 结束后台任务
+                    Task { @MainActor in
+                        if bgTaskId != .invalid {
+                            UIApplication.shared.endBackgroundTask(bgTaskId)
+                        }
+                    }
+                }
+
                 do {
-                    let url = URL(string: "\(baseURL)\(endpoint)")!
+                    let url = URL(string: "\(self.baseURL)\(endpoint)")!
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"
-                    request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+                    request.setValue("Bearer \(self.apiToken)", forHTTPHeaderField: "Authorization")
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.httpBody = try JSONEncoder().encode(body)
+                    // 延长超时 — 长时间流式响应
+                    request.timeoutInterval = 300
+
+                    // 创建支持后台的 URLSession 配置
+                    let config = URLSessionConfiguration.default
+                    config.timeoutIntervalForRequest = 300
+                    config.timeoutIntervalForResource = 600
+                    config.shouldUseExtendedBackgroundIdleMode = true
+                    let session = URLSession(configuration: config)
 
                     // Use bytes for streaming
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    let (bytes, response) = try await session.bytes(for: request)
 
                     guard let httpResponse = response as? HTTPURLResponse else {
                         throw APIError.invalidResponse
@@ -79,6 +144,7 @@ actor APIClient {
 
                     // Parse SSE using lines (correctly handles UTF-8 multi-byte characters)
                     for try await line in bytes.lines {
+                        if Task.isCancelled { break }
                         if line.hasPrefix("data: ") {
                             let jsonStr = String(line.dropFirst(6))
                             if let jsonData = jsonStr.data(using: .utf8),
@@ -112,6 +178,19 @@ actor APIClient {
         request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        return data
+    }
+
+    func getJSON(endpoint: String) async throws -> Data {
+        let url = URL(string: "\(baseURL)\(endpoint)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {

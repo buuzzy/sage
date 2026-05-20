@@ -22,27 +22,28 @@ struct InputBarView: View {
                     .lineLimit(1...6)
                     .focused($isFocused)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 36)
                     .background(Color(.systemGray6))
-                    .cornerRadius(20)
+                    .cornerRadius(18)
                     .disabled(isRunning)
 
-                // Send or Stop
+                // Send or Stop — match input field height (36pt)
                 if isRunning {
                     Button { onStop() } label: {
                         Image(systemName: "stop.fill")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 36, height: 36)
                             .background(Color(.darkGray))
                             .clipShape(Circle())
                     }
                 } else {
                     Button { send() } label: {
                         Image(systemName: "arrow.up")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 36, height: 36)
                             .background(canSend ? Color(.darkGray) : Color(.systemGray4))
                             .clipShape(Circle())
                     }
