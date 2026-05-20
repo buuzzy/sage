@@ -11,29 +11,68 @@ import {
   runPlanningPhase,
 } from '@/shared/services/agent';
 import { generateTitle, runChat } from '@/shared/services/chat';
+import { appendEvent, getEvents, getTaskStatus, initTaskBuffer, markTaskComplete } from '@/shared/task-events';
 import type { AgentRequest } from '@/shared/types/agent';
 import { matchSlashCommand, executeSlashCommand } from '@/core/channel/slash-commands';
 
 const agent = new Hono();
 
-// Helper to create SSE stream
-function createSSEStream(generator: AsyncGenerator<unknown>) {
+/**
+ * Create SSE stream with event buffering.
+ * Events are stored in task-events store for client reconnection/catchup.
+ * If the HTTP connection closes (e.g. iOS goes to background),
+ * the generator continues to run and events are still buffered.
+ */
+function createSSEStream(generator: AsyncGenerator<unknown>, taskId?: string) {
   const encoder = new TextEncoder();
+
+  // Initialize event buffer for this task
+  if (taskId) {
+    initTaskBuffer(taskId);
+  }
+
   return new ReadableStream({
     async start(controller) {
       try {
         for await (const message of generator) {
-          const data = `data: ${JSON.stringify(message)}\n\n`;
-          controller.enqueue(encoder.encode(data));
+          // Store event in buffer (for reconnection)
+          if (taskId) {
+            appendEvent(taskId, message);
+          }
+
+          // Write to SSE stream (may fail if client disconnected)
+          try {
+            const data = `data: ${JSON.stringify(message)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          } catch {
+            // Client disconnected — continue executing, events still buffered
+            // Don't break the loop, let the agent finish its work
+          }
         }
       } catch (error) {
-        const errorData = `data: ${JSON.stringify({
+        const errorEvent = {
           type: 'error',
           message: error instanceof Error ? error.message : String(error),
-        })}\n\n`;
-        controller.enqueue(encoder.encode(errorData));
+        };
+        if (taskId) {
+          appendEvent(taskId, errorEvent);
+        }
+        try {
+          const errorData = `data: ${JSON.stringify(errorEvent)}\n\n`;
+          controller.enqueue(encoder.encode(errorData));
+        } catch {
+          // Client already disconnected
+        }
       } finally {
-        controller.close();
+        // Mark task as complete in buffer
+        if (taskId) {
+          markTaskComplete(taskId);
+        }
+        try {
+          controller.close();
+        } catch {
+          // Already closed
+        }
       }
     },
   });
@@ -299,6 +338,7 @@ agent.post('/', async (c) => {
   }
 
   const session = createSession();
+  const taskId = body.taskId || session.id;
   const readable = createSSEStream(
     runAgent(
       prompt,
@@ -314,7 +354,8 @@ agent.post('/', async (c) => {
       body.language,
       body.userId,
       body.accessToken
-    )
+    ),
+    taskId
   );
 
   return new Response(readable, { headers: SSE_HEADERS });
@@ -384,6 +425,43 @@ agent.get('/plan/:planId', async (c) => {
   }
 
   return c.json(plan);
+});
+
+// ─── Event Catchup (iOS 后台恢复) ─────────────────────────────────────────
+
+/**
+ * GET /agent/task/:taskId/events?after=<seq>
+ *
+ * 返回指定 taskId 在 seq 之后的所有事件。
+ * iOS 客户端切后台 SSE 中断后，回到前台时调用此端点补偿缺失事件。
+ *
+ * Query params:
+ *   - after: number (返回 seq > after 的事件，默认 -1 返回全部)
+ *
+ * Response:
+ *   { events: [{seq, timestamp, data}], isComplete: boolean }
+ */
+agent.get('/task/:taskId/events', (c) => {
+  const taskId = c.req.param('taskId');
+  const afterParam = c.req.query('after');
+  const afterSeq = afterParam ? parseInt(afterParam, 10) : -1;
+
+  const result = getEvents(taskId, afterSeq);
+  if (!result) {
+    return c.json({ error: 'Task not found', events: [], isComplete: true }, 404);
+  }
+
+  return c.json(result);
+});
+
+/**
+ * GET /agent/task/:taskId/status
+ *
+ * 返回 task 的执行状态。
+ */
+agent.get('/task/:taskId/status', (c) => {
+  const taskId = c.req.param('taskId');
+  return c.json(getTaskStatus(taskId));
 });
 
 export default agent;

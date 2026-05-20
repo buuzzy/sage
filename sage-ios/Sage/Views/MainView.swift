@@ -5,7 +5,7 @@ import SwiftUI
 struct MainView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var settingsService: SettingsService
-    @StateObject private var chatVM = ChatViewModel()
+    @ObservedObject var chatVM: ChatViewModel
     @StateObject private var sessionListVM = SessionListViewModel()
     @State private var showSidebar = false
     @State private var showSettings = false

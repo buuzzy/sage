@@ -52,6 +52,11 @@ class ChatViewModel: ObservableObject {
     @Published var lastToolName: String? // for RunningIndicator dynamic text
     @Published var pendingPermission: PermissionRequestData? = nil // 权限请求弹窗
 
+    /// 事件序号（用于后台恢复补偿）
+    private var lastEventSeq: Int = -1
+    /// 流是否被后台中断
+    private var streamInterrupted = false
+
     /// 当前待审批的 Plan 数据（用于 approvePlan）
     private var currentPlan: PlanData?
     private var initialPrompt: String = "" // 用户首次发送的 prompt（plan execute 需要）
@@ -239,6 +244,55 @@ class ChatViewModel: ObservableObject {
         // 添加响应消息
         let msg = approved ? "权限已授予，继续执行..." : "权限已拒绝，操作已取消。"
         displayGroups.append(.assistantText(id: UUID(), content: msg, isStreaming: false))
+    }
+
+    // MARK: - Background Resume (iOS 后台恢复补偿)
+
+    /// APP 回到前台时调用 — 检查是否有中断的流，如果有则拉取缺失事件
+    func resumeFromBackground() {
+        guard let taskId = currentSessionId, streamInterrupted || isRunning else { return }
+
+        Task {
+            do {
+                let data = try await APIClient.shared.getTaskEvents(taskId: taskId, afterSeq: lastEventSeq)
+                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let events = json["events"] as? [[String: Any]],
+                      let isComplete = json["isComplete"] as? Bool else { return }
+
+                // 处理缺失事件
+                for eventDict in events {
+                    if let seq = eventDict["seq"] as? Int {
+                        lastEventSeq = seq
+                    }
+                    if let eventData = eventDict["data"] as? [String: Any],
+                       let jsonData = try? JSONSerialization.data(withJSONObject: eventData),
+                       let event = try? JSONDecoder().decode(SSEEvent.self, from: jsonData) {
+                        handleSSEEvent(event)
+                    }
+                }
+
+                // 如果 task 已完成，更新状态
+                if isComplete {
+                    isRunning = false
+                    phase = "idle"
+                    lastToolName = nil
+                    streamInterrupted = false
+                    finalizeStreaming()
+                    closeCurrentTaskGroup()
+                    saveMessagesToStorage()
+                }
+            } catch {
+                // 补偿失败不报错，用户可以手动重新发送
+                streamInterrupted = false
+            }
+        }
+    }
+
+    /// APP 进入后台时标记
+    func willEnterBackground() {
+        if isRunning {
+            streamInterrupted = true
+        }
     }
 
     func startNewChat() {

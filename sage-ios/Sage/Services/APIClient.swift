@@ -93,6 +93,16 @@ actor APIClient {
         _ = try await postJSON(endpoint: "/cron/jobs/\(jobId)/trigger", body: EmptyBody())
     }
 
+    /// 获取 task 缺失事件（iOS 后台恢复补偿）
+    func getTaskEvents(taskId: String, afterSeq: Int) async throws -> Data {
+        return try await getJSON(endpoint: "/agent/task/\(taskId)/events?after=\(afterSeq)")
+    }
+
+    /// 获取 task 状态
+    func getTaskStatus(taskId: String) async throws -> Data {
+        return try await getJSON(endpoint: "/agent/task/\(taskId)/status")
+    }
+
     // MARK: - SSE Stream Implementation (with background task support)
 
     private func streamRequest<T: Encodable>(endpoint: String, body: T) -> AsyncThrowingStream<SSEEvent, Error> {

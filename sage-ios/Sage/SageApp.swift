@@ -4,7 +4,9 @@ import SwiftUI
 struct SageApp: App {
     @StateObject private var authService = AuthService.shared
     @StateObject private var settingsService = SettingsService.shared
+    @StateObject private var chatVM = ChatViewModel()
     @AppStorage("sage_theme") private var theme: String = "system"
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -19,7 +21,7 @@ struct SageApp: App {
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                 } else if authService.isAuthenticated {
-                    MainView()
+                    MainView(chatVM: chatVM)
                         .environmentObject(authService)
                         .environmentObject(settingsService)
                 } else {
@@ -27,9 +29,18 @@ struct SageApp: App {
                         .environmentObject(authService)
                 }
             }
-            // 平滑切换主题 — 不用 .id(theme)，SwiftUI 自动动画过渡
             .preferredColorScheme(colorSchemeForTheme)
             .animation(.easeInOut(duration: 0.3), value: theme)
+            .onChange(of: scenePhase) { newPhase in
+                switch newPhase {
+                case .background:
+                    chatVM.willEnterBackground()
+                case .active:
+                    chatVM.resumeFromBackground()
+                default:
+                    break
+                }
+            }
         }
     }
 
