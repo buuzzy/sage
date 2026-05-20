@@ -5,6 +5,7 @@ import MarkdownUI
 struct AssistantTextRow: View {
     let content: String
     let isStreaming: Bool
+    @State private var cursorVisible = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -26,10 +27,24 @@ struct AssistantTextRow: View {
                     ArtifactView(type: artifact.type, jsonData: artifact.jsonData)
                 }
 
-                // Markdown 渲染（去掉 artifact 标记后的纯文本）
+                // Markdown 渲染 + 流式光标
                 if !parsed.cleanText.isEmpty {
-                    MarkdownContentView(text: parsed.cleanText)
-                        .padding(.horizontal, 16)
+                    HStack(alignment: .lastTextBaseline, spacing: 0) {
+                        MarkdownContentView(text: parsed.cleanText)
+                        // 流式打字光标
+                        if isStreaming {
+                            Text("|")
+                                .font(.system(size: 17, weight: .light))
+                                .foregroundColor(.primary)
+                                .opacity(cursorVisible ? 1 : 0)
+                                .onAppear {
+                                    withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                                        cursorVisible.toggle()
+                                    }
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 16)
                 }
 
                 // 操作栏（非流式时显示）
@@ -55,7 +70,22 @@ struct AssistantTextRow: View {
                     Text("复制回答")
                         .font(.system(size: 12))
                 }
-                .foregroundColor(Color(.systemGray2))
+                .foregroundColor(Color(.systemGray3))
+            }
+
+            // 报告问题
+            Button {
+                // 打开系统分享/反馈（简化版）
+                let feedbackText = "问题反馈:\n\n回答内容:\n\(content.prefix(500))"
+                UIPasteboard.general.string = feedbackText
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 12))
+                    Text("报告问题")
+                        .font(.system(size: 12))
+                }
+                .foregroundColor(Color(.systemGray3))
             }
 
             Spacer()

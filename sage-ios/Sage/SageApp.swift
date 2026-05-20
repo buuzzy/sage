@@ -6,6 +6,7 @@ struct SageApp: App {
     @StateObject private var settingsService = SettingsService.shared
     @StateObject private var chatVM = ChatViewModel()
     @AppStorage("sage_theme") private var theme: String = "system"
+    @AppStorage("sage_accent_color") private var accentColor: String = "blue"
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -30,6 +31,7 @@ struct SageApp: App {
                 }
             }
             .preferredColorScheme(colorSchemeForTheme)
+            .tint(accentColorValue)
             .animation(.easeInOut(duration: 0.3), value: theme)
             .onChange(of: scenePhase) { newPhase in
                 switch newPhase {
@@ -49,6 +51,17 @@ struct SageApp: App {
         case "light": return .light
         case "dark": return .dark
         default: return nil
+        }
+    }
+
+    private var accentColorValue: Color {
+        switch accentColor {
+        case "green": return .green
+        case "orange": return .orange
+        case "purple": return .purple
+        case "red": return .red
+        case "pink": return .pink
+        default: return .blue
         }
     }
 }

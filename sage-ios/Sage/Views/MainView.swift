@@ -66,7 +66,8 @@ struct MainView: View {
                 onOpenSettings: {
                     withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showSettings = true }
-                }
+                },
+                runningSessionId: chatVM.isRunning ? chatVM.currentSessionId : nil
             )
             .frame(width: 300)
             .offset(x: showSidebar ? 0 : -300)

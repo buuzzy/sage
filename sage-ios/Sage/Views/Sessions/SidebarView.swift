@@ -12,6 +12,7 @@ struct SidebarView: View {
     let onDeleteSession: (String) -> Void
     let onRenameSession: (String, String) -> Void
     let onOpenSettings: () -> Void
+    var runningSessionId: String? = nil // 正在运行的对话 ID
 
     @State private var searchText = ""
     @State private var renamingSession: SessionItem? = nil
@@ -189,9 +190,21 @@ struct SidebarView: View {
             onSelectSession(session.id)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "bubble.left")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                // 运行中绿色脉冲点
+                if session.id == runningSessionId {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.green.opacity(0.4), lineWidth: 2)
+                                .scaleEffect(1.5)
+                        )
+                } else {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
 
                 Text(session.title)
                     .font(.subheadline)
