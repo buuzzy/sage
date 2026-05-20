@@ -1,0 +1,59 @@
+name: Sage
+options:
+  bundleIdPrefix: ai.sage
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "10"
+
+packages:
+  Supabase:
+    url: https://github.com/supabase-community/supabase-swift
+    from: "2.0.0"
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    from: "2.4.0"
+
+targets:
+  Sage:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sage
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.sage.app
+        INFOPLIST_FILE: Sage/Info.plist
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - package: Supabase
+        product: Supabase
+      - package: MarkdownUI
+    info:
+      path: Sage/Info.plist
+      properties:
+        CFBundleDisplayName: Sage
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "10"
+        CFBundleIconName: AppIcon
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - ai.sage.app
+            CFBundleURLName: ai.sage.app
