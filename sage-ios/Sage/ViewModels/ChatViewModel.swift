@@ -83,7 +83,7 @@ class ChatViewModel: ObservableObject {
 
     // MARK: - Public API
 
-    func sendMessage(_ prompt: String) async {
+    func sendMessage(_ prompt: String, images: [SelectedImage] = []) async {
         // Create session on first message
         if currentSessionId == nil {
             let newId = UUID().uuidString
@@ -110,6 +110,9 @@ class ChatViewModel: ObservableObject {
         // Build request with conversation history
         let settings = SettingsService.shared.currentSettings
         let conversation = buildConversationHistory()
+        let imageAttachments: [ImageAttachment]? = images.isEmpty ? nil : images.map {
+            ImageAttachment(data: $0.base64, mediaType: $0.mediaType)
+        }
         let request = AgentRequest(
             prompt: prompt,
             taskId: currentSessionId ?? UUID().uuidString,
@@ -117,7 +120,8 @@ class ChatViewModel: ObservableObject {
             language: "zh-CN",
             userId: AuthService.shared.userId,
             accessToken: await AuthService.shared.getAccessToken(),
-            conversation: conversation.isEmpty ? nil : conversation
+            conversation: conversation.isEmpty ? nil : conversation,
+            images: imageAttachments
         )
 
         // Start streaming

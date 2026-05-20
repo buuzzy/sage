@@ -285,8 +285,8 @@ struct MainView: View {
         InputBarView(
             isRunning: chatVM.isRunning,
             isModelConfigured: settingsService.isModelConfigured,
-            onSend: { prompt in
-                Task { await chatVM.sendMessage(prompt) }
+            onSend: { prompt, images in
+                Task { await chatVM.sendMessage(prompt, images: images) }
             },
             onStop: {
                 chatVM.stopGeneration()
