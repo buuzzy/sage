@@ -42,11 +42,11 @@
 const isTauri = '__TAURI_INTERNALS__' in window;
 export const API_BASE_URL = isTauri
   ? 'http://127.0.0.1:2026'        // 桌面 sidecar
-  : import.meta.env.VITE_API_URL;   // iOS/Web → Railway
+  : import.meta.env.VITE_API_URL;   // Web → Railway
 ```
 
 - 桌面：OAuth deep-link (`sage://auth/callback`)
-- iOS：邮箱/密码登录
+- 原生 iOS：位于 `sage-ios/`，不经过 React WebView
 - sidecar 就绪状态：`useSidecarReadiness()` 后台轮询 + 头像绿/红点
 
 ## 不变量

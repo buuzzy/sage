@@ -108,7 +108,7 @@ const AGENT_SERVER_URL = API_BASE_URL;
 const isTauriEnv =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-// Auth strategy for non-Tauri environments (iOS/Web):
+// Auth strategy for non-Tauri environments (Web):
 // 1. Prefer: Supabase JWT from getCurrentAccessToken() (user-scoped)
 // 2. Fallback: VITE_RAILWAY_API_TOKEN env var (for testing/CI)
 //
@@ -122,7 +122,7 @@ async function getRequestHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  // Non-Tauri (iOS/Web) → Railway cloud backend requires Bearer auth
+  // Non-Tauri (Web) → Railway cloud backend requires Bearer auth
   if (!isTauriEnv) {
     // Try Supabase JWT first (preferred for authenticated users)
     const supabaseToken = await getCurrentAccessToken();

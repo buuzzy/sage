@@ -17,11 +17,6 @@ import {
 const isTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-const isCapacitor =
-  typeof window !== 'undefined' &&
-  'Capacitor' in window &&
-  !!(window as any).Capacitor?.isNativePlatform?.();
-
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
@@ -61,7 +56,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  *   3. Deep link sage://auth/callback?code=... routes back to app
  *   4. exchangeCodeForSession(code) completes sign-in
  *
- * iOS / Web (Capacitor, browser):
+ * Web:
  *   1. skipBrowserRedirect=false (default) → Supabase handles redirect
  *   2. OAuth completes in-page, Supabase JS auto-detects session from URL hash
  *   3. onAuthStateChange fires with the new session
@@ -86,34 +81,6 @@ async function signInWithProvider(provider: 'github' | 'google') {
     if (data.url) {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
       await openUrl(data.url);
-    }
-  } else if (isCapacitor) {
-    // iOS (Capacitor): use in-app browser for OAuth.
-    // After OAuth, Supabase redirects to ai.sage.app://auth/callback
-    // which triggers appUrlOpen → we close the browser.
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: 'ai.sage.app://auth/callback',
-        skipBrowserRedirect: true,
-      },
-    });
-    if (error) throw error;
-    if (data.url) {
-      const { Browser } = await import('@capacitor/browser');
-      const { App } = await import('@capacitor/app');
-
-      // Pre-register a one-shot listener to close the browser when redirect fires
-      const closeHandler = async ({ url }: { url: string }) => {
-        if (url.startsWith('ai.sage.app://')) {
-          console.log('[Auth] OAuth redirect received, closing browser');
-          try { await Browser.close(); } catch { /* already closed */ }
-          App.removeAllListeners();
-        }
-      };
-      App.addListener('appUrlOpen', closeHandler);
-
-      await Browser.open({ url: data.url, windowName: '_self' });
     }
   } else {
     // Web: in-page redirect, Supabase handles everything
@@ -301,93 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Deep link / OAuth callback handling
     let unlisten: (() => void) | undefined;
 
-    if (isCapacitor) {
-      // Capacitor: listen for app URL open events (OAuth redirect back)
-      import('@capacitor/app')
-        .then(({ App }) => {
-          App.addListener('appUrlOpen', async ({ url }) => {
-            console.log('[Auth] Capacitor appUrlOpen:', url);
-
-            // Close browser FIRST (before any async work) for instant dismiss
-            if (url.startsWith('ai.sage.app://')) {
-              try {
-                const { Browser } = await import('@capacitor/browser');
-                await Browser.close();
-                console.log('[Auth] Browser closed successfully');
-              } catch {
-                /* already closed */
-              }
-            }
-
-            // Then handle OAuth tokens
-            if (
-              url.includes('access_token=') ||
-              url.includes('code=') ||
-              url.includes('refresh_token=')
-            ) {
-              try {
-                // Parse both query params and hash fragments
-                const urlObj = new URL(url);
-                const queryParams = urlObj.searchParams;
-                const hashParams = url.includes('#')
-                  ? new URLSearchParams(url.split('#')[1])
-                  : new URLSearchParams();
-
-                // Try PKCE code flow first (Supabase default for mobile)
-                const code = queryParams.get('code') || hashParams.get('code');
-                if (code) {
-                  console.log(
-                    '[Auth] Capacitor PKCE code received:',
-                    code.slice(0, 8) + '...'
-                  );
-                  const { data, error } =
-                    await supabase.auth.exchangeCodeForSession(code);
-                  if (error) {
-                    console.error(
-                      '[Auth] Capacitor exchangeCodeForSession error:',
-                      error
-                    );
-                  } else {
-                    console.log(
-                      '[Auth] Capacitor session set via PKCE for:',
-                      data.user?.email
-                    );
-                  }
-                  return;
-                }
-
-                // Fallback: implicit flow with access_token + refresh_token
-                const accessToken =
-                  queryParams.get('access_token') ||
-                  hashParams.get('access_token');
-                const refreshToken =
-                  queryParams.get('refresh_token') ||
-                  hashParams.get('refresh_token');
-
-                if (accessToken && refreshToken) {
-                  const { data, error } = await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken,
-                  });
-                  if (error) {
-                    console.error('[Auth] Capacitor setSession error:', error);
-                  } else {
-                    console.log(
-                      '[Auth] Capacitor session set successfully for:',
-                      data.user?.email
-                    );
-                  }
-                }
-              } catch (err) {
-                console.error('[Auth] Capacitor OAuth callback error:', err);
-              }
-            }
-          });
-        })
-        .catch((err) =>
-          console.warn('[Auth] @capacitor/app not available:', err)
-        );
-    } else if (isTauri) {
+    if (isTauri) {
       const handleDeepLinkUrls = async (urls: string[]) => {
         for (const callbackUrl of urls) {
           console.log('[Auth] Deep link received:', callbackUrl);

@@ -1,6 +1,6 @@
-# src/app/mobile/ — iOS 移动端 UI
+# src/app/mobile/ — 窄屏 Web UI
 
-移动端独立 UI 层，通过 `router.tsx` 的 `isMobile` 分流进入。共享所有业务逻辑（`src/shared/`），只有 UI 展示不同。
+窄屏 Web 独立 UI 层，通过 `router.tsx` 的 `isMobile` 分流进入。共享所有业务逻辑（`src/shared/`），只有 UI 展示不同。原生 iOS 客户端在 `sage-ios/`，不再使用 Capacitor WebView。
 
 ## 文件清单
 

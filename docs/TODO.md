@@ -42,7 +42,8 @@
   - TaskDetail.tsx 子组件提取（2540 → 1197 + 9 个独立组件）
   - database.ts 按实体拆分（1568 → 555 + 4 个实体模块）
   - RightSidebar.tsx 辅助函数提取（1519 → 585 + helpers 模块）
-  - 新增 platform.ts 统一平台检测基础设施（isTauri/isCapacitor/isMobile/isDesktop）
+  - 新增 platform.ts 统一平台检测基础设施（isTauri/isMobile/isDesktop）
+  - v1.5.1: 移除 Capacitor iOS 遗留工程，iOS 统一走 `sage-ios/` SwiftUI 原生客户端
 
 **仍需环境 / 实机验证**：
 

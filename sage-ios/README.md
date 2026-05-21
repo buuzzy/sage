@@ -166,9 +166,9 @@ For detailed specifications, see:
 
 ## 🐛 Known Issues
 
-1. **OAuth WebView**: Google OAuth in Capacitor WebView not fully adapted for iOS
+1. **OAuth**: Google OAuth native deep-link flow still needs end-to-end verification
    - **Workaround**: Use email/password login
-   - **Status**: Awaiting Capacitor 8+ WebView fixes
+   - **Status**: Native SwiftUI client no longer uses a WebView shell
 
 2. **API Token**: Currently hardcoded in APIClient.swift
    - **Fix**: Move to Keychain or environment-based injection

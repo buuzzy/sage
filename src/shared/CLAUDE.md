@@ -66,7 +66,7 @@
 
 | 文件 | 职责 |
 |------|------|
-| platform.ts | 平台检测（isTauri / isCapacitor / isMobile / isWeb / isDesktop） |
+| platform.ts | 平台检测（isTauri / isMobile / isWeb / isDesktop） |
 | supabase.ts | Supabase client 初始化（isTauri 分叉 detectSessionInUrl/flowType） |
 | attachments.ts | 附件存储/加载 |
 | background-tasks.ts | 背景任务生命周期管理 |

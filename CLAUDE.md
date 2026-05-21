@@ -27,14 +27,14 @@
 
 ## 项目概览
 
-Sage 是一个 AI 金融助手（v1.4.16），支持桌面端（macOS ARM/Intel）和移动端（iOS）。桌面端用 Tauri 2，iOS 端用 Capacitor 8，共享同一套 React 19 前端代码。后端是 Hono HTTP sidecar，内嵌 Agent 运行时、17 个金融技能、记忆系统和定时调度器。
+Sage 是一个 AI 金融助手（v1.4.16），支持桌面端（macOS ARM/Intel）和移动端（iOS）。桌面端用 Tauri 2，iOS 端用 SwiftUI 原生客户端（`sage-ios/`）。后端是 Hono HTTP sidecar / Railway 云端服务，内嵌 Agent 运行时、17 个金融技能、记忆系统和定时调度器。
 
 ## 技术栈
 
 | 层 | 桌面端 | iOS 端 |
 |---|---|---|
-| 壳 | Tauri 2 (Rust) | Capacitor 8 |
-| 前端 | React 19 + Vite 7 + TailwindCSS 4 | 同左（共享 `src/`） |
+| 壳 | Tauri 2 (Rust) | SwiftUI 原生 |
+| 前端 | React 19 + Vite 7 + TailwindCSS 4 | SwiftUI |
 | 后端 | Hono sidecar (localhost:2026) | Railway 云端 (`sage-production-28e1.up.railway.app`) |
 | Agent SDK | `@codeany/open-agent-sdk@0.2.1` (+ pnpm patch) | 同左（后端共享） |
 | 默认模型 | `claude-sonnet-4-20250514` | 同左 |
@@ -52,7 +52,7 @@ sage/                          ← pnpm workspace root
 ├── src/                       ← React 前端（详见 src/CLAUDE.md）
 ├── src-api/                   ← Hono 后端（详见 src-api/CLAUDE.md）
 ├── src-tauri/                 ← Rust 桌面壳（详见 src-tauri/CLAUDE.md）
-├── ios/                       ← Capacitor iOS 壳
+├── sage-ios/                  ← SwiftUI 原生 iOS 客户端
 ├── supabase/migrations/       ← Supabase 数据库 migration
 ├── scripts/                   ← 构建/发布脚本
 ├── docs/                      ← 项目文档（TODO.md 是唯一权威 TODO）
@@ -76,8 +76,8 @@ pnpm build:app:mac-arm              # 完整 .app 打包（API binary + 前端 +
 pnpm build:app:mac-arm:release      # 带签名的发布构建
 pnpm tauri:build:mac-arm            # Tauri 原生构建（需预编译 API binary）
 pnpm tauri:build:mac-intel          # Intel macOS Tauri 构建
-pnpm build:ios                      # iOS: vite build --mode ios + cap sync
-pnpm open:ios                       # 打开 Xcode iOS 项目
+pnpm build:ios                      # iOS: xcodebuild 构建 SwiftUI 客户端
+pnpm open:ios                       # 打开 sage-ios/Sage.xcodeproj
 
 # 代码质量
 pnpm lint                           # ESLint (src/)
@@ -97,7 +97,7 @@ pnpm format                         # Prettier
 5. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本、`darwin-aarch64` / `darwin-x86_64` 平台项与有效签名。
 6. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布。
 
-**iOS 端注意**: 每次改前端代码后需要 `pnpm build:ios` 重新构建同步到 Xcode，然后在 Xcode 里 ▶️ 运行。`.env.ios` 包含 `VITE_API_URL` 指向 Railway。
+**iOS 端注意**: iOS 现在是 `sage-ios/` SwiftUI 原生客户端，不再使用 Capacitor WebView。改 Swift 代码后用 `pnpm open:ios` 打开 `sage-ios/Sage.xcodeproj`，或用 `pnpm build:ios` 走命令行构建。
 
 ## 平台差异处理
 
@@ -106,12 +106,12 @@ pnpm format                         # Prettier
 const isTauri = '__TAURI_INTERNALS__' in window;
 export const API_BASE_URL = isTauri
   ? 'http://127.0.0.1:2026'            // 桌面端本地 sidecar
-  : import.meta.env.VITE_API_URL;       // iOS/Web → Railway
+  : import.meta.env.VITE_API_URL;       // Web → Railway
 ```
 
 ### 认证（`src/shared/providers/auth-provider.tsx`）
 - **桌面端**: OAuth → 系统浏览器 → deep-link (`sage://auth/callback`) 回调
-- **iOS 端**: 邮箱/密码登录（`signInWithPassword`）。OAuth 在 Capacitor WebView 内未完成适配
+- **iOS 端**: SwiftUI + Supabase Swift 邮箱/密码登录；OAuth 走原生 deep-link 适配
 - **Supabase client** (`src/shared/lib/supabase.ts`): `detectSessionInUrl` 和 `flowType` 按 `isTauri` 分叉
 
 ### 鉴权（`src-api/src/app/middleware/local-only.ts`）
@@ -148,16 +148,13 @@ PostToolUse hook 确定性拦截 API 响应 → summary 替换 + artifact 生成
 
 `patches/@codeany__open-agent-sdk@0.2.1.patch` 仍需短期保留：上游 SDK 未提供正式的"替换 tool output 后继续进入模型上下文"扩展点。不要把 westock artifact 映射、summary 或 UI 协议写进 SDK patch。
 
-## iOS 当前状态（Phase 0 完成）
+## iOS 当前状态
 
-- ✅ Capacitor 项目初始化，模拟器可运行
-- ✅ 邮箱/密码登录可用
-- ✅ 能进入主界面
-- ⚠️ UI 未适配移动端（桌面版 UI 挤在手机屏幕上）
-- ⚠️ OAuth (GitHub/Google) 在 iOS WebView 内回调不通，暂用邮箱登录
-- ⚠️ 本地 SQLite 等桌面功能在 iOS 上静默失败（不影响对话）
-- **下一步: iOS UI 适配**（侧边栏→底部 Tab Bar、移动端布局、Safe Area、虚拟键盘）
-- 详细方案: `docs/ios/IOS_PLAN.md`
+- ✅ `sage-ios/` SwiftUI 原生客户端是唯一 iOS 工程
+- ✅ Supabase Swift 登录、Railway API 调用、SSE 对话流可用
+- ✅ 主界面、设置页、会话列表和基础聊天流程已迁移到原生 UI
+- ⚠️ Capacitor `ios/` 遗留工程已移除；不要再运行 `npx cap sync/open ios`
+- **下一步**: 继续补齐原生 iOS 的 Skills / MCP / Cron / Persona 管理与金融 artifact 展示
 
 ## CI/CD
 

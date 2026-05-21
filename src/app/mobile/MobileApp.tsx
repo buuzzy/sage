@@ -1,5 +1,5 @@
 /**
- * MobileApp — Root shell for mobile (iOS/Capacitor) layout.
+ * MobileApp — Root shell for narrow web/mobile layout.
  *
  * Single-page app with internal navigation:
  * - Home view (welcome + input)
