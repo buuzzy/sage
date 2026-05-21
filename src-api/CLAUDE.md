@@ -26,6 +26,7 @@ index.ts (Hono server 入口)
 | /agent/title | agent.ts | POST | 异步生成对话标题 |
 | /v1/chat/completions | completions.ts | POST | OpenAI 兼容端点（WeClaw 对接） |
 | /mcp/memory | mcp-memory.ts | POST | MCP search_memory 工具 |
+| /persona/memory | persona.ts | GET | 当前用户 persona_memory 读取 |
 | /updater/latest.json | updater.ts | GET | Tauri updater manifest |
 | /channels | channels.ts | GET/POST | 渠道 CRUD |
 | /feishu/event | feishu.ts | POST | 飞书事件回调 |

@@ -67,12 +67,7 @@ struct TaskGroupRow: View {
                 }
             }
         }
-        .background(Color(.systemGray6).opacity(0.5))
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(.systemGray4).opacity(0.3), lineWidth: 0.5)
-        )
+        .sageSoftCard(cornerRadius: SageTheme.Radius.md)
         .padding(.horizontal, 16)
         // 完成后自动折叠
         .onChange(of: isComplete) { complete in
@@ -95,11 +90,11 @@ struct TaskGroupRow: View {
         } else {
             // 蓝色脉冲点 — 执行中
             Circle()
-                .fill(Color.blue)
+                .fill(SageTheme.ColorToken.brand)
                 .frame(width: 10, height: 10)
                 .overlay(
                     Circle()
-                        .stroke(Color.blue.opacity(0.4), lineWidth: 2)
+                        .stroke(SageTheme.ColorToken.brand.opacity(0.4), lineWidth: 2)
                         .scaleEffect(1.6)
                 )
                 .frame(width: 16, height: 16)

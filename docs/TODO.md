@@ -44,6 +44,9 @@
   - RightSidebar.tsx 辅助函数提取（1519 → 585 + helpers 模块）
   - 新增 platform.ts 统一平台检测基础设施（isTauri/isMobile/isDesktop）
   - v1.5.1: 移除 Capacitor iOS 遗留工程，iOS 统一走 `sage-ios/` SwiftUI 原生客户端
+  - v1.5.1: 原生 iOS Skills / MCP / Cron 设置页改用 Railway 后端真实接口，避免误显示空状态
+  - v1.5.1: 新增 `/persona/memory` 用户画像接口，原生 iOS 画像页按 Phase 3 嵌套 schema 渲染；定时任务页补系统蒸馏任务说明
+  - v1.5.1: 原生 iOS 完成 Gemini 风格首轮重构：DesignSystem、浮层顶栏、胶囊输入框、金融能力 Sheet、轻量抽屉、消息操作行和 artifact 全屏预览
 
 **仍需环境 / 实机验证**：
 

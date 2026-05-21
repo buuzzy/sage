@@ -6,6 +6,7 @@ export { providersRoutes } from './providers.js';
 export { filesRoutes } from './files.js';
 export { mcpRoutes } from './mcp.js';
 export { mcpMemoryRoutes } from './mcp-memory.js';
+export { personaRoutes } from './persona.js';
 export { channelRoutes } from './channels.js';
 export { completionsRoutes } from './completions.js';
 export { wechatRoutes } from './wechat.js';

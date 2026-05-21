@@ -1,8 +1,7 @@
 import SwiftUI
 import PhotosUI
 
-/// 底部输入栏 — ChatGPT 风格
-/// "+" 按钮（相册/拍照/文件）+ 输入框 + 发送/停止
+/// 底部输入栏 — Gemini 风格浮动胶囊 + Sage 金融能力入口
 struct InputBarView: View {
     let isRunning: Bool
     let isModelConfigured: Bool
@@ -18,24 +17,22 @@ struct InputBarView: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider().opacity(0.3)
-
+        VStack(spacing: SageTheme.Spacing.xs) {
             // 已选图片预览
             if !selectedImages.isEmpty {
                 imagePreviewBar
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .bottom, spacing: SageTheme.Spacing.xs) {
                 // "+" 按钮
                 Button {
                     showAttachMenu = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 36, height: 36)
-                        .background(Color(.systemGray6))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(SageTheme.ColorToken.brand)
+                        .frame(width: 38, height: 38)
+                        .background(SageTheme.ColorToken.brandSoft)
                         .clipShape(Circle())
                 }
                 .disabled(isRunning)
@@ -45,11 +42,10 @@ struct InputBarView: View {
                     .textFieldStyle(.plain)
                     .lineLimit(1...6)
                     .focused($isFocused)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .frame(minHeight: 36)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(18)
+                    .font(.system(size: 15))
+                    .padding(.horizontal, SageTheme.Spacing.sm)
+                    .padding(.vertical, 9)
+                    .frame(minHeight: 38)
                     .disabled(isRunning)
 
                 // 发送/停止
@@ -58,8 +54,8 @@ struct InputBarView: View {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Color(.darkGray))
+                            .frame(width: 38, height: 38)
+                            .background(Color.red.opacity(0.88))
                             .clipShape(Circle())
                     }
                 } else {
@@ -67,23 +63,28 @@ struct InputBarView: View {
                         Image(systemName: "arrow.up")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(canSend ? Color(.darkGray) : Color(.systemGray4))
+                            .frame(width: 38, height: 38)
+                            .background(canSend ? SageTheme.ColorToken.brand : Color(.systemGray4))
                             .clipShape(Circle())
                     }
                     .disabled(!canSend)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, SageTheme.Spacing.xs)
+            .padding(.vertical, SageTheme.Spacing.xs)
+            .sagePillBackground()
+            .padding(.horizontal, SageTheme.Spacing.md)
+            .padding(.bottom, SageTheme.Spacing.xs)
         }
-        .background(Color(.systemBackground))
-        .confirmationDialog("添加附件", isPresented: $showAttachMenu, titleVisibility: .hidden) {
-            Button("拍照") { showCamera = true }
-            Button("从相册选择") { showPhotoPicker = true }
-            // 后续扩展：文件上传
-            // Button("选择文件") { showFilePicker = true }
-            Button("取消", role: .cancel) { }
+        .padding(.top, SageTheme.Spacing.xs)
+        .background(.ultraThinMaterial.opacity(0.78))
+        .sheet(isPresented: $showAttachMenu) {
+            SageCapabilitySheet(
+                onCamera: { showCamera = true },
+                onPhotos: { showPhotoPicker = true }
+            )
+            .presentationDetents([.height(420)])
+            .presentationDragIndicator(.hidden)
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoPickerItems, maxSelectionCount: 4, matching: .images)
         .onChange(of: photoPickerItems) { items in
@@ -125,7 +126,7 @@ struct InputBarView: View {
                     }
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, SageTheme.Spacing.md)
             .padding(.top, 8)
         }
     }
@@ -162,6 +163,92 @@ struct InputBarView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Sage Capability Sheet
+
+struct SageCapabilitySheet: View {
+    let onCamera: () -> Void
+    let onPhotos: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private let financialActions: [(icon: String, title: String, subtitle: String)] = [
+        ("chart.line.uptrend.xyaxis", "市场快照", "快速查看指数、板块和热门机会"),
+        ("star.circle", "自选股", "围绕关注标的发起分析"),
+        ("doc.text.magnifyingglass", "深度研究", "研报、公告和财报摘要"),
+        ("waveform.path.ecg", "回测 / 策略", "验证想法并生成策略说明"),
+        ("brain.head.profile", "记忆与偏好", "查看 Sage 如何理解你"),
+        ("server.rack", "数据源状态", "检查 Skills、MCP 与金融 API")
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SageSheetHandle()
+
+            VStack(alignment: .leading, spacing: SageTheme.Spacing.lg) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("添加到对话")
+                        .font(.system(size: 20, weight: .semibold))
+                    Text("上传素材，或从 Sage 的金融工作流开始。")
+                        .font(.system(size: 13))
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                }
+
+                HStack(spacing: SageTheme.Spacing.sm) {
+                    capabilityButton(icon: "camera", title: "拍照") {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onCamera() }
+                    }
+                    capabilityButton(icon: "photo.on.rectangle", title: "相册") {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onPhotos() }
+                    }
+                    capabilityButton(icon: "folder", title: "文件") { dismiss() }
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: SageTheme.Spacing.sm) {
+                    ForEach(financialActions, id: \.title) { item in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Image(systemName: item.icon)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(SageTheme.ColorToken.brand)
+                            Text(item.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(item.subtitle)
+                                .font(.system(size: 11))
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                                .lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(SageTheme.Spacing.sm)
+                        .background(SageTheme.ColorToken.surfaceSecondary)
+                        .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+                    }
+                }
+            }
+            .padding(.horizontal, SageTheme.Spacing.xl)
+            .padding(.bottom, SageTheme.Spacing.xl)
+        }
+        .background(SageTheme.ColorToken.surface)
+    }
+
+    private func capabilityButton(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(.primary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, SageTheme.Spacing.sm)
+            .background(SageTheme.ColorToken.brandSoft.opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 

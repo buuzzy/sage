@@ -4,6 +4,7 @@ import path from 'path';
 import { Hono } from 'hono';
 
 import { getAllMcpConfigPaths, isRunningInSandbox } from '../../config/constants';
+import { isSupabaseConfigured } from '@/shared/supabase/client';
 
 const mcp = new Hono();
 
@@ -53,6 +54,18 @@ type MCPServerConfig = MCPServerStdio | MCPServerHttp;
 
 interface MCPConfig {
   mcpServers: Record<string, MCPServerConfig>;
+}
+
+function getBuiltinMcpServers(): Record<string, MCPServerConfig> {
+  if (!isSupabaseConfigured()) {
+    return {};
+  }
+
+  return {
+    memory: {
+      url: '/mcp-memory',
+    },
+  };
 }
 
 // GET /mcp/config - Read MCP config
@@ -211,6 +224,16 @@ mcp.get('/all-configs', async (c) => {
       exists: false,
       servers: {},
       sandboxRestricted: true,
+    });
+  }
+
+  const builtinServers = getBuiltinMcpServers();
+  if (Object.keys(builtinServers).length > 0) {
+    results.unshift({
+      name: 'builtin',
+      path: 'built-in',
+      exists: true,
+      servers: builtinServers,
     });
   }
 

@@ -13,11 +13,11 @@ struct SettingsView: View {
                 // 账户信息头部
                 Section {
                     if let user = authService.currentUser {
-                        HStack(spacing: 12) {
+                        HStack(spacing: SageTheme.Spacing.sm) {
                             // 头像
                             Image(systemName: "person.circle.fill")
                                 .font(.system(size: 36))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(SageTheme.ColorToken.brand)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(user.email ?? "用户")
                                     .font(.system(size: 15, weight: .medium))
@@ -122,7 +122,7 @@ struct SettingsView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
                             .frame(width: 28, height: 28)
-                            .background(Color(.systemGray5))
+                            .background(SageTheme.ColorToken.surfaceSecondary)
                             .clipShape(Circle())
                     }
                 }
@@ -133,13 +133,13 @@ struct SettingsView: View {
     // MARK: - 设置项行（统一风格）
 
     private func settingsRow(icon: String, color: Color, title: String) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: SageTheme.Spacing.sm) {
             Image(systemName: icon)
                 .font(.system(size: 14))
-                .foregroundColor(.white)
-                .frame(width: 28, height: 28)
-                .background(color)
-                .cornerRadius(6)
+                .foregroundColor(color)
+                .frame(width: 30, height: 30)
+                .background(color.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.sm, style: .continuous))
             Text(title)
                 .font(.system(size: 15))
         }

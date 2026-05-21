@@ -90,7 +90,17 @@ actor APIClient {
     /// 手动触发 Cron 任务
     func triggerCronJob(jobId: String) async throws {
         struct EmptyBody: Codable {}
-        _ = try await postJSON(endpoint: "/cron/jobs/\(jobId)/trigger", body: EmptyBody())
+        _ = try await postJSON(endpoint: "/cron/jobs/\(jobId)/run", body: EmptyBody())
+    }
+
+    /// 切换 Skill 启用状态
+    func toggleSkill(name: String, enabled: Bool) async throws {
+        struct ToggleBody: Codable {
+            let name: String
+            let enabled: Bool
+        }
+
+        _ = try await postJSON(endpoint: "/skills/toggle", body: ToggleBody(name: name, enabled: enabled))
     }
 
     /// 获取 task 缺失事件（iOS 后台恢复补偿）
@@ -101,6 +111,11 @@ actor APIClient {
     /// 获取 task 状态
     func getTaskStatus(taskId: String) async throws -> Data {
         return try await getJSON(endpoint: "/agent/task/\(taskId)/status")
+    }
+
+    /// 获取当前用户画像。这里使用 Supabase JWT，让后端按 RLS 返回当前用户数据。
+    func getPersona(accessToken: String) async throws -> Data {
+        return try await getJSON(endpoint: "/persona/memory", bearerToken: accessToken)
     }
 
     // MARK: - SSE Stream Implementation (with background task support)
@@ -197,10 +212,14 @@ actor APIClient {
     }
 
     func getJSON(endpoint: String) async throws -> Data {
+        return try await getJSON(endpoint: endpoint, bearerToken: apiToken)
+    }
+
+    private func getJSON(endpoint: String, bearerToken: String) async throws -> Data {
         let url = URL(string: "\(baseURL)\(endpoint)")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {

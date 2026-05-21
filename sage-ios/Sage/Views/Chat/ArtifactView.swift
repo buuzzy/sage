@@ -6,27 +6,97 @@ import WebKit
 struct ArtifactView: View {
     let type: String
     let jsonData: String
+    @State private var showFullScreen = false
 
     var body: some View {
-        ArtifactWebView(type: type, jsonData: jsonData)
-            .frame(height: artifactHeight)
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.systemGray4).opacity(0.3), lineWidth: 0.5)
-            )
+        Button {
+            showFullScreen = true
+        } label: {
+            VStack(alignment: .leading, spacing: SageTheme.Spacing.sm) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(artifactTitle)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text("点击全屏查看")
+                            .font(.system(size: 12))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(SageTheme.ColorToken.brand)
+                        .frame(width: 30, height: 30)
+                        .background(SageTheme.ColorToken.brandSoft)
+                        .clipShape(Circle())
+                }
+
+                ArtifactWebView(type: type, jsonData: jsonData)
+                    .frame(height: compactHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+            }
+            .padding(SageTheme.Spacing.sm)
+            .sageSoftCard(cornerRadius: SageTheme.Radius.lg)
             .padding(.horizontal, 16)
+        }
+        .buttonStyle(.plain)
+        .fullScreenCover(isPresented: $showFullScreen) {
+            ArtifactFullScreenView(type: type, title: artifactTitle, jsonData: jsonData)
+        }
     }
 
-    private var artifactHeight: CGFloat {
+    private var compactHeight: CGFloat {
         switch type {
-        case "kline-chart": return 360
-        case "bar-chart", "line-chart": return 280
-        case "sector-heatmap": return 320
-        case "quote-card": return 160
-        case "data-table": return 300
-        case "stock-snapshot": return 200
-        default: return 260
+        case "quote-card": return 132
+        case "stock-snapshot": return 160
+        default: return 220
+        }
+    }
+
+    private var artifactTitle: String {
+        switch type {
+        case "quote-card": return "行情卡片"
+        case "kline-chart": return "K 线图"
+        case "bar-chart": return "柱状图"
+        case "line-chart": return "趋势图"
+        case "data-table": return "数据表"
+        case "stock-snapshot": return "股票快照"
+        case "sector-heatmap": return "板块热力图"
+        case "research-consensus": return "研报共识"
+        case "financial-health": return "财务健康"
+        case "news-feed", "news-list": return "资讯流"
+        default: return "金融图表"
+        }
+    }
+}
+
+struct ArtifactFullScreenView: View {
+    let type: String
+    let title: String
+    let jsonData: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ArtifactWebView(type: type, jsonData: jsonData)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(edges: .bottom)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .frame(width: 32, height: 32)
+                            .background(SageTheme.ColorToken.surfaceSecondary)
+                            .clipShape(Circle())
+                    }
+                }
+            }
         }
     }
 }

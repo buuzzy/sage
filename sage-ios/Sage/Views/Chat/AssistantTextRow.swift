@@ -58,19 +58,13 @@ struct AssistantTextRow: View {
     // MARK: - Action Bar (匹配桌面端 AgentActionBar)
 
     private var actionBar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             // 复制回答
             Button {
                 let parsed = ArtifactParser.extract(from: content)
                 UIPasteboard.general.string = parsed.cleanText
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 12))
-                    Text("复制回答")
-                        .font(.system(size: 12))
-                }
-                .foregroundColor(Color(.systemGray3))
+                actionLabel(icon: "doc.on.doc", title: "复制")
             }
 
             // 报告问题
@@ -79,19 +73,34 @@ struct AssistantTextRow: View {
                 let feedbackText = "问题反馈:\n\n回答内容:\n\(content.prefix(500))"
                 UIPasteboard.general.string = feedbackText
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 12))
-                    Text("报告问题")
-                        .font(.system(size: 12))
-                }
-                .foregroundColor(Color(.systemGray3))
+                actionLabel(icon: "exclamationmark.triangle", title: "反馈")
+            }
+
+            Button {
+                let parsed = ArtifactParser.extract(from: content)
+                UIPasteboard.general.string = parsed.cleanText
+            } label: {
+                actionLabel(icon: "square.and.arrow.up", title: "分享")
             }
 
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.top, 2)
+        .padding(.top, 4)
+    }
+
+    private func actionLabel(icon: String, title: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+        }
+        .foregroundColor(SageTheme.ColorToken.mutedText)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(SageTheme.ColorToken.surfaceSecondary.opacity(0.72))
+        .clipShape(Capsule())
     }
 }
 

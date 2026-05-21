@@ -14,6 +14,7 @@ import {
   internalDistillRoutes,
   mcpRoutes,
   mcpMemoryRoutes,
+  personaRoutes,
   previewRoutes,
   providersRoutes,
   sandboxRoutes,
@@ -48,6 +49,7 @@ app.use('/preview/*', localOnlyMiddleware);
 app.use('/files/*', localOnlyMiddleware);
 app.use('/mcp/*', localOnlyMiddleware);
 app.use('/mcp-memory/*', localOnlyMiddleware);
+app.use('/persona/*', localOnlyMiddleware);
 app.use('/skills/*', localOnlyMiddleware);
 
 // ── Management routes (local-only: config, cron — no external access) ─
@@ -66,6 +68,7 @@ app.route('/providers', providersRoutes);
 app.route('/files', filesRoutes);
 app.route('/mcp', mcpRoutes);
 app.route('/mcp-memory', mcpMemoryRoutes);
+app.route('/persona', personaRoutes);
 app.route('/channels', channelRoutes);
 app.route('/channels/wechat', wechatRoutes);
 app.route('/channels/feishu', feishuRoutes);

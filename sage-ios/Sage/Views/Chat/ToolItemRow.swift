@@ -16,16 +16,16 @@ struct ToolItemRow: View {
                 // 树形连线
                 VStack(spacing: 0) {
                     Rectangle()
-                        .fill(Color(.systemGray4))
+                        .fill(SageTheme.ColorToken.hairline)
                         .frame(width: 1)
 
                     Circle()
-                        .fill(Color(.systemGray4))
+                        .fill(SageTheme.ColorToken.brand.opacity(0.45))
                         .frame(width: 5, height: 5)
 
                     if !isLast {
                         Rectangle()
-                            .fill(Color(.systemGray4))
+                            .fill(SageTheme.ColorToken.hairline)
                             .frame(width: 1)
                     } else {
                         Spacer()
@@ -38,7 +38,7 @@ struct ToolItemRow: View {
                 // 工具图标
                 Image(systemName: toolIcon)
                     .font(.system(size: 11))
-                    .foregroundColor(.orange)
+                    .foregroundColor(SageTheme.ColorToken.brand)
                     .frame(width: 16)
 
                 // 工具名 + 参数
@@ -183,7 +183,7 @@ struct ToolDetailSheet: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.secondary)
                             .frame(width: 28, height: 28)
-                            .background(Color(.systemGray5))
+                            .background(SageTheme.ColorToken.surfaceSecondary)
                             .clipShape(Circle())
                     }
                 }

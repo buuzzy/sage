@@ -11,6 +11,8 @@ sage-ios/
 └── Sage/
     ├── SageApp.swift         ← App 入口（主题切换、Auth 状态路由）
     ├── Info.plist            ← URL Scheme: ai.sage.app://
+    ├── DesignSystem/
+    │   └── SageTheme.swift   ← Gemini 风格设计 token + 共享 SwiftUI 组件
     ├── Models/
     │   └── Message.swift     ← SSEEvent, AgentRequest, ModelConfig, PlanData, PermissionRequestData
     ├── Services/

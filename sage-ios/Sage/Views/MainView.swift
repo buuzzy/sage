@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// 主视图 — 侧边栏 + 对话区域
-/// ChatGPT 风格布局：顶栏(≡ + 标题 + 新对话) + 内容区 + 底部输入栏
+/// 主视图 — Gemini 风格移动聊天壳 + Sage 金融工作流入口
 struct MainView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var settingsService: SettingsService
@@ -9,14 +8,18 @@ struct MainView: View {
     @StateObject private var sessionListVM = SessionListViewModel()
     @State private var showSidebar = false
     @State private var showSettings = false
+    @State private var showModelSheet = false
     @AppStorage("sage_theme") private var theme: String = "system"
 
     var body: some View {
         ZStack(alignment: .leading) {
+            SageTheme.ColorToken.surface
+                .ignoresSafeArea()
+            backgroundWash
+
             // ─── Main Content ───────────────────────────────────────
             VStack(spacing: 0) {
                 topBar
-                Divider().opacity(0.3)
 
                 if chatVM.displayGroups.isEmpty && !chatVM.isRunning {
                     homeContent
@@ -90,6 +93,21 @@ struct MainView: View {
                 .environmentObject(settingsService)
                 .preferredColorScheme(colorSchemeForTheme)
         }
+        .sheet(isPresented: $showModelSheet) {
+            ModelQuickSheet(
+                modelName: modelDisplayName,
+                providerName: providerDisplayName,
+                isConfigured: settingsService.isModelConfigured,
+                onOpenSettings: {
+                    showModelSheet = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        showSettings = true
+                    }
+                }
+            )
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.hidden)
+        }
         // Permission Request Alert
         .alert("权限请求", isPresented: .init(
             get: { chatVM.pendingPermission != nil },
@@ -124,36 +142,48 @@ struct MainView: View {
     // MARK: - Top Bar
 
     private var topBar: some View {
-        HStack(spacing: 0) {
-            Button {
+        HStack(spacing: 12) {
+            SageIconButton(systemName: "line.3.horizontal") {
                 withAnimation(.easeOut(duration: 0.25)) { showSidebar.toggle() }
-            } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.primary)
-                    .frame(width: 44, height: 44)
             }
 
             Spacer()
 
-            Text(chatVM.currentTitle ?? "Sage")
-                .font(.system(size: 16, weight: .semibold))
-                .lineLimit(1)
-                .foregroundColor(.primary)
+            Button {
+                showModelSheet = true
+            } label: {
+                HStack(spacing: 6) {
+                    VStack(spacing: 1) {
+                        Text(chatVM.currentTitle ?? "Sage")
+                            .font(.system(size: 15, weight: .semibold))
+                            .lineLimit(1)
+                            .foregroundColor(.primary)
+                        Text(modelDisplayName)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(SageTheme.ColorToken.surfaceSecondary.opacity(0.82))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            Button {
+            SageIconButton(systemName: "square.and.pencil") {
                 chatVM.startNewChat()
-            } label: {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
-                    .frame(width: 44, height: 44)
             }
         }
-        .padding(.horizontal, 4)
-        .frame(height: 48)
+        .padding(.horizontal, SageTheme.Spacing.md)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .background(.ultraThinMaterial.opacity(0.78))
     }
 
     // MARK: - Home (empty state)
@@ -162,22 +192,30 @@ struct MainView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            Image("SageLogo")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .opacity(0.7)
-                .padding(.bottom, 12)
+            VStack(spacing: SageTheme.Spacing.md) {
+                Image("SageLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+                    .shadow(color: SageTheme.ColorToken.brand.opacity(0.22), radius: 18, x: 0, y: 10)
 
-            Text("有什么可以帮你的？")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundColor(.secondary)
+                VStack(spacing: 6) {
+                    Text("今天想研究什么？")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text("问行情、读财报、做回测，Sage 会把过程收进清晰的工作流。")
+                        .font(.system(size: 14))
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 34)
+                }
+            }
 
-            // 快捷操作（对标桌面端 Home 3 个分类）
             if settingsService.isModelConfigured {
                 quickActionsSection
-                    .padding(.top, 24)
+                    .padding(.top, SageTheme.Spacing.xl)
             }
 
             // Model not configured warning
@@ -230,7 +268,7 @@ struct MainView: View {
                             .id("running")
                     }
                 }
-                .padding(.vertical, 16)
+                .padding(.vertical, SageTheme.Spacing.md)
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -298,35 +336,22 @@ struct MainView: View {
     // MARK: - Quick Actions (对标桌面端首页 3 个分类)
 
     private var quickActionsSection: some View {
-        VStack(spacing: 10) {
-            quickActionButton(icon: "chart.line.uptrend.xyaxis", title: "行情查询", prompt: "帮我查一下今天 A 股大盘走势和热门板块")
-            quickActionButton(icon: "doc.text.magnifyingglass", title: "研报分析", prompt: "搜索最新的券商研报，分析当前市场观点")
-            quickActionButton(icon: "clock.arrow.circlepath", title: "定时监控", prompt: "帮我设置一个每天早上 9 点的市场简报定时任务")
+        VStack(spacing: SageTheme.Spacing.sm) {
+            HStack(spacing: SageTheme.Spacing.xs) {
+                quickActionButton(icon: "chart.line.uptrend.xyaxis", title: "看行情", prompt: "帮我查一下今天 A 股大盘走势和热门板块")
+                quickActionButton(icon: "doc.text.magnifyingglass", title: "读研报", prompt: "搜索最新的券商研报，分析当前市场观点")
+            }
+            HStack(spacing: SageTheme.Spacing.xs) {
+                quickActionButton(icon: "clock.arrow.circlepath", title: "定时复盘", prompt: "帮我设置一个每天早上 9 点的市场简报定时任务")
+                quickActionButton(icon: "brain.head.profile", title: "记忆偏好", prompt: "根据我的历史偏好，整理一份投资关注清单")
+            }
         }
-        .padding(.horizontal, 32)
+        .padding(.horizontal, SageTheme.Spacing.xl)
     }
 
     private func quickActionButton(icon: String, title: String, prompt: String) -> some View {
-        Button {
+        SagePromptChip(icon: icon, title: title) {
             Task { await chatVM.sendMessage(prompt) }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(.blue)
-                    .frame(width: 28)
-                Text(title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
-                Spacer()
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
         }
     }
 
@@ -344,6 +369,37 @@ struct MainView: View {
         }
     }
 
+    private var backgroundWash: some View {
+        VStack {
+            LinearGradient(
+                colors: [
+                    SageTheme.ColorToken.brand.opacity(0.16),
+                    SageTheme.ColorToken.cyan.opacity(0.06),
+                    Color.clear,
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(height: 240)
+            Spacer()
+        }
+        .ignoresSafeArea()
+    }
+
+    private var modelDisplayName: String {
+        settingsService.currentSettings.modelConfig?.model
+            ?? settingsService.currentSettings.defaultModel
+            ?? "选择模型"
+    }
+
+    private var providerDisplayName: String {
+        guard let providerId = settingsService.currentSettings.defaultProvider,
+              let provider = settingsService.currentSettings.providers.first(where: { $0.id == providerId }) else {
+            return settingsService.isModelConfigured ? "已配置" : "未配置"
+        }
+        return provider.name
+    }
+
     private func permissionMessage(_ perm: PermissionRequestData) -> String {
         var msg = ""
         if let desc = perm.description, !desc.isEmpty {
@@ -356,6 +412,68 @@ struct MainView: View {
             msg += msg.isEmpty ? cmd : "\n\(cmd)"
         }
         return msg.isEmpty ? "Agent 请求执行权限" : msg
+    }
+}
+
+// MARK: - Model Quick Sheet
+
+struct ModelQuickSheet: View {
+    let modelName: String
+    let providerName: String
+    let isConfigured: Bool
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SageSheetHandle()
+
+            VStack(alignment: .leading, spacing: SageTheme.Spacing.lg) {
+                HStack(spacing: SageTheme.Spacing.md) {
+                    Image(systemName: isConfigured ? "sparkles" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(isConfigured ? SageTheme.ColorToken.brand : .orange)
+                        .frame(width: 42, height: 42)
+                        .background((isConfigured ? SageTheme.ColorToken.brandSoft : Color.orange.opacity(0.12)))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(isConfigured ? "当前模型" : "模型未配置")
+                            .font(.system(size: 18, weight: .semibold))
+                        Text(isConfigured ? "\(providerName) · \(modelName)" : "配置模型后即可开始对话")
+                            .font(.system(size: 13))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: SageTheme.Spacing.xs) {
+                    Label("轻量模型入口先承载状态与设置跳转", systemImage: "checkmark.circle")
+                    Label("后续可扩展思考等级、模型族切换与额度状态", systemImage: "slider.horizontal.3")
+                }
+                .font(.system(size: 13))
+                .foregroundColor(SageTheme.ColorToken.mutedText)
+
+                Button(action: onOpenSettings) {
+                    HStack {
+                        Text(isConfigured ? "打开模型设置" : "去配置模型")
+                            .font(.system(size: 15, weight: .semibold))
+                        Spacer()
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, SageTheme.Spacing.md)
+                    .padding(.vertical, 14)
+                    .background(SageTheme.ColorToken.brand)
+                    .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, SageTheme.Spacing.xl)
+            .padding(.bottom, SageTheme.Spacing.xl)
+        }
+        .background(SageTheme.ColorToken.surface)
     }
 }
 
@@ -420,8 +538,8 @@ struct PlanApprovalRow: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(Color.blue)
-                        .cornerRadius(8)
+                        .background(SageTheme.ColorToken.brand)
+                        .clipShape(Capsule())
                 }
 
                 Button {
@@ -432,20 +550,15 @@ struct PlanApprovalRow: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(Color(.systemGray5))
-                        .cornerRadius(8)
+                        .background(SageTheme.ColorToken.surfaceSecondary)
+                        .clipShape(Capsule())
                 }
 
                 Spacer()
             }
         }
         .padding(14)
-        .background(Color(.systemGray6).opacity(0.5))
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.blue.opacity(0.2), lineWidth: 0.5)
-        )
+        .sageSoftCard(cornerRadius: SageTheme.Radius.md)
         .padding(.horizontal, 16)
     }
 
@@ -485,5 +598,8 @@ struct ErrorRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.sm, style: .continuous))
+        .padding(.horizontal, 16)
     }
 }

@@ -8,11 +8,10 @@ struct RunningIndicatorView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // 橙色旋转圆弧
             Circle()
                 .trim(from: 0.0, to: 0.7)
                 .stroke(
-                    Color.orange,
+                    SageTheme.ColorToken.brand,
                     style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
                 )
                 .frame(width: 16, height: 16)
@@ -31,6 +30,9 @@ struct RunningIndicatorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .background(SageTheme.ColorToken.surfaceSecondary.opacity(0.64))
+        .clipShape(Capsule())
+        .padding(.horizontal, 16)
     }
 
     private var indicatorText: String {

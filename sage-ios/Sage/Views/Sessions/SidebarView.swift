@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 侧边栏 — ChatGPT 风格
-/// 顶部：品牌 + 设置头像
+/// 侧边栏 — Gemini 风格轻抽屉
+/// 顶部：品牌 + 设置入口
 /// 中间：按日期分组的历史对话列表（今天/昨天/更早）
 /// 底部：新对话 FAB
 /// 支持：右滑删除、长按重命名
@@ -43,21 +43,32 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Text("Sage")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                HStack(spacing: SageTheme.Spacing.sm) {
+                    Image("SageLogo")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 34, height: 34)
+                        .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.sm, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sage")
+                            .font(.system(size: 20, weight: .semibold))
+                        Text("金融助手")
+                            .font(.system(size: 12))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                    }
+                }
                 Spacer()
-                Button {
+                SageIconButton(
+                    systemName: "person.crop.circle",
+                    color: SageTheme.ColorToken.brand,
+                    background: SageTheme.ColorToken.brandSoft
+                ) {
                     onOpenSettings()
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 18))
-                        .foregroundColor(.secondary)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.horizontal, SageTheme.Spacing.lg)
+            .padding(.top, SageTheme.Spacing.lg)
+            .padding(.bottom, SageTheme.Spacing.md)
 
             // Search
             HStack {
@@ -76,25 +87,43 @@ struct SidebarView: View {
                     }
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
+            .padding(.horizontal, SageTheme.Spacing.sm)
+            .padding(.vertical, 10)
+            .background(SageTheme.ColorToken.surfaceSecondary)
+            .clipShape(Capsule())
+            .padding(.horizontal, SageTheme.Spacing.md)
+            .padding(.bottom, SageTheme.Spacing.sm)
 
-            Divider()
+            Button(action: onNewChat) {
+                HStack(spacing: SageTheme.Spacing.sm) {
+                    Image(systemName: "plus.message.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("新对话")
+                        .font(.system(size: 15, weight: .semibold))
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .opacity(0.7)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, SageTheme.Spacing.md)
+                .padding(.vertical, 13)
+                .background(SageTheme.ColorToken.brand)
+                .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, SageTheme.Spacing.md)
+            .padding(.bottom, SageTheme.Spacing.sm)
 
             // Session list (grouped by date)
             if filteredSessions.isEmpty {
                 VStack(spacing: 12) {
                     Spacer()
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.system(size: 36))
-                        .foregroundColor(.secondary.opacity(0.5))
-                    Text("暂无对话")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    SageEmptyStateView(
+                        systemName: "bubble.left.and.bubble.right",
+                        title: "暂无对话",
+                        message: "开始一次新的市场研究或复盘。"
+                    )
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
@@ -130,30 +159,30 @@ struct SidebarView: View {
 
             Spacer()
 
-            // New chat FAB
-            HStack {
-                Spacer()
-                Button {
-                    onNewChat()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.and.pencil")
-                            .font(.system(size: 14, weight: .medium))
-                        Text("新对话")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(Color.primary)
-                    .cornerRadius(24)
+            Button(action: onOpenSettings) {
+                HStack(spacing: SageTheme.Spacing.sm) {
+                    Image(systemName: "gearshape")
+                    Text("设置与账号")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 20)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
+                .padding(.horizontal, SageTheme.Spacing.md)
+                .padding(.vertical, 12)
+                .background(SageTheme.ColorToken.surfaceSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
             }
+            .buttonStyle(.plain)
+            .padding(.horizontal, SageTheme.Spacing.md)
+            .padding(.bottom, SageTheme.Spacing.lg)
         }
-        .background(Color(.systemBackground))
+        .background(
+            SageTheme.ColorToken.surface
+                .clipShape(RoundedRectangle(cornerRadius: 0, style: .continuous))
+                .shadow(color: Color.black.opacity(0.12), radius: 24, x: 8, y: 0)
+        )
         .alert("重命名对话", isPresented: .init(
             get: { renamingSession != nil },
             set: { if !$0 { renamingSession = nil } }
@@ -178,7 +207,7 @@ struct SidebarView: View {
             .font(.caption)
             .fontWeight(.medium)
             .foregroundColor(.secondary)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, SageTheme.Spacing.lg)
             .padding(.top, 16)
             .padding(.bottom, 6)
     }
@@ -213,11 +242,16 @@ struct SidebarView: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, SageTheme.Spacing.md)
             .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: SageTheme.Radius.sm, style: .continuous)
+                    .fill(session.id == runningSessionId ? SageTheme.ColorToken.brandSoft.opacity(0.75) : Color.clear)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, SageTheme.Spacing.xs)
         .contextMenu {
             Button {
                 renamingSession = session

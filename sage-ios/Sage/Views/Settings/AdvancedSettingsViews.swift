@@ -6,7 +6,10 @@ struct PersonaSettingsView: View {
     @State private var isLoading = true
     @State private var hardRules: [PersonaItem] = []
     @State private var focusAreas: [PersonaItem] = []
+    @State private var activeFocus: [PersonaItem] = []
     @State private var exclusions: [PersonaItem] = []
+    @State private var recentViews: [PersonaItem] = []
+    @State private var behaviorSummary: String?
     @State private var riskPreference: String = "-"
     @State private var capabilityLevel: String = "-"
     @State private var lastDistilled: String = "尚未蒸馏"
@@ -31,6 +34,14 @@ struct PersonaSettingsView: View {
                     infoRow("上次蒸馏", value: lastDistilled)
                 }
 
+                if let behaviorSummary, !behaviorSummary.isEmpty {
+                    Section("行为摘要") {
+                        Text(behaviorSummary)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
                 // 硬规则（可删除）
                 if !hardRules.isEmpty {
                     Section("硬规则") {
@@ -43,11 +54,19 @@ struct PersonaSettingsView: View {
 
                 // 关注领域
                 if !focusAreas.isEmpty {
-                    Section("关注领域") {
+                    Section("主动关注") {
                         ForEach(focusAreas) { item in
                             Text(item.content).font(.subheadline)
                         }
                         .onDelete { offsets in focusAreas.remove(atOffsets: offsets) }
+                    }
+                }
+
+                if !activeFocus.isEmpty {
+                    Section("近期高频关注") {
+                        ForEach(activeFocus) { item in
+                            Text(item.content).font(.subheadline)
+                        }
                     }
                 }
 
@@ -61,7 +80,15 @@ struct PersonaSettingsView: View {
                     }
                 }
 
-                if hardRules.isEmpty && focusAreas.isEmpty && exclusions.isEmpty {
+                if !recentViews.isEmpty {
+                    Section("近期观点") {
+                        ForEach(recentViews) { item in
+                            Text(item.content).font(.subheadline)
+                        }
+                    }
+                }
+
+                if hardRules.isEmpty && focusAreas.isEmpty && activeFocus.isEmpty && exclusions.isEmpty && recentViews.isEmpty && behaviorSummary == nil {
                     Section {
                         VStack(spacing: 8) {
                             Image(systemName: "brain")
@@ -70,9 +97,10 @@ struct PersonaSettingsView: View {
                             Text("暂无画像数据")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            Text("Sage 会在对话中自动学习你的偏好")
+                            Text("画像由云端蒸馏任务从对话中自动生成，通常需要完成几轮对话后才会出现")
                                 .font(.caption)
                                 .foregroundColor(.secondary.opacity(0.7))
+                                .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -102,37 +130,100 @@ struct PersonaSettingsView: View {
                 return
             }
             do {
-                // 尝试通过后端获取 persona（后端会查 Supabase）
-                let data = try await APIClient.shared.getJSON(endpoint: "/mcp-memory/persona?userId=\(userId)")
+                guard let accessToken = await AuthService.shared.getAccessToken() else {
+                    errorMessage = "登录已过期，请重新登录"
+                    isLoading = false
+                    return
+                }
+                let data = try await APIClient.shared.getPersona(accessToken: accessToken)
                 parsePersonaData(data)
             } catch {
-                // 如果失败，显示空状态（不是错误，只是还没有数据）
-                errorMessage = nil
+                errorMessage = "无法加载画像：\(error.localizedDescription)"
             }
             isLoading = false
         }
     }
 
     private func parsePersonaData(_ data: Data) {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-        if let risk = json["risk_preference"] as? String {
-            riskPreference = localizeRisk(risk)
-        }
-        if let cap = json["capability_level"] as? String {
-            capabilityLevel = localizeCap(cap)
-        }
-        if let time = json["last_distilled_at"] as? String {
+        resetPersona()
+
+        guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        let row = (payload["row"] as? [String: Any]) ?? payload
+        guard !row.isEmpty else { return }
+
+        if let time = row["last_distilled_at"] as? String {
             lastDistilled = formatTime(time)
         }
-        if let rules = json["hard_rules"] as? [[String: Any]] {
-            hardRules = rules.enumerated().map { PersonaItem(id: "\($0.offset)", content: ($0.element["rule"] as? String) ?? "") }
+
+        guard let profile = row["profile"] as? [String: Any] else { return }
+        let explicit = profile["explicit"] as? [String: Any]
+        let implicit = profile["implicit"] as? [String: Any]
+
+        if let risk = implicit?["risk_tolerance"] as? String {
+            riskPreference = localizeRisk(risk)
         }
-        if let focus = json["focus_universe_declared"] as? [[String: Any]] {
-            focusAreas = focus.enumerated().map { PersonaItem(id: "f\($0.offset)", content: ($0.element["name"] as? String) ?? "") }
+        if let cap = implicit?["capability_level"] as? String {
+            capabilityLevel = localizeCap(cap)
         }
-        if let excl = json["focus_universe_exclusion"] as? [[String: Any]] {
-            exclusions = excl.enumerated().map { PersonaItem(id: "e\($0.offset)", content: ($0.element["name"] as? String) ?? "") }
+
+        if let summary = implicit?["behavior_summary"] as? String, !summary.isEmpty {
+            behaviorSummary = summary
         }
+
+        if let rules = explicit?["hard_rules"] as? [[String: Any]] {
+            hardRules = rules.enumerated().compactMap { idx, rule in
+                guard let content = rule["content"] as? String, !content.isEmpty else { return nil }
+                return PersonaItem(id: (rule["id"] as? String) ?? "\(idx)", content: content)
+            }
+        }
+
+        if let focusUniverse = explicit?["focus_universe"] as? [String: Any],
+           let focus = focusUniverse["declared"] as? [[String: Any]] {
+            focusAreas = focus.enumerated().compactMap { idx, item in
+                guard let name = item["name"] as? String, !name.isEmpty else { return nil }
+                let code = item["code"] as? String
+                return PersonaItem(id: "declared-\(idx)", content: code == nil ? name : "\(name) (\(code!))")
+            }
+        }
+
+        if let focusUniverse = explicit?["focus_universe"] as? [String: Any],
+           let excl = focusUniverse["exclusions"] as? [[String: Any]] {
+            exclusions = excl.enumerated().compactMap { idx, item in
+                let value = (item["value"] as? String) ?? (item["name"] as? String)
+                guard let value, !value.isEmpty else { return nil }
+                return PersonaItem(id: "exclusion-\(idx)", content: value)
+            }
+        }
+
+        if let focusUniverse = implicit?["focus_universe"] as? [String: Any],
+           let active = focusUniverse["active"] as? [[String: Any]] {
+            activeFocus = active.enumerated().compactMap { idx, item in
+                guard let name = item["name"] as? String, !name.isEmpty else { return nil }
+                let code = item["code"] as? String
+                return PersonaItem(id: "active-\(idx)", content: code == nil ? name : "\(name) (\(code!))")
+            }
+        }
+
+        if let views = implicit?["recent_views"] as? [[String: Any]] {
+            recentViews = views.enumerated().compactMap { idx, view in
+                guard let topic = view["topic"] as? String, !topic.isEmpty else { return nil }
+                let stance = view["stance"] as? String
+                return PersonaItem(id: "view-\(idx)", content: stance == nil ? topic : "\(topic)：\(stance!)")
+            }
+        }
+    }
+
+    private func resetPersona() {
+        hardRules = []
+        focusAreas = []
+        activeFocus = []
+        exclusions = []
+        recentViews = []
+        behaviorSummary = nil
+        riskPreference = "-"
+        capabilityLevel = "-"
+        lastDistilled = "尚未蒸馏"
+        errorMessage = nil
     }
 
     private func localizeRisk(_ risk: String) -> String {
@@ -174,6 +265,7 @@ struct CronSettingsView: View {
                         .foregroundColor(.orange)
                 }
             } else if jobs.isEmpty {
+                systemCronSection
                 Section {
                     VStack(spacing: 8) {
                         Image(systemName: "clock")
@@ -182,14 +274,16 @@ struct CronSettingsView: View {
                         Text("暂无定时任务")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        Text("在对话中让 Sage 为你创建")
+                        Text("这里显示你自己创建的定时任务。你可以在对话中让 Sage 定时提醒、定时复盘或定时检查市场。")
                             .font(.caption)
                             .foregroundColor(.secondary.opacity(0.7))
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                 }
             } else {
+                systemCronSection
                 ForEach($jobs) { $job in
                     CronJobRow(job: $job, onDelete: { deleteJob(job.id) }, onTrigger: { triggerJob(job.id) })
                 }
@@ -207,14 +301,42 @@ struct CronSettingsView: View {
         .onAppear { loadJobs() }
     }
 
+    private var systemCronSection: some View {
+        Section("系统任务") {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 14))
+                        .foregroundColor(.purple)
+                    Text("画像蒸馏")
+                        .font(.system(size: 15, weight: .medium))
+                    Spacer()
+                    Text("云端")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(4)
+                }
+                Text("Railway 后台每天凌晨自动从对话中更新 persona_memory；它不是用户可删除的任务，所以不出现在用户任务列表里。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
     private func loadJobs() {
         isLoading = true
         Task {
             do {
                 let data = try await APIClient.shared.getCronJobs()
-                jobs = (try? JSONDecoder().decode([CronJobItem].self, from: data)) ?? []
+                let response = try JSONDecoder().decode(CronJobsResponse.self, from: data)
+                jobs = response.jobs
+                errorMessage = nil
             } catch {
-                errorMessage = "无法加载定时任务"
+                errorMessage = "无法加载定时任务：\(error.localizedDescription)"
             }
             isLoading = false
         }
@@ -232,6 +354,11 @@ struct CronSettingsView: View {
     }
 }
 
+struct CronJobsResponse: Codable {
+    let ok: Bool?
+    let jobs: [CronJobItem]
+}
+
 struct CronJobItem: Codable, Identifiable {
     let id: String
     var name: String
@@ -240,6 +367,7 @@ struct CronJobItem: Codable, Identifiable {
     var schedule: CronScheduleData?
     var lastRunAt: String?
     var nextRunAt: String?
+    var system: Bool?
 }
 
 struct CronScheduleData: Codable {
@@ -265,6 +393,12 @@ struct CronJobRow: View {
                         .lineLimit(2)
                 }
                 Spacer()
+                if job.system == true {
+                    Text("系统").font(.system(size: 10))
+                        .foregroundColor(.purple)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.purple.opacity(0.1)).cornerRadius(4)
+                }
                 Toggle("", isOn: $job.enabled)
                     .labelsHidden()
                     .onChange(of: job.enabled) { val in
@@ -296,12 +430,19 @@ struct MCPSettingsView: View {
     @State private var servers: [MCPServerItem] = []
     @State private var isLoading = true
     @State private var showAddSheet = false
+    @State private var errorMessage: String?
 
     var body: some View {
         List {
             if isLoading {
                 HStack { Spacer(); ProgressView().padding(20); Spacer() }
                     .listRowBackground(Color.clear)
+            } else if let error = errorMessage {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                }
             } else if servers.isEmpty {
                 Section {
                     VStack(spacing: 8) {
@@ -325,7 +466,9 @@ struct MCPSettingsView: View {
                             .font(.system(size: 13)).foregroundColor(.teal).frame(width: 24)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(server.name).font(.system(size: 14, weight: .medium))
-                            Text(server.type).font(.caption).foregroundColor(.secondary)
+                            Text(server.source.map { "\(server.type) · \($0)" } ?? server.type)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                         Spacer()
                         if server.type == "stdio" {
@@ -358,18 +501,47 @@ struct MCPSettingsView: View {
         isLoading = true
         Task {
             do {
-                let data = try await APIClient.shared.getJSON(endpoint: "/mcp/config")
-                // 后端返回 { mcpServers: { name: {...config} } } 格式
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let mcpServers = json["mcpServers"] as? [String: [String: Any]] {
-                    servers = mcpServers.map { name, config in
-                        let type = (config["command"] != nil) ? "stdio" : ((config["url"] as? String)?.contains("sse") == true ? "sse" : "http")
-                        return MCPServerItem(id: name, name: name, type: type, url: config["url"] as? String)
+                let data = try await APIClient.shared.getJSON(endpoint: "/mcp/all-configs")
+                let response = try JSONDecoder().decode(MCPAllConfigsResponse.self, from: data)
+                servers = response.configs.flatMap { config in
+                    config.servers.map { name, server in
+                        MCPServerItem(
+                            id: "\(config.name)-\(name)",
+                            name: name,
+                            type: server.type,
+                            url: server.url,
+                            source: config.name
+                        )
                     }
                 }
-            } catch { }
+                errorMessage = nil
+            } catch {
+                errorMessage = "无法加载 MCP：\(error.localizedDescription)"
+            }
             isLoading = false
         }
+    }
+}
+
+struct MCPAllConfigsResponse: Codable {
+    let success: Bool
+    let configs: [MCPConfigSource]
+}
+
+struct MCPConfigSource: Codable {
+    let name: String
+    let exists: Bool
+    let servers: [String: MCPServerConfigData]
+}
+
+struct MCPServerConfigData: Codable {
+    let command: String?
+    let url: String?
+
+    var type: String {
+        if command != nil { return "stdio" }
+        if url?.contains("sse") == true { return "sse" }
+        return "http"
     }
 }
 
@@ -378,6 +550,7 @@ struct MCPServerItem: Codable, Identifiable {
     var name: String
     var type: String
     var url: String?
+    var source: String?
 }
 
 struct AddMCPServerSheet: View {
@@ -400,7 +573,7 @@ struct AddMCPServerSheet: View {
                 }
                 Section {
                     Button("添加") {
-                        onAdd(MCPServerItem(id: UUID().uuidString, name: name, type: type, url: url))
+                        onAdd(MCPServerItem(id: UUID().uuidString, name: name, type: type, url: url, source: "local"))
                     }.disabled(name.isEmpty || url.isEmpty)
                 }
             }
@@ -416,15 +589,21 @@ struct AddMCPServerSheet: View {
 // MARK: - Skills Settings
 
 struct SkillsSettingsView: View {
-    @State private var disabledSkills: Set<String> = []
     @State private var allSkills: [SkillItem] = []
     @State private var isLoading = true
+    @State private var errorMessage: String?
 
     var body: some View {
         List {
             if isLoading {
                 HStack { Spacer(); ProgressView().padding(20); Spacer() }
                     .listRowBackground(Color.clear)
+            } else if let error = errorMessage {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                }
             } else if allSkills.isEmpty {
                 Section {
                     VStack(spacing: 8) {
@@ -434,7 +613,7 @@ struct SkillsSettingsView: View {
                         Text("暂无技能")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        Text("技能由 Sage 桌面端管理和安装")
+                        Text("当前后端没有返回可用技能")
                             .font(.caption)
                             .foregroundColor(.secondary.opacity(0.7))
                     }
@@ -469,32 +648,27 @@ struct SkillsSettingsView: View {
         isLoading = true
         Task {
             do {
-                let data = try await APIClient.shared.getJSON(endpoint: "/skills/config")
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let disabled = json["disabledSkills"] as? [String] {
-                    disabledSkills = Set(disabled)
-                }
-                // Skills 列表需要从文件系统获取（桌面端），iOS 只能显示已知的技能
-                // 这里用空列表，等后端支持远程 skills 列表
-            } catch { }
+                let data = try await APIClient.shared.getJSON(endpoint: "/skills")
+                let response = try JSONDecoder().decode(SkillsListResponse.self, from: data)
+                allSkills = response.skills
+                errorMessage = nil
+            } catch {
+                errorMessage = "无法加载技能：\(error.localizedDescription)"
+            }
             isLoading = false
         }
     }
 
     private func toggleSkill(_ skill: SkillItem) {
         Task {
-            struct ToggleBody: Codable { let skillId: String; let enabled: Bool }
-            let body = ToggleBody(skillId: skill.id, enabled: skill.enabled)
-            if let data = try? JSONEncoder().encode(body) {
-                var request = URLRequest(url: URL(string: "https://sage-production-28e1.up.railway.app/skills/toggle")!)
-                request.httpMethod = "POST"
-                request.setValue("Bearer b2cbe89f938ee822f4a7efa45315346429fa1c34f9534e08f558e649cc46f3ed", forHTTPHeaderField: "Authorization")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.httpBody = data
-                _ = try? await URLSession.shared.data(for: request)
-            }
+            try? await APIClient.shared.toggleSkill(name: skill.name, enabled: skill.enabled)
         }
     }
+}
+
+struct SkillsListResponse: Codable {
+    let success: Bool
+    let skills: [SkillItem]
 }
 
 struct SkillItem: Codable, Identifiable {
