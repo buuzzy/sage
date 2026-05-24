@@ -6,7 +6,6 @@ struct SageApp: App {
     @StateObject private var settingsService = SettingsService.shared
     @StateObject private var chatVM = ChatViewModel()
     @AppStorage("sage_theme") private var theme: String = "system"
-    @AppStorage("sage_accent_color") private var accentColor: String = "blue"
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -30,9 +29,14 @@ struct SageApp: App {
                         .environmentObject(authService)
                 }
             }
-            .preferredColorScheme(colorSchemeForTheme)
-            .tint(accentColorValue)
-            .animation(.easeInOut(duration: 0.3), value: theme)
+            .tint(SageTheme.ColorToken.brand)
+            .onAppear {
+                applyTheme(theme)
+                NotificationService.shared.requestPermission()
+            }
+            .onChange(of: theme) { newValue in
+                applyTheme(newValue)
+            }
             .onChange(of: scenePhase) { newPhase in
                 switch newPhase {
                 case .background:
@@ -44,28 +48,29 @@ struct SageApp: App {
                     break
                 }
             }
-            .onAppear {
-                NotificationService.shared.requestPermission()
-            }
         }
     }
 
-    private var colorSchemeForTheme: ColorScheme? {
+    /// Drive the theme through UIKit instead of SwiftUI's `.preferredColorScheme`.
+    /// `.preferredColorScheme` does not always re-evaluate inside sheets / NavigationLink
+    /// push destinations when the underlying @AppStorage value changes, which left the
+    /// settings page stuck in the previous mode after switching to "跟随系统". Setting
+    /// `overrideUserInterfaceStyle` on every connected UIWindowScene's windows applies
+    /// the change at the UIKit layer so every presentation (including modally hosted
+    /// sheets) flips immediately.
+    private func applyTheme(_ theme: String) {
+        let style: UIUserInterfaceStyle
         switch theme {
-        case "light": return .light
-        case "dark": return .dark
-        default: return nil
+        case "light": style = .light
+        case "dark": style = .dark
+        default: style = .unspecified
         }
-    }
 
-    private var accentColorValue: Color {
-        switch accentColor {
-        case "green": return .green
-        case "orange": return .orange
-        case "purple": return .purple
-        case "red": return .red
-        case "pink": return .pink
-        default: return .blue
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = style
+            }
         }
     }
 }

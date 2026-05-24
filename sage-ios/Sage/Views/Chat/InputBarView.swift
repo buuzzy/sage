@@ -100,12 +100,13 @@ struct InputBarView: View {
         .onChange(of: photoPickerItems) { items in
             Task { await loadImages(from: items) }
         }
-        .sheet(isPresented: $showCamera) {
+        .fullScreenCover(isPresented: $showCamera) {
             CameraView { image in
                 if let data = image.jpegData(compressionQuality: 0.8) {
                     selectedImages.append(SelectedImage(data: data, mediaType: "image/jpeg"))
                 }
             }
+            .ignoresSafeArea()
         }
     }
 

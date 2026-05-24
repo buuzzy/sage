@@ -38,7 +38,6 @@ struct AppSettings: Codable {
     var defaultProvider: String?
     var defaultModel: String?
     var theme: String = "system" // light, dark, system
-    var language: String = "zh"
     var providers: [ProviderConfig] = ProviderConfig.allDefaults
 }
 

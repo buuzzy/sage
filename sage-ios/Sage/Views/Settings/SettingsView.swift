@@ -6,17 +6,6 @@ struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var settingsService: SettingsService
     @Environment(\.dismiss) private var dismiss
-    // Bind to the same @AppStorage that GeneralSettings writes so the sheet
-    // re-evaluates preferredColorScheme as soon as the user toggles 跟随系统.
-    @AppStorage("sage_theme") private var theme: String = "system"
-
-    private var colorSchemeForTheme: ColorScheme? {
-        switch theme {
-        case "light": return .light
-        case "dark": return .dark
-        default: return nil
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -141,27 +130,15 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(colorSchemeForTheme)
     }
 
 }
 
-// MARK: - General Settings (Theme + Language + Accent Color)
+// MARK: - General Settings (Theme only)
 
 struct GeneralSettingsView: View {
     @EnvironmentObject var settingsService: SettingsService
     @AppStorage("sage_theme") private var theme: String = "system"
-    @AppStorage("sage_language") private var language: String = "zh"
-    @AppStorage("sage_accent_color") private var accentColor: String = "blue"
-
-    private let accentColors: [(name: String, color: Color, key: String)] = [
-        ("蓝色", .blue, "blue"),
-        ("绿色", .green, "green"),
-        ("橙色", .orange, "orange"),
-        ("紫色", .purple, "purple"),
-        ("红色", .red, "red"),
-        ("粉色", .pink, "pink"),
-    ]
 
     var body: some View {
         List {
@@ -179,54 +156,12 @@ struct GeneralSettingsView: View {
                 }
             }
             .listRowBackground(sageListRowBackground)
-
-            Section("强调色") {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 16) {
-                    ForEach(accentColors, id: \.key) { item in
-                        Circle()
-                            .fill(item.color)
-                            .frame(width: 36, height: 36)
-                            .overlay(
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .opacity(accentColor == item.key ? 1 : 0)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.primary.opacity(0.2), lineWidth: accentColor == item.key ? 2 : 0)
-                                    .padding(-3)
-                            )
-                            .onTapGesture {
-                                accentColor = item.key
-                                settingsService.save()
-                            }
-                    }
-                }
-                .padding(.vertical, 8)
-            }
-            .listRowBackground(sageListRowBackground)
-
-            Section("语言") {
-                Picker("语言", selection: $language) {
-                    Text("中文").tag("zh")
-                    Text("English").tag("en")
-                }
-                .pickerStyle(.segmented)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                .onChange(of: language) { newValue in
-                    settingsService.currentSettings.language = newValue
-                    settingsService.save()
-                }
-            }
-            .listRowBackground(sageListRowBackground)
         }
         .sageSettingsPage()
         .navigationTitle("通用")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             theme = settingsService.currentSettings.theme
-            language = settingsService.currentSettings.language
         }
     }
 }
