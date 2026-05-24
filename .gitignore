@@ -94,3 +94,7 @@ github-recovery-codes*.txt
 *.cer
 *.mobileprovision
 sage-ios/.build/
+
+# Xcode user-specific state (per-developer noise; should not be tracked)
+**/xcuserdata/
+**/*.xcuserstate
