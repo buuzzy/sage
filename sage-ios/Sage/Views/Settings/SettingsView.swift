@@ -78,8 +78,9 @@ struct SettingsView: View {
                 }
                 .listRowBackground(sageListRowBackground)
 
-                // 清除数据
+                // 清除数据 + 退出登录（合并到同一 Section，靠 List divider 自然分隔）
                 Section {
+                    // 清除数据：destructive 操作保持红色字体
                     Button(role: .destructive) {
                         showClearDataAlert = true
                     } label: {
@@ -99,11 +100,8 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(clearDataState == .clearing)
-                }
-                .listRowBackground(sageListRowBackground)
 
-                // 退出登录
-                Section {
+                    // 退出登录：常规操作，黑色字体（红色留给真正的破坏性操作）
                     Button {
                         Task {
                             await authService.signOut()
@@ -114,7 +112,7 @@ struct SettingsView: View {
                             Spacer()
                             Text("退出登录")
                                 .font(SageTheme.Typography.button)
-                                .foregroundColor(SageIconTone.danger.foreground)
+                                .foregroundColor(.primary)
                             Spacer()
                         }
                     }
@@ -180,7 +178,7 @@ struct SettingsView: View {
         return "\(marketing) (\(build))"
     }
 
-    /// 清除流程：先 confirm → 本地 UserDefaults → Supabase 三表 → 刷新 UI
+    /// 清除流程：先 confirm → 本地 UserDefaults → Supabase 三表 → 通知 MainView 刷新 UI
     /// 不可逆，所以 alert 已经强制确认过一次。
     private func performClearData() {
         clearDataState = .clearing
@@ -198,11 +196,20 @@ struct SettingsView: View {
                 cloudOk = await CloudSyncService.shared.clearAllConversationData(userId: userId)
             }
 
+            // 3) 通知 MainView 同步刷新会话列表 + 重置当前对话
             await MainActor.run {
                 clearDataState = cloudOk ? .success : .partialFailure
+                NotificationCenter.default.post(name: .sageDataCleared, object: nil)
             }
         }
     }
+}
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    /// 「清除数据」操作完成后广播 — MainView / SidebarView 监听并刷新 sessions
+    static let sageDataCleared = Notification.Name("ai.sage.dataCleared")
 }
 
 // MARK: - Model Settings

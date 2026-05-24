@@ -269,12 +269,5 @@ struct SidebarView: View {
                 Label("删除", systemImage: "trash")
             }
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) {
-                onDeleteSession(session.id)
-            } label: {
-                Label("删除", systemImage: "trash")
-            }
-        }
     }
 }

@@ -125,6 +125,11 @@ struct MainView: View {
                 sessionListVM?.updateTitle(id, title: title)
             }
         }
+        // 「清除数据」完成后强制刷新：会话列表回空 + 当前对话视图重置
+        .onReceive(NotificationCenter.default.publisher(for: .sageDataCleared)) { _ in
+            sessionListVM.loadSessions()
+            chatVM.startNewChat()
+        }
     }
 
     // MARK: - Top Bar

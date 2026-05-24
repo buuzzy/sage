@@ -43,6 +43,11 @@ targets:
         CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "15"
         CFBundleIconName: AppIcon
+        # 本地化：声明 zh-Hans 为主开发语言，让 UIImagePickerController 等系统组件用中文
+        CFBundleDevelopmentRegion: zh-Hans
+        CFBundleLocalizations:
+          - zh-Hans
+          - en
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

@@ -100,24 +100,36 @@ class CloudSyncService {
 
     private func deleteRows(table: String, userId: String, token: String) async -> Bool {
         guard let url = URL(string: "\(supabaseUrl)/rest/v1/\(table)?user_id=eq.\(userId)") else {
+            print("[CloudSync][delete] ❌ \(table): bad URL")
             return false
         }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        // 让 PostgREST 返回被删除的行数，用于明确诊断（return=representation 也能用，但响应大）
+        request.setValue("return=minimal,count=exact", forHTTPHeaderField: "Prefer")
+
+        print("[CloudSync][delete] ▶ \(table) — DELETE \(url.absoluteString)")
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse,
-               (200...299).contains(http.statusCode) {
-                return true
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                print("[CloudSync][delete] ❌ \(table): non-HTTP response")
+                return false
             }
-            print("[CloudSync] Delete \(table) returned non-2xx")
-            return false
+            let bodyText = String(data: data, encoding: .utf8) ?? "<binary \(data.count) bytes>"
+            let contentRange = http.value(forHTTPHeaderField: "Content-Range") ?? "—"
+
+            if (200...299).contains(http.statusCode) {
+                print("[CloudSync][delete] ✅ \(table): status=\(http.statusCode) range=\(contentRange) body=\(bodyText.prefix(200))")
+                return true
+            } else {
+                print("[CloudSync][delete] ❌ \(table): status=\(http.statusCode) range=\(contentRange) body=\(bodyText.prefix(500))")
+                return false
+            }
         } catch {
-            print("[CloudSync] Delete failed for \(table): \(error.localizedDescription)")
+            print("[CloudSync][delete] ❌ \(table): network error \(error.localizedDescription)")
             return false
         }
     }
