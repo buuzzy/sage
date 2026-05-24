@@ -32,6 +32,9 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# The Agent's skills use Bash plus small Python/curl snippets for API calls.
+RUN apk add --no-cache bash python3 curl
+
 COPY --from=builder /build/src-api/dist/bundle.cjs dist/bundle.cjs
 COPY src-api/resources/ resources/
 
