@@ -31,14 +31,6 @@ struct SettingsView: View {
 
                 // 主设置列表 — 所有选项紧凑排列
                 Section {
-                    // 通用
-                    NavigationLink {
-                        GeneralSettingsView()
-                            .environmentObject(settingsService)
-                    } label: {
-                        SageSettingsRow(icon: "gearshape", title: "通用", tone: .neutral, showsChevron: false)
-                    }
-
                     // 模型
                     NavigationLink {
                         ModelSettingsView()
@@ -132,38 +124,6 @@ struct SettingsView: View {
         }
     }
 
-}
-
-// MARK: - General Settings (Theme only)
-
-struct GeneralSettingsView: View {
-    @EnvironmentObject var settingsService: SettingsService
-    @AppStorage("sage_theme") private var theme: String = "system"
-
-    var body: some View {
-        List {
-            Section("外观") {
-                Picker("主题", selection: $theme) {
-                    Text("浅色").tag("light")
-                    Text("深色").tag("dark")
-                    Text("跟随系统").tag("system")
-                }
-                .pickerStyle(.segmented)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                .onChange(of: theme) { newValue in
-                    settingsService.currentSettings.theme = newValue
-                    settingsService.save()
-                }
-            }
-            .listRowBackground(sageListRowBackground)
-        }
-        .sageSettingsPage()
-        .navigationTitle("通用")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            theme = settingsService.currentSettings.theme
-        }
-    }
 }
 
 // MARK: - Model Settings

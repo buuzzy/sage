@@ -14,9 +14,42 @@ struct SidebarView: View {
     let onOpenSettings: () -> Void
     var runningSessionId: String? = nil // 正在运行的对话 ID
 
+    @EnvironmentObject var settingsService: SettingsService
+    @AppStorage("sage_theme") private var theme: String = "system"
     @State private var searchText = ""
     @State private var renamingSession: SessionItem? = nil
     @State private var renameText = ""
+
+    /// SF Symbol that mirrors the active appearance mode.
+    private var themeIconName: String {
+        switch theme {
+        case "light": return "sun.max.fill"
+        case "dark": return "moon.fill"
+        default: return "circle.lefthalf.filled"
+        }
+    }
+
+    private var themeAccessibilityValue: String {
+        switch theme {
+        case "light": return "浅色"
+        case "dark": return "深色"
+        default: return "跟随系统"
+        }
+    }
+
+    /// Cycle light → dark → system → light.
+    /// Persist into SettingsService too so the AppSettings JSON stays in sync.
+    private func cycleTheme() {
+        let next: String
+        switch theme {
+        case "light": next = "dark"
+        case "dark": next = "system"
+        default: next = "light"
+        }
+        theme = next
+        settingsService.currentSettings.theme = next
+        settingsService.save()
+    }
 
     // MARK: - Date Groups
 
@@ -65,13 +98,17 @@ struct SidebarView: View {
                     }
                 }
                 Spacer()
-                SageIconButton(
-                    systemName: "person.crop.circle",
-                    color: SageTheme.ColorToken.brand,
-                    background: SageTheme.ColorToken.brandSoft
-                ) {
-                    onOpenSettings()
+                Button(action: cycleTheme) {
+                    Image(systemName: themeIconName)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundColor(SageTheme.ColorToken.iconNeutral)
+                        .frame(width: 40, height: 40)
+                        .background(SageTheme.ColorToken.iconNeutralBackground)
+                        .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("外观"))
+                .accessibilityValue(Text(themeAccessibilityValue))
             }
             .padding(.horizontal, SageTheme.Spacing.lg)
             .padding(.top, SageTheme.Spacing.lg)
