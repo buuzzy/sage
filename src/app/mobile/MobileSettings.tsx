@@ -9,18 +9,41 @@ import {
   saveSettings,
   type AIProvider,
 } from '@/shared/db/settings';
-import { ChevronRight, Eye, EyeOff, LogOut, Moon, Sun, X } from 'lucide-react';
 import { useAuth } from '@/shared/providers/auth-provider';
 import { useLanguage } from '@/shared/providers/language-provider';
 import { useTheme } from '@/shared/providers/theme-provider';
+import {
+  Brain,
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Layers,
+  LogOut,
+  Moon,
+  Network,
+  Sun,
+  X,
+} from 'lucide-react';
+
+import { CronSettings } from '@/components/settings/tabs/CronSettings';
+import { MCPSettings } from '@/components/settings/tabs/MCPSettings';
+import { PersonaSettings } from '@/components/settings/tabs/PersonaSettings';
+import { SkillsSettings } from '@/components/settings/tabs/SkillsSettings';
 
 interface MobileSettingsProps {
   onClose: () => void;
 }
 
+type MobileSettingsPanel = 'skills' | 'mcp' | 'cron' | 'persona';
+
 export function MobileSettings({ onClose }: MobileSettingsProps) {
   const [settings, setSettings] = useState(getSettings());
   const [editingProvider, setEditingProvider] = useState<AIProvider | null>(
+    null
+  );
+  const [activePanel, setActivePanel] = useState<MobileSettingsPanel | null>(
     null
   );
   const [showKey, setShowKey] = useState(false);
@@ -80,6 +103,17 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
     [settings, handleSave]
   );
 
+  if (activePanel) {
+    return (
+      <MobileSettingsPanelView
+        panel={activePanel}
+        settings={settings}
+        onBack={() => setActivePanel(null)}
+        onSettingsChange={handleSave}
+      />
+    );
+  }
+
   // Provider edit view
   if (editingProvider) {
     return (
@@ -112,7 +146,7 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-[var(--safe-area-bottom)]">
+      <div className="flex-1 overflow-y-auto px-4 pb-(--safe-area-bottom)">
         {/* Current model */}
         <section className="mb-6">
           <h2 className="text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase">
@@ -177,7 +211,9 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
                 key={t}
                 onClick={() => setTheme(t)}
                 className={`flex flex-1 items-center justify-center gap-2 py-3 text-sm ${
-                  theme === t ? 'text-primary font-medium' : 'text-muted-foreground'
+                  theme === t
+                    ? 'text-primary font-medium'
+                    : 'text-muted-foreground'
                 }`}
               >
                 {t === 'light' && <Sun className="size-4" />}
@@ -199,12 +235,47 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
                 key={lang}
                 onClick={() => setLanguage(lang)}
                 className={`flex-1 py-3 text-sm ${
-                  language === lang ? 'text-primary font-medium' : 'text-muted-foreground'
+                  language === lang
+                    ? 'text-primary font-medium'
+                    : 'text-muted-foreground'
                 }`}
               >
                 {lang === 'zh' ? '中文' : 'English'}
               </button>
             ))}
+          </div>
+        </section>
+
+        {/* Capabilities */}
+        <section className="mt-6">
+          <h2 className="text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase">
+            能力
+          </h2>
+          <div className="border-border divide-border divide-y rounded-xl border">
+            <SettingsNavItem
+              icon={<Layers className="size-4" />}
+              title="Skills"
+              subtitle="官方默认技能与用户启用状态"
+              onClick={() => setActivePanel('skills')}
+            />
+            <SettingsNavItem
+              icon={<Network className="size-4" />}
+              title="MCP"
+              subtitle="内置记忆 MCP 与用户服务器"
+              onClick={() => setActivePanel('mcp')}
+            />
+            <SettingsNavItem
+              icon={<CalendarClock className="size-4" />}
+              title="Cron Job"
+              subtitle="云端定时任务"
+              onClick={() => setActivePanel('cron')}
+            />
+            <SettingsNavItem
+              icon={<Brain className="size-4" />}
+              title="画像"
+              subtitle="跨设备共享的用户画像"
+              onClick={() => setActivePanel('persona')}
+            />
           </div>
         </section>
 
@@ -218,7 +289,7 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
               <div className="text-foreground text-sm font-medium">
                 {user?.email || '未登录'}
               </div>
-              <div className="text-muted-foreground text-xs mt-0.5">
+              <div className="text-muted-foreground mt-0.5 text-xs">
                 ID: {user?.id?.slice(0, 8) || '-'}
               </div>
             </div>
@@ -238,6 +309,87 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
         <div className="mt-8 mb-4 text-center">
           <p className="text-muted-foreground text-xs">Sage iOS v1.0.0</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsNavItem({
+  icon,
+  title,
+  subtitle,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+    >
+      <div className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-lg">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-foreground text-sm font-medium">{title}</div>
+        <div className="text-muted-foreground text-xs">{subtitle}</div>
+      </div>
+      <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+    </button>
+  );
+}
+
+function MobileSettingsPanelView({
+  panel,
+  settings,
+  onBack,
+  onSettingsChange,
+}: {
+  panel: MobileSettingsPanel;
+  settings: ReturnType<typeof getSettings>;
+  onBack: () => void;
+  onSettingsChange: (settings: ReturnType<typeof getSettings>) => void;
+}) {
+  const title =
+    panel === 'skills'
+      ? 'Skills'
+      : panel === 'mcp'
+        ? 'MCP'
+        : panel === 'cron'
+          ? 'Cron Job'
+          : '画像';
+
+  return (
+    <div className="bg-background flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between px-4 py-3">
+        <button
+          onClick={onBack}
+          className="text-muted-foreground hover:text-foreground flex size-8 items-center justify-center rounded-lg"
+        >
+          <ChevronLeft className="size-5" />
+        </button>
+        <h1 className="text-foreground text-base font-semibold">{title}</h1>
+        <div className="size-8" />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-(--safe-area-bottom)">
+        {panel === 'skills' && (
+          <SkillsSettings
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+          />
+        )}
+        {panel === 'mcp' && (
+          <MCPSettings
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+          />
+        )}
+        {panel === 'cron' && <CronSettings />}
+        {panel === 'persona' && <PersonaSettings />}
       </div>
     </div>
   );
@@ -281,7 +433,7 @@ function ProviderEditView({
       </div>
 
       {/* Form */}
-      <div className="flex-1 overflow-y-auto px-4 pb-[var(--safe-area-bottom)]">
+      <div className="flex-1 overflow-y-auto px-4 pb-(--safe-area-bottom)">
         {/* API Key */}
         <section className="mb-5">
           <label className="text-muted-foreground mb-1.5 block text-xs font-medium uppercase">
