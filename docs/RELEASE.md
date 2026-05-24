@@ -1,6 +1,6 @@
 # Sage 发布流程
 
-本文档描述 Sage 桌面端从「写完代码」到「用户拿到新版本」的完整流程。iOS 端走 Capacitor + Railway，详见 `docs/ios/IOS_PLAN.md`。
+本文档描述 Sage 桌面端（macOS Apple Silicon / Intel）从「写完代码」到「用户拿到新版本」的完整流程。iOS 客户端是独立的 SwiftUI 工程（见 `sage-ios/CLAUDE.md`），通过 TestFlight / App Store 分发，不走本文描述的 Tauri updater 通道。
 
 ---
 
