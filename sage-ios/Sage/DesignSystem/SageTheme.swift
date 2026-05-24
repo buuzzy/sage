@@ -354,6 +354,22 @@ struct SagePlainRowButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Sheet Background Modifier
+
+extension View {
+    /// 给 sheet 设置纯色背景，避免 SwiftUI 默认的半透明 system material 让
+    /// 底层 SageBackground 的浅蓝渐变透出来（iOS 16.4 才提供 presentationBackground）。
+    /// iOS 16.0-16.3 用户继续看到 system material，影响极小。
+    @ViewBuilder
+    func sageSheetBackground(_ color: Color = SageTheme.ColorToken.surface) -> some View {
+        if #available(iOS 16.4, *) {
+            self.presentationBackground(color)
+        } else {
+            self
+        }
+    }
+}
+
 struct SageBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 

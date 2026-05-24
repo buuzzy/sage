@@ -16,17 +16,12 @@ class AuthService: ObservableObject {
     @Published var currentUser: User?
     @Published var errorMessage: String?
 
-    // Supabase config — single source of truth
-    // 任何其他 service（CloudSyncService 等）都必须复用这两个常量，
-    // 不要在源码里复制粘贴 anon key — 一旦 Supabase 轮换 JWT secret，
-    // 漏改的地方就会全部 401（吞错时甚至不会暴露）
-    static let supabaseURL = URL(string: "https://wymqgwtagpsjuonsclye.supabase.co")!
-    static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5bXFnd3RhZ3BzanVvbnNjbHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NTczNjEsImV4cCI6MjA5MjMzMzM2MX0.2MmvzN_EJYBtAZdcny8fqs9K5UoBLE8KsXU1NEwH94U"
+    // Supabase 配置统一从 SupabaseConfig 读取（Secrets.xcconfig 注入，不在源码 hardcode）
 
     private init() {
         client = SupabaseClient(
-            supabaseURL: Self.supabaseURL,
-            supabaseKey: Self.supabaseAnonKey,
+            supabaseURL: SupabaseConfig.url,
+            supabaseKey: SupabaseConfig.anonKey,
             options: SupabaseClientOptions(
                 auth: .init(emitLocalSessionAsInitialSession: true)
             )

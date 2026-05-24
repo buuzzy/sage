@@ -19,14 +19,28 @@ brew install xcodegen
 # Navigate to project directory
 cd sage-ios
 
-# Generate Xcode project from project.yml
+# 1. 配置 Supabase 凭据（首次必做，不入 git）
+cp Sage/Config/Secrets.xcconfig.example Sage/Config/Secrets.xcconfig
+# 编辑 Sage/Config/Secrets.xcconfig 填入真实的 SUPABASE_URL / SUPABASE_ANON_KEY
+# 来源：Supabase Dashboard → Settings → API → Project API keys → anon public
+
+# 2. 生成 Xcode 项目
 xcodegen generate
 
-# Open in Xcode
+# 3. 打开 Xcode
 open Sage.xcodeproj
 
 # Select iPhone simulator and press ▶️ to run
 ```
+
+> ⚠️ **关于 Supabase 凭据**
+>
+> `Sage/Config/Secrets.xcconfig` 已在 `.gitignore` 排除，绝不入 git。
+> 所有 Supabase 客户端（AuthService / CloudSyncService）都通过
+> `SupabaseConfig.swift` 间接读这份文件 — 单一来源避免历史上发生过的
+> 「漏改 hardcoded key 导致云端同步静默 401」事故。
+>
+> 当 Supabase 轮换 JWT secret 时，**只改 Secrets.xcconfig 一处**，重 build 即可。
 
 ## 📦 Project Structure
 

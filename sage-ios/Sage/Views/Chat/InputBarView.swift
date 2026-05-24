@@ -95,6 +95,7 @@ struct InputBarView: View {
             )
             .presentationDetents([.height(220)])
             .presentationDragIndicator(.hidden)
+            .sageSheetBackground()
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoPickerItems, maxSelectionCount: 4, matching: .images)
         .onChange(of: photoPickerItems) { items in

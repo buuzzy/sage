@@ -26,6 +26,14 @@ targets:
     platform: iOS
     sources:
       - path: Sage
+        excludes:
+          # xcconfig 模板只是给开发者看的文档，不应该被打包进 app bundle
+          - "Config/Secrets.xcconfig.example"
+    # Secrets.xcconfig 提供 SUPABASE_URL / SUPABASE_ANON_KEY，被 Info.plist 引用
+    # 真实文件 .gitignore，模板见 Secrets.xcconfig.example
+    configFiles:
+      Debug: Sage/Config/Secrets.xcconfig
+      Release: Sage/Config/Secrets.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.sage.app
@@ -43,6 +51,9 @@ targets:
         CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "15"
         CFBundleIconName: AppIcon
+        # 从 Secrets.xcconfig 注入到 Info.plist；SupabaseConfig.swift 在运行时从 Bundle 读
+        SUPABASE_URL: $(SUPABASE_URL)
+        SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
         # 本地化：声明 zh-Hans 为主开发语言，让 UIImagePickerController 等系统组件用中文
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations:

@@ -80,6 +80,7 @@ struct MainView: View {
             SettingsView()
                 .environmentObject(authService)
                 .environmentObject(settingsService)
+                .sageSheetBackground()
         }
         .sheet(isPresented: $showModelSheet) {
             ModelQuickSheet(
@@ -93,8 +94,9 @@ struct MainView: View {
                     }
                 }
             )
-            .presentationDetents([.height(280)])
+            .presentationDetents([.height(220)])
             .presentationDragIndicator(.hidden)
+            .sageSheetBackground()
         }
         // Permission Request Alert
         .alert("权限请求", isPresented: .init(

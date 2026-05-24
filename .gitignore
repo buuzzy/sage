@@ -98,3 +98,7 @@ sage-ios/.build/
 # Xcode user-specific state (per-developer noise; should not be tracked)
 **/xcuserdata/
 **/*.xcuserstate
+
+# iOS secrets — Supabase URL / anon key live in xcconfig (never in source)
+# 本地必须保留 Secrets.xcconfig（参考 Secrets.xcconfig.example），但绝不入 git
+sage-ios/Sage/Config/Secrets.xcconfig
