@@ -123,16 +123,10 @@ xcodebuild test -scheme Sage -destination "platform=iOS Simulator,name=iPhone 15
 
 ## 🎨 UI Specifications
 
-The iOS app follows the **desktop app's design system**:
-
-- **Colors**: OKLCH format (7 accent colors)
-- **Spacing**: 4px base unit grid
-- **Typography**: System fonts + monospace for code
-- **Components**: Markdown rendering, action bars, bubbles, alerts
-
-For detailed specifications, see:
-- `UI_SPECIFICATIONS_FOR_SWIFTUI.md` (root project)
-- `DESIGN_TOKENS.md` (if available)
+The iOS app uses its own native design system defined in
+`Sage/DesignSystem/SageTheme.swift` (Gemini-inspired tokens, glass surfaces,
+adaptive light/dark palette). It no longer mirrors the desktop OKLCH tokens
+1:1 — see `sage-ios/CLAUDE.md` for the current component inventory.
 
 ## 📋 Phase Roadmap
 
@@ -188,16 +182,17 @@ For detailed specifications, see:
 
 ## 🔗 Related Documentation
 
-- **Desktop App**: `CLAUDE.md`, `src/CLAUDE.md`, `src/shared/CLAUDE.md`
-- **API Contract**: `SAGE_API_CONTRACT.md`, `API_QUICK_REFERENCE.md`
-- **UI Specs**: `UI_SPECIFICATIONS_FOR_SWIFTUI.md`
+- **iOS architecture / file inventory**: `sage-ios/CLAUDE.md`
+- **Backend API surface**: `src-api/CLAUDE.md` and route files in `src-api/src/app/api/`
+- **Project-wide notes (build, release, env)**: root `CLAUDE.md`
+- **Roadmap & open issues**: `docs/TODO.md`
 
 ## 📞 Support
 
 For issues or questions:
-1. Check `IOS_IMPLEMENTATION_GUIDE.md` for architecture details
-2. Review `CLAUDE.md` in root for project conventions
-3. See `docs/ios/IOS_PLAN.md` for feature roadmap
+1. Read `sage-ios/CLAUDE.md` for current architecture conventions
+2. Review root `CLAUDE.md` for project-wide setup, env vars and release flow
+3. Check `docs/TODO.md` for the active roadmap
 
 ## 📄 License
 
