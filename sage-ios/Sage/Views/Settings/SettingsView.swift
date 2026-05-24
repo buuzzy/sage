@@ -6,6 +6,17 @@ struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var settingsService: SettingsService
     @Environment(\.dismiss) private var dismiss
+    // Bind to the same @AppStorage that GeneralSettings writes so the sheet
+    // re-evaluates preferredColorScheme as soon as the user toggles 跟随系统.
+    @AppStorage("sage_theme") private var theme: String = "system"
+
+    private var colorSchemeForTheme: ColorScheme? {
+        switch theme {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -44,7 +55,7 @@ struct SettingsView: View {
                         ModelSettingsView()
                             .environmentObject(settingsService)
                     } label: {
-                        SageSettingsRow(icon: "cpu", title: "模型", tone: .brand, showsChevron: false)
+                        SageSettingsRow(icon: "cpu", title: "模型", tone: .neutral, showsChevron: false)
                     }
 
                     // 画像
@@ -130,6 +141,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .preferredColorScheme(colorSchemeForTheme)
     }
 
 }

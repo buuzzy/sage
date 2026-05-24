@@ -93,7 +93,7 @@ struct InputBarView: View {
                 onCamera: { showCamera = true },
                 onPhotos: { showPhotoPicker = true }
             )
-            .presentationDetents([.height(420)])
+            .presentationDetents([.height(220)])
             .presentationDragIndicator(.hidden)
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoPickerItems, maxSelectionCount: 4, matching: .images)
@@ -183,15 +183,6 @@ struct SageCapabilitySheet: View {
     let onPhotos: () -> Void
     @Environment(\.dismiss) private var dismiss
 
-    private let financialActions: [(icon: String, title: String, subtitle: String)] = [
-        ("chart.line.uptrend.xyaxis", "市场快照", "快速查看指数、板块和热门机会"),
-        ("star.circle", "自选股", "围绕关注标的发起分析"),
-        ("doc.text.magnifyingglass", "深度研究", "研报、公告和财报摘要"),
-        ("waveform.path.ecg", "回测 / 策略", "验证想法并生成策略说明"),
-        ("brain.head.profile", "记忆与偏好", "查看 Sage 如何理解你"),
-        ("server.rack", "数据源状态", "检查 Skills、MCP 与金融 API")
-    ]
-
     var body: some View {
         VStack(spacing: 0) {
             SageSheetHandle()
@@ -200,7 +191,7 @@ struct SageCapabilitySheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("添加到对话")
                         .font(.system(size: 20, weight: .semibold))
-                    Text("上传素材，或从 Sage 的金融工作流开始。")
+                    Text("上传图片素材让 Sage 一起分析。")
                         .font(.system(size: 13))
                         .foregroundColor(SageTheme.ColorToken.mutedText)
                 }
@@ -214,31 +205,10 @@ struct SageCapabilitySheet: View {
                         dismiss()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onPhotos() }
                     }
-                    capabilityButton(icon: "folder", title: "文件") { dismiss() }
-                }
-
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: SageTheme.Spacing.sm) {
-                    ForEach(financialActions, id: \.title) { item in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Image(systemName: item.icon)
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(SageTheme.ColorToken.brand)
-                            Text(item.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.primary)
-                            Text(item.subtitle)
-                                .font(.system(size: 11))
-                                .foregroundColor(SageTheme.ColorToken.mutedText)
-                                .lineLimit(2)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(SageTheme.Spacing.sm)
-                        .background(SageTheme.ColorToken.surfaceSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
-                    }
                 }
             }
             .padding(.horizontal, SageTheme.Spacing.xl)
+            .padding(.top, SageTheme.Spacing.sm)
             .padding(.bottom, SageTheme.Spacing.xl)
         }
         .background(SageTheme.ColorToken.surface)
@@ -254,7 +224,7 @@ struct SageCapabilitySheet: View {
             }
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, SageTheme.Spacing.sm)
+            .padding(.vertical, SageTheme.Spacing.md)
             .background(SageTheme.ColorToken.brandSoft.opacity(0.72))
             .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
         }

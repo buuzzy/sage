@@ -57,3 +57,6 @@ targets:
           - CFBundleURLSchemes:
               - ai.sage.app
             CFBundleURLName: ai.sage.app
+        NSCameraUsageDescription: Sage 需要使用相机拍摄你想要分析的图表、研报或票据。
+        NSPhotoLibraryUsageDescription: Sage 需要访问相册以读取你想要分析的图片素材。
+        NSPhotoLibraryAddUsageDescription: Sage 需要在你导出对话或图表时把图片保存到相册。

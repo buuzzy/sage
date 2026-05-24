@@ -9,7 +9,6 @@ struct MainView: View {
     @State private var showSidebar = false
     @State private var showSettings = false
     @State private var showModelSheet = false
-    @AppStorage("sage_theme") private var theme: String = "system"
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -81,7 +80,6 @@ struct MainView: View {
             SettingsView()
                 .environmentObject(authService)
                 .environmentObject(settingsService)
-                .preferredColorScheme(colorSchemeForTheme)
         }
         .sheet(isPresented: $showModelSheet) {
             ModelQuickSheet(
@@ -147,12 +145,15 @@ struct MainView: View {
                         Text(chatVM.currentTitle ?? "Sage")
                             .font(.system(size: 15, weight: .semibold))
                             .lineLimit(1)
+                            .truncationMode(.tail)
                             .foregroundColor(.primary)
                         Text(modelDisplayName)
                             .font(.system(size: 11, weight: .medium))
                             .lineLimit(1)
+                            .truncationMode(.middle)
                             .foregroundColor(SageTheme.ColorToken.mutedText)
                     }
+                    .frame(maxWidth: 200)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(SageTheme.ColorToken.mutedText)
@@ -179,31 +180,12 @@ struct MainView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            VStack(spacing: SageTheme.Spacing.md) {
-                Image("SageLogo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 58, height: 58)
-                    .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
-                    .shadow(color: SageTheme.ColorToken.brand.opacity(0.22), radius: 18, x: 0, y: 10)
-
-                VStack(spacing: 6) {
-                    Text("今天想研究什么？")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundColor(.primary)
-                    Text("问行情、读财报、做回测，Sage 会把过程收进清晰的工作流。")
-                        .font(.system(size: 14))
-                        .foregroundColor(SageTheme.ColorToken.mutedText)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .padding(.horizontal, 34)
-                }
-            }
-
-            if settingsService.isModelConfigured {
-                quickActionsSection
-                    .padding(.top, SageTheme.Spacing.xl)
-            }
+            Image("SageLogo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 96, height: 96)
+                .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.lg, style: .continuous))
+                .shadow(color: SageTheme.ColorToken.brand.opacity(0.22), radius: 22, x: 0, y: 12)
 
             // Model not configured warning
             if !settingsService.isModelConfigured {
@@ -227,7 +209,7 @@ struct MainView: View {
                     )
                     .cornerRadius(10)
                 }
-                .padding(.top, 20)
+                .padding(.top, SageTheme.Spacing.xl)
             }
 
             Spacer()
@@ -320,40 +302,10 @@ struct MainView: View {
         )
     }
 
-    // MARK: - Quick Actions (对标桌面端首页 3 个分类)
-
-    private var quickActionsSection: some View {
-        VStack(spacing: SageTheme.Spacing.sm) {
-            HStack(spacing: SageTheme.Spacing.xs) {
-                quickActionButton(icon: "chart.line.uptrend.xyaxis", title: "看行情", prompt: "帮我查一下今天 A 股大盘走势和热门板块")
-                quickActionButton(icon: "doc.text.magnifyingglass", title: "读研报", prompt: "搜索最新的券商研报，分析当前市场观点")
-            }
-            HStack(spacing: SageTheme.Spacing.xs) {
-                quickActionButton(icon: "clock.arrow.circlepath", title: "定时复盘", prompt: "帮我设置一个每天早上 9 点的市场简报定时任务")
-                quickActionButton(icon: "brain.head.profile", title: "记忆偏好", prompt: "根据我的历史偏好，整理一份投资关注清单")
-            }
-        }
-        .padding(.horizontal, SageTheme.Spacing.xl)
-    }
-
-    private func quickActionButton(icon: String, title: String, prompt: String) -> some View {
-        SagePromptChip(icon: icon, title: title) {
-            Task { await chatVM.sendMessage(prompt) }
-        }
-    }
-
     // MARK: - Helpers
 
     private func dismissKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-
-    private var colorSchemeForTheme: ColorScheme? {
-        switch theme {
-        case "light": return .light
-        case "dark": return .dark
-        default: return nil
-        }
     }
 
     private var modelDisplayName: String {

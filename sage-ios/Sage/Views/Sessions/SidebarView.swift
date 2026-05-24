@@ -41,6 +41,10 @@ struct SidebarView: View {
 
     var body: some View {
         ZStack {
+            // Solid base — keeps the sidebar fully opaque so it never bleeds the
+            // chat content underneath. SageBackground sits on top as a thin tint.
+            SageTheme.ColorToken.surface
+                .ignoresSafeArea()
             SageBackground()
 
             VStack(alignment: .leading, spacing: 0) {
