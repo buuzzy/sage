@@ -13,8 +13,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { getCurrentBoundUid } from '@/shared/db/database';
 import { supabase } from '@/shared/lib/supabase';
+import { useAuth } from '@/shared/providers/auth-provider';
 import { useLanguage } from '@/shared/providers/language-provider';
 import {
   EMPTY_PROFILE,
@@ -84,6 +84,7 @@ function formatTime(iso: string | null, locale: 'zh' | 'en'): string {
 
 export function PersonaSettings() {
   const { language } = useLanguage();
+  const { user, status } = useAuth();
   const lang: 'zh' | 'en' = language === 'en-US' ? 'en' : 'zh';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -96,7 +97,7 @@ export function PersonaSettings() {
     setLoading(true);
     setError('');
     try {
-      const uid = getCurrentBoundUid();
+      const uid = user?.id;
       if (!uid) {
         setError(
           lang === 'zh' ? '请先登录后查看画像' : 'Sign in to view your persona'
@@ -118,15 +119,16 @@ export function PersonaSettings() {
     } finally {
       setLoading(false);
     }
-  }, [lang]);
+  }, [lang, user?.id]);
 
   useEffect(() => {
+    if (status === 'loading') return;
     fetchPersona();
-  }, [fetchPersona]);
+  }, [fetchPersona, status]);
 
   // ── 删除显式字段：read-modify-write JSONB ─────────────────────────────────
   async function persistProfile(next: PersonaProfile) {
-    const uid = getCurrentBoundUid();
+    const uid = user?.id;
     if (!uid) {
       setError(lang === 'zh' ? '请先登录' : 'Not logged in');
       return;
