@@ -80,6 +80,48 @@ class CloudSyncService {
         return []
     }
 
+    // MARK: - Cloud Delete (Clear Data)
+
+    /// 删除当前用户在云端的所有对话数据：messages → tasks → sessions
+    /// 顺序遵循 FK 依赖：messages 依赖 tasks，tasks 依赖 sessions，必须先删子后删父
+    /// 不影响 persona_memory / user_settings / auth.users — 那些留给「注销」流程
+    /// 返回 true 表示三张表都成功；任何一张失败都返回 false（前端可展示部分失败）
+    func clearAllConversationData(userId: String) async -> Bool {
+        guard let token = await AuthService.shared.getAccessToken() else { return false }
+
+        let tablesInDeleteOrder = ["messages", "tasks", "sessions"]
+        var allOk = true
+        for table in tablesInDeleteOrder {
+            let ok = await deleteRows(table: table, userId: userId, token: token)
+            if !ok { allOk = false }
+        }
+        return allOk
+    }
+
+    private func deleteRows(table: String, userId: String, token: String) async -> Bool {
+        guard let url = URL(string: "\(supabaseUrl)/rest/v1/\(table)?user_id=eq.\(userId)") else {
+            return false
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse,
+               (200...299).contains(http.statusCode) {
+                return true
+            }
+            print("[CloudSync] Delete \(table) returned non-2xx")
+            return false
+        } catch {
+            print("[CloudSync] Delete failed for \(table): \(error.localizedDescription)")
+            return false
+        }
+    }
+
     // MARK: - Queue Worker
 
     private func enqueue(table: String, data: [String: Any]) {

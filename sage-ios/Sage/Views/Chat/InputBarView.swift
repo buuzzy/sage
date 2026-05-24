@@ -24,17 +24,17 @@ struct InputBarView: View {
             }
 
             HStack(alignment: .bottom, spacing: SageTheme.Spacing.xs) {
-                // "+" 按钮
+                // "+" 按钮 — 黑白配色，与设置/侧边栏 icon 一致；无背景，仅保留点击热区
                 Button {
                     showAttachMenu = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(SageTheme.ColorToken.brand)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(SageTheme.ColorToken.iconNeutral)
                         .frame(width: 38, height: 38)
-                        .background(SageTheme.ColorToken.brandSoft)
-                        .clipShape(Circle())
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .disabled(isRunning)
 
                 // 输入框

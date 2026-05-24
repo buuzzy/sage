@@ -226,7 +226,7 @@ struct SidebarView: View {
             onSelectSession(session.id)
         } label: {
             HStack(spacing: SageTheme.Spacing.sm) {
-                // 运行中绿色脉冲点
+                // 运行中绿色脉冲点（状态指示）；非运行不展示 icon — 列表上下文已说明这是对话
                 if session.id == runningSessionId {
                     Circle()
                         .fill(SageIconTone.success.foreground)
@@ -237,8 +237,6 @@ struct SidebarView: View {
                                 .scaleEffect(1.5)
                         )
                         .frame(width: 32, height: 32)
-                } else {
-                    SageSymbolIcon(systemName: "bubble.left", tone: .neutral, size: 14, containerSize: 32)
                 }
 
                 Text(session.title)

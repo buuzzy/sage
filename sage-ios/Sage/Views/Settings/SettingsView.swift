@@ -6,6 +6,15 @@ struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var settingsService: SettingsService
     @Environment(\.dismiss) private var dismiss
+    @State private var showClearDataAlert = false
+    @State private var clearDataState: ClearDataState = .idle
+
+    enum ClearDataState: Equatable {
+        case idle
+        case clearing
+        case success
+        case partialFailure
+    }
 
     var body: some View {
         NavigationStack {
@@ -69,20 +78,27 @@ struct SettingsView: View {
                 }
                 .listRowBackground(sageListRowBackground)
 
-                // 数据 & 关于
+                // 清除数据
                 Section {
-                    NavigationLink {
-                        DataSettingsView()
+                    Button(role: .destructive) {
+                        showClearDataAlert = true
                     } label: {
-                        SageSettingsRow(icon: "externaldrive", title: "数据", tone: .neutral, showsChevron: false)
+                        HStack {
+                            Spacer()
+                            if clearDataState == .clearing {
+                                ProgressView().scaleEffect(0.8)
+                                Text("清除中…")
+                                    .font(SageTheme.Typography.button)
+                                    .foregroundColor(SageIconTone.danger.foreground)
+                            } else {
+                                Text("清除数据")
+                                    .font(SageTheme.Typography.button)
+                                    .foregroundColor(SageIconTone.danger.foreground)
+                            }
+                            Spacer()
+                        }
                     }
-
-                    NavigationLink {
-                        AboutSettingsView()
-                            .environmentObject(authService)
-                    } label: {
-                        SageSettingsRow(icon: "info.circle", title: "关于", tone: .neutral, showsChevron: false)
-                    }
+                    .disabled(clearDataState == .clearing)
                 }
                 .listRowBackground(sageListRowBackground)
 
@@ -104,6 +120,20 @@ struct SettingsView: View {
                     }
                 }
                 .listRowBackground(sageListRowBackground)
+
+                // 版本信息（居中、低调，从 Bundle 自动读取）
+                Section {
+                    EmptyView()
+                } footer: {
+                    HStack {
+                        Spacer()
+                        Text("版本 \(appVersionString)")
+                            .font(SageTheme.Typography.rowSubtitle)
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                        Spacer()
+                    }
+                    .padding(.top, SageTheme.Spacing.md)
+                }
             }
             .listStyle(.insetGrouped)
             .sageSettingsPage()
@@ -121,9 +151,58 @@ struct SettingsView: View {
                     }
                 }
             }
+            .alert("清除数据", isPresented: $showClearDataAlert) {
+                Button("取消", role: .cancel) { }
+                Button("清除", role: .destructive) { performClearData() }
+            } message: {
+                Text("将永久删除本机和云端的所有对话记录。此操作不可恢复。")
+            }
+            .alert("清除完成", isPresented: .init(
+                get: { clearDataState == .success || clearDataState == .partialFailure },
+                set: { if !$0 { clearDataState = .idle } }
+            )) {
+                Button("好") { clearDataState = .idle }
+            } message: {
+                Text(clearDataState == .partialFailure
+                     ? "本机数据已清空，云端部分表删除失败。请稍后重试或检查网络。"
+                     : "本机和云端对话记录已全部清除。")
+            }
         }
     }
 
+    // MARK: - Helpers
+
+    /// 从 Bundle 读取 marketing version + build number，如「1.0.0 (15)」
+    private var appVersionString: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let marketing = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        return "\(marketing) (\(build))"
+    }
+
+    /// 清除流程：先 confirm → 本地 UserDefaults → Supabase 三表 → 刷新 UI
+    /// 不可逆，所以 alert 已经强制确认过一次。
+    private func performClearData() {
+        clearDataState = .clearing
+        Task {
+            // 1) 本地 UserDefaults：messages 全部 + sessions 列表
+            let defaults = UserDefaults.standard
+            for session in ChatViewModel.loadAllSessionsFromStorage() {
+                defaults.removeObject(forKey: "sage_messages_\(session.id)")
+            }
+            ChatViewModel.saveAllSessionsToStorage([])
+
+            // 2) Supabase 云端三表（messages → tasks → sessions，按 FK 依赖）
+            var cloudOk = true
+            if let userId = authService.userId, !userId.isEmpty {
+                cloudOk = await CloudSyncService.shared.clearAllConversationData(userId: userId)
+            }
+
+            await MainActor.run {
+                clearDataState = cloudOk ? .success : .partialFailure
+            }
+        }
+    }
 }
 
 // MARK: - Model Settings
@@ -166,72 +245,6 @@ struct ModelSettingsView: View {
         case let id where id.contains("deepseek"): return "brain"
         default: return "cpu"
         }
-    }
-}
-
-// MARK: - Data Settings
-
-struct DataSettingsView: View {
-    @State private var showClearAlert = false
-
-    var body: some View {
-        List {
-            Section {
-                Button(role: .destructive) {
-                    showClearAlert = true
-                } label: {
-                    SageSettingsRow(
-                        icon: "trash",
-                        title: "清除所有对话记录",
-                        subtitle: "仅删除本机缓存的历史对话",
-                        tone: .danger,
-                        showsChevron: false
-                    )
-                }
-            } footer: {
-                Text("清除后无法恢复，请谨慎操作。")
-            }
-            .listRowBackground(sageListRowBackground)
-        }
-        .sageSettingsPage()
-        .navigationTitle("数据")
-        .navigationBarTitleDisplayMode(.inline)
-        .alert("确认清除", isPresented: $showClearAlert) {
-            Button("取消", role: .cancel) { }
-            Button("清除", role: .destructive) {
-                let defaults = UserDefaults.standard
-                let sessions = ChatViewModel.loadAllSessionsFromStorage()
-                for session in sessions {
-                    defaults.removeObject(forKey: "sage_messages_\(session.id)")
-                }
-                ChatViewModel.saveAllSessionsToStorage([])
-            }
-        } message: {
-            Text("将删除所有本地对话记录，此操作不可撤销。")
-        }
-    }
-}
-
-// MARK: - About Settings
-
-struct AboutSettingsView: View {
-    @EnvironmentObject var authService: AuthService
-
-    var body: some View {
-        List {
-            Section {
-                SageKeyValueRow(title: "版本", value: "1.0.0 (14)")
-                SageKeyValueRow(title: "用户 ID", value: authService.userId?.prefix(8).description ?? "-", monospacedValue: true)
-            }
-            .listRowBackground(sageListRowBackground)
-            Section {
-                SageKeyValueRow(title: "开发者", value: "Sage AI")
-            }
-            .listRowBackground(sageListRowBackground)
-        }
-        .sageSettingsPage()
-        .navigationTitle("关于")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

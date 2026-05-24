@@ -369,13 +369,6 @@ struct ModelQuickSheet: View {
                     Spacer()
                 }
 
-                VStack(alignment: .leading, spacing: SageTheme.Spacing.xs) {
-                    Label("轻量模型入口先承载状态与设置跳转", systemImage: "checkmark.circle")
-                    Label("后续可扩展思考等级、模型族切换与额度状态", systemImage: "slider.horizontal.3")
-                }
-                .font(.system(size: 13))
-                .foregroundColor(SageTheme.ColorToken.mutedText)
-
                 Button(action: onOpenSettings) {
                     HStack {
                         Text(isConfigured ? "打开模型设置" : "去配置模型")
