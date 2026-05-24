@@ -41,6 +41,8 @@ export interface AddJobInput {
   deleteAfterRun?: boolean;
   /** Max random delay before each run (ms). Defaults to 30 000. Set 0 to disable. */
   jitter?: number;
+  /** Owner user ID — results written to this user's Supabase space */
+  userId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +95,7 @@ function withJitter(maxJitter: number, fn: () => void): () => void {
 
 /**
  * Run the job prompt in an isolated Agent session.
- * Returns the final assistant reply (truncated to 500 chars for history).
+ * Returns the full assistant reply text (not truncated).
  */
 async function runJobPrompt(job: CronJob): Promise<string> {
   // Dynamically import to avoid circular dependency at module load time
@@ -131,7 +133,68 @@ async function runJobPrompt(job: CronJob): Promise<string> {
     throw err;
   }
 
-  return output.trim().slice(0, 500);
+  return output.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Supabase result writer — persists cron output as a user-visible session
+// ---------------------------------------------------------------------------
+
+/**
+ * Write cron execution result to Supabase so the user sees it as a new session.
+ * Uses service-role key (no RLS bypass needed — we insert with correct user_id).
+ */
+async function writeCronResultToSupabase(job: CronJob, output: string): Promise<void> {
+  if (!job.userId) return;
+
+  const { getServiceSupabase } = await import('@/shared/supabase/client');
+  const supabase = getServiceSupabase();
+
+  const { nanoid } = await import('nanoid');
+  const sessionId = nanoid(21);
+  const now = new Date().toISOString();
+  const nowPlus1 = new Date(Date.now() + 1).toISOString();
+
+  // 1. Create session
+  const { error: sessionErr } = await supabase.from('sessions').insert({
+    id: sessionId,
+    user_id: job.userId,
+    title: `[定时] ${job.name}`,
+    platform: 'cron',
+    created_at: now,
+  });
+  if (sessionErr) {
+    console.error(`[Cron] Supabase session insert failed:`, sessionErr.message);
+    return;
+  }
+
+  // 2. Insert user prompt message
+  const { error: msgErr1 } = await supabase.from('messages').insert({
+    id: nanoid(21),
+    task_id: sessionId,
+    user_id: job.userId,
+    type: 'user',
+    content: job.prompt,
+    created_at: now,
+  });
+  if (msgErr1) {
+    console.warn(`[Cron] Supabase user message insert failed:`, msgErr1.message);
+  }
+
+  // 3. Insert agent reply message
+  const { error: msgErr2 } = await supabase.from('messages').insert({
+    id: nanoid(21),
+    task_id: sessionId,
+    user_id: job.userId,
+    type: 'text',
+    content: output,
+    created_at: nowPlus1,
+  });
+  if (msgErr2) {
+    console.warn(`[Cron] Supabase agent message insert failed:`, msgErr2.message);
+  }
+
+  console.log(`[Cron] Wrote result to Supabase: session=${sessionId} for user=${job.userId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -151,8 +214,15 @@ async function executeJob(jobId: string): Promise<void> {
     const output = await runJobPrompt(job);
     run.finishedAt = new Date().toISOString();
     run.status = 'success';
-    run.output = output;
+    run.output = output.slice(0, 500); // truncate for local history
     console.log(`[Cron] Job ${jobId} completed successfully`);
+
+    // Write result to Supabase so the user can see it in their session list
+    if (job.userId && output) {
+      writeCronResultToSupabase(job, output).catch((err) =>
+        console.warn(`[Cron] Supabase write failed for job ${jobId}:`, err)
+      );
+    }
 
     // Push to channel if delivery mode is 'channel'
     if (job.delivery === 'channel' && output) {
@@ -363,6 +433,7 @@ export function addJob(input: AddJobInput): CronJob {
     enabled: input.enabled ?? true,
     deleteAfterRun: input.deleteAfterRun ?? false,
     jitter: input.jitter,
+    userId: input.userId,
   });
 
   if (job.enabled) {

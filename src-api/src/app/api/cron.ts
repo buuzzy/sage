@@ -59,6 +59,7 @@ interface CreateJobBody {
   enabled?: boolean;
   deleteAfterRun?: boolean;
   targetConversationId?: string;
+  userId?: string;
 }
 
 cronRoutes.post('/jobs', async (c) => {
@@ -100,6 +101,7 @@ cronRoutes.post('/jobs', async (c) => {
       enabled: body.enabled ?? true,
       deleteAfterRun: body.deleteAfterRun ?? false,
       targetConversationId: body.targetConversationId,
+      userId: body.userId,
     });
 
     return c.json({ ok: true, job }, 201);

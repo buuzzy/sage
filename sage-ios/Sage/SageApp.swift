@@ -44,6 +44,8 @@ struct SageApp: App {
                 case .active:
                     chatVM.resumeFromBackground()
                     NotificationService.shared.clearBadge()
+                    // Check for new cron job results from Supabase
+                    Task { await CronResultPoller.shared.checkForNewResults() }
                 default:
                     break
                 }

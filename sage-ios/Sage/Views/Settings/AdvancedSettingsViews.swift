@@ -278,7 +278,7 @@ struct CronSettingsView: View {
                         icon: "clock",
                         title: "暂无定时任务",
                         message: "这里显示你自己创建的定时任务。你可以在对话中让 Sage 定时提醒、定时复盘或定时检查市场。",
-                        tone: .brand
+                        tone: .neutral
                     )
                 }
                 .sageListSection()
@@ -309,7 +309,7 @@ struct CronSettingsView: View {
                 icon: "brain.head.profile",
                 title: "画像蒸馏",
                 subtitle: "Railway 后台每天凌晨自动从对话中更新 persona_memory；它不是用户可删除的任务。",
-                tone: .brand,
+                tone: .neutral,
                 showsChevron: false
             ) {
                 SageStatusPill(title: "云端", tone: .neutral)
@@ -378,7 +378,7 @@ struct CronJobRow: View {
                 icon: "clock.arrow.circlepath",
                 title: job.name,
                 subtitle: job.prompt,
-                tone: job.enabled ? .brand : .neutral,
+                tone: .neutral,
                 showsChevron: false
             ) {
                 if job.system == true {
@@ -398,7 +398,7 @@ struct CronJobRow: View {
                 Button { onTrigger() } label: {
                     Image(systemName: "play.circle")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(SageTheme.ColorToken.brand)
+                        .foregroundColor(SageIconTone.neutral.foreground)
                         .frame(width: 44, height: 36)
                 }
                 Button { onDelete() } label: {
@@ -436,7 +436,7 @@ struct MCPSettingsView: View {
                         icon: "server.rack",
                         title: "暂无 MCP 服务器",
                         message: "MCP 服务器用于扩展 Sage 的工具能力。",
-                        tone: .brand
+                        tone: .neutral
                     )
                 }
                 .sageListSection()

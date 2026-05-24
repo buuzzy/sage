@@ -13,6 +13,7 @@
 		15EB865398B182EF9E0EF19C /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63EC817532C0FBF8D15BEC0 /* LoginView.swift */; };
 		20C39E0D5760FFDD2F9070AA /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8ED8000B2E965ABA3EA381C /* AuthService.swift */; };
 		24B8746173142CFBCB5B50C6 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755AE899AFAA6D55F48FAF40 /* ChatViewModel.swift */; };
+		2FFFC92D23DB92EB1A6BBA94 /* CronResultPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547DBDFD30DB3D54E8FD2AA6 /* CronResultPoller.swift */; };
 		399C2457DA6C6A38DB4F898F /* AdvancedSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261B235D4430C68D81CE4F68 /* AdvancedSettingsViews.swift */; };
 		39BA40819DCB8F5E2575E919 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */; };
 		4DA58C2A6713E8D45EDADEFB /* ToolItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9FF1339C5CC4F9AC93CC1D /* ToolItemRow.swift */; };
@@ -42,6 +43,7 @@
 		261B235D4430C68D81CE4F68 /* AdvancedSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsViews.swift; sourceTree = "<group>"; };
 		3BFEAA4D7A4620B67805156C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4F9FF1339C5CC4F9AC93CC1D /* ToolItemRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolItemRow.swift; sourceTree = "<group>"; };
+		547DBDFD30DB3D54E8FD2AA6 /* CronResultPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronResultPoller.swift; sourceTree = "<group>"; };
 		5EEE0E6AE8A92121E7334C86 /* ArtifactView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactView.swift; sourceTree = "<group>"; };
 		6817EB2E5EF6B98349927861 /* UserMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserMessageRow.swift; sourceTree = "<group>"; };
 		755AE899AFAA6D55F48FAF40 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
@@ -53,7 +55,7 @@
 		AC9D9158AD9E421A25E6EB47 /* SageTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SageTheme.swift; sourceTree = "<group>"; };
 		ADCEEA60168B7DC21805DB87 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		AE0F213D67D68B7006883A36 /* SageApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SageApp.swift; sourceTree = "<group>"; };
-		B24DA73D9616FC01E8E5A65A /* Sage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B24DA73D9616FC01E8E5A65A /* Sage.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B4823D99B23EB6EF1F756052 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		B79DFB16952208376ADC2D9F /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		B8ED8000B2E965ABA3EA381C /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
@@ -144,6 +146,7 @@
 				D5F5E40A859731C554CEC012 /* APIClient.swift */,
 				B8ED8000B2E965ABA3EA381C /* AuthService.swift */,
 				D27B7EE01C66AB3AAA4A980A /* CloudSyncService.swift */,
+				547DBDFD30DB3D54E8FD2AA6 /* CronResultPoller.swift */,
 				ADCEEA60168B7DC21805DB87 /* NotificationService.swift */,
 				7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */,
 				B4823D99B23EB6EF1F756052 /* SupabaseConfig.swift */,
@@ -252,6 +255,7 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					7D8EA646F019024E2FB9437D = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -302,6 +306,7 @@
 				20C39E0D5760FFDD2F9070AA /* AuthService.swift in Sources */,
 				24B8746173142CFBCB5B50C6 /* ChatViewModel.swift in Sources */,
 				D3D15A9DB3DECA05759D7C0A /* CloudSyncService.swift in Sources */,
+				2FFFC92D23DB92EB1A6BBA94 /* CronResultPoller.swift in Sources */,
 				658CEFC1D9F0A48A85575BA9 /* InputBarView.swift in Sources */,
 				15EB865398B182EF9E0EF19C /* LoginView.swift in Sources */,
 				073859AD5046F6C96AE4D00E /* MainView.swift in Sources */,
@@ -332,7 +337,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = QB576QUT2S;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sage/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -416,7 +421,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = QB576QUT2S;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sage/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

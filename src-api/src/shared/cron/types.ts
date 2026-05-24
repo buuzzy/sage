@@ -57,6 +57,9 @@ export interface CronJob {
   /** Natural-language prompt executed by the isolated Agent run */
   prompt: string;
 
+  /** Owner user ID — when set, execution results are written to this user's Supabase space */
+  userId?: string;
+
   schedule: CronSchedule;
 
   delivery: DeliveryMode;

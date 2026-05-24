@@ -1,9 +1,19 @@
 import Foundation
+import Combine
 
 /// 会话列表 ViewModel
 @MainActor
 class SessionListViewModel: ObservableObject {
     @Published var sessions: [SessionItem] = []
+    private var cancellables = Set<AnyCancellable>()
+
+    init() {
+        // Listen for cron result updates to refresh session list
+        NotificationCenter.default.publisher(for: .cronSessionsUpdated)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.loadSessions() }
+            .store(in: &cancellables)
+    }
 
     func loadSessions() {
         // Load from UserDefaults on app launch
