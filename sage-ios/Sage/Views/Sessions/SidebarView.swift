@@ -16,7 +16,6 @@ struct SidebarView: View {
 
     @EnvironmentObject var settingsService: SettingsService
     @AppStorage("sage_theme") private var theme: String = "system"
-    @State private var searchText = ""
     @State private var renamingSession: SessionItem? = nil
     @State private var renameText = ""
 
@@ -54,22 +53,17 @@ struct SidebarView: View {
     // MARK: - Date Groups
 
     private var todaySessions: [SessionItem] {
-        filteredSessions.filter { Calendar.current.isDateInToday($0.createdAt) }
+        sessions.filter { Calendar.current.isDateInToday($0.createdAt) }
     }
 
     private var yesterdaySessions: [SessionItem] {
-        filteredSessions.filter { Calendar.current.isDateInYesterday($0.createdAt) }
+        sessions.filter { Calendar.current.isDateInYesterday($0.createdAt) }
     }
 
     private var olderSessions: [SessionItem] {
-        filteredSessions.filter {
+        sessions.filter {
             !Calendar.current.isDateInToday($0.createdAt) && !Calendar.current.isDateInYesterday($0.createdAt)
         }
-    }
-
-    private var filteredSessions: [SessionItem] {
-        if searchText.isEmpty { return sessions }
-        return sessions.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
     }
 
     var body: some View {
@@ -114,30 +108,6 @@ struct SidebarView: View {
             .padding(.top, SageTheme.Spacing.lg)
             .padding(.bottom, SageTheme.Spacing.md)
 
-            // Search
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(SageTheme.ColorToken.brand.opacity(0.75))
-                    .font(.system(size: 15, weight: .medium))
-                TextField("搜索对话", text: $searchText)
-                    .font(SageTheme.Typography.rowTitle)
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(SageTheme.ColorToken.brand.opacity(0.55))
-                            .frame(width: 30, height: 30)
-                    }
-                }
-            }
-            .padding(.horizontal, SageTheme.Spacing.sm)
-            .padding(.vertical, 12)
-            .sageGlassControl(cornerRadius: SageTheme.Radius.pill)
-            .padding(.horizontal, SageTheme.Spacing.md)
-            .padding(.bottom, SageTheme.Spacing.sm)
-
             Button(action: onNewChat) {
                 HStack(spacing: SageTheme.Spacing.sm) {
                     Image(systemName: "plus.message.fill")
@@ -157,7 +127,7 @@ struct SidebarView: View {
             .padding(.bottom, SageTheme.Spacing.sm)
 
             // Session list (grouped by date)
-            if filteredSessions.isEmpty {
+            if sessions.isEmpty {
                 VStack(spacing: 12) {
                     Spacer()
                     SageEmptyStateView(

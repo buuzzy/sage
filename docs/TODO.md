@@ -54,6 +54,7 @@
   - v1.5.1: 原生 iOS 暗黑模式参考 ChatGPT 调整为纯黑背景、深灰控件和低对比分隔线
   - v1.5.1: 原生 iOS Supabase Auth 启用 `emitLocalSessionAsInitialSession` 并过滤过期初始 session，清理 Xcode Auth 警告
   - v1.5.1: 清理原生 iOS Xcode warnings：移除未引用 AppIcon 子资源并修复画像页未使用变量
+  - v1.5.1: 删除原生 iOS 侧边栏会话搜索框（落地「连续性记忆」产品哲学，根 CLAUDE.md 新增「产品哲学」段落）：用户找历史走 Agent + MCP `search_memory` 召回，不再走会话档案式搜索
 
 **仍需环境 / 实机验证**：
 
