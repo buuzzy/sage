@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/config';
+import { apiFetch } from '@/shared/lib/api';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
 import {
@@ -107,7 +108,7 @@ export function CronSettings() {
   const fetchJobs = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch(`${API_BASE_URL}/cron/jobs`);
+      const res = await apiFetch(`${API_BASE_URL}/cron/jobs`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setJobs(data.jobs ?? []);
@@ -133,7 +134,7 @@ export function CronSettings() {
     if (togglingIds.has(job.id)) return;
     setTogglingIds((prev) => new Set(prev).add(job.id));
     try {
-      const res = await fetch(`${API_BASE_URL}/cron/jobs/${job.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/cron/jobs/${job.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !job.enabled }),
@@ -157,7 +158,7 @@ export function CronSettings() {
     if (runningIds.has(job.id)) return;
     setRunningIds((prev) => new Set(prev).add(job.id));
     try {
-      await fetch(`${API_BASE_URL}/cron/jobs/${job.id}/run`, {
+      await apiFetch(`${API_BASE_URL}/cron/jobs/${job.id}/run`, {
         method: 'POST',
       });
       // refresh after a short delay so the run record appears
@@ -183,7 +184,7 @@ export function CronSettings() {
       return;
     setDeletingIds((prev) => new Set(prev).add(job.id));
     try {
-      const res = await fetch(`${API_BASE_URL}/cron/jobs/${job.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/cron/jobs/${job.id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -587,7 +588,7 @@ function CreateJobDialog({ onClose, onCreated }: CreateJobDialogProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/cron/jobs`, {
+      const res = await apiFetch(`${API_BASE_URL}/cron/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

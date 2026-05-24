@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiFetch } from '@/shared/lib/api';
 import { getClaudeSkillsDir } from '@/shared/lib/paths';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
@@ -49,7 +50,7 @@ function parseSkillMdFrontmatter(content: string): {
 // Helper function to open folder in system file manager
 const openFolderInSystem = async (folderPath: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/files/open`, {
+    const response = await apiFetch(`${API_BASE_URL}/files/open`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: folderPath, expandHome: true }),
@@ -164,7 +165,7 @@ export function SkillsSettings({
 
   // Load disabled skills config from backend
   useEffect(() => {
-    fetch(`${API_BASE_URL}/skills/config`)
+    apiFetch(`${API_BASE_URL}/skills/config`)
       .then((r) => r.json())
       .then((data: { disabledSkills?: string[] }) => {
         if (Array.isArray(data.disabledSkills)) {
@@ -196,7 +197,7 @@ export function SkillsSettings({
     setNeedsRestart(true);
 
     try {
-      await fetch(`${API_BASE_URL}/skills/toggle`, {
+      await apiFetch(`${API_BASE_URL}/skills/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: skillName, enabled }),
@@ -235,8 +236,17 @@ export function SkillsSettings({
   const loadSkillsFromPath = async (skillsPath: string) => {
     setLoading(true);
     try {
+      const skillsResponse = await apiFetch(`${API_BASE_URL}/skills`);
+      const skillsData = await skillsResponse.json();
+
+      if (skillsData.success && Array.isArray(skillsData.skills)) {
+        setSkills(skillsData.skills);
+        setSkillsDirs(skillsData.directories || { user: '', app: '' });
+        return;
+      }
+
       // Get all skills directories (sage and claude)
-      const dirsResponse = await fetch(`${API_BASE_URL}/files/skills-dir`);
+      const dirsResponse = await apiFetch(`${API_BASE_URL}/files/skills-dir`);
       const dirsData = await dirsResponse.json();
 
       const allSkills: SkillInfo[] = [];
@@ -268,11 +278,14 @@ export function SkillsSettings({
           if (!dir.exists) continue;
 
           try {
-            const filesResponse = await fetch(`${API_BASE_URL}/files/readdir`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: dir.path, maxDepth: 3 }),
-            });
+            const filesResponse = await apiFetch(
+              `${API_BASE_URL}/files/readdir`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: dir.path, maxDepth: 3 }),
+              }
+            );
             const filesData = await filesResponse.json();
 
             if (filesData.success && filesData.files) {
@@ -283,7 +296,7 @@ export function SkillsSettings({
                   let description = '';
                   try {
                     const skillMdPath = `${folder.path}/SKILL.md`;
-                    const mdResponse = await fetch(
+                    const mdResponse = await apiFetch(
                       `${API_BASE_URL}/files/read`,
                       {
                         method: 'POST',
@@ -335,11 +348,14 @@ export function SkillsSettings({
         );
         if (!isDefaultDir) {
           try {
-            const filesResponse = await fetch(`${API_BASE_URL}/files/readdir`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: skillsPath, maxDepth: 3 }),
-            });
+            const filesResponse = await apiFetch(
+              `${API_BASE_URL}/files/readdir`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: skillsPath, maxDepth: 3 }),
+              }
+            );
             const filesData = await filesResponse.json();
 
             if (filesData.success && filesData.files) {
@@ -350,7 +366,7 @@ export function SkillsSettings({
                   let description = '';
                   try {
                     const skillMdPath = `${folder.path}/SKILL.md`;
-                    const mdResponse = await fetch(
+                    const mdResponse = await apiFetch(
                       `${API_BASE_URL}/files/read`,
                       {
                         method: 'POST',
@@ -730,7 +746,7 @@ export function SkillsSettings({
                 setImporting(true);
                 setImportError('');
                 try {
-                  const response = await fetch(
+                  const response = await apiFetch(
                     `${API_BASE_URL}/files/import-skill`,
                     {
                       method: 'POST',

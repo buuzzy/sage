@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiFetch } from '@/shared/lib/api';
 import { getWorkanyMcpPath } from '@/shared/lib/paths';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
@@ -36,6 +37,7 @@ function MCPCard({
 }) {
   const { t } = useLanguage();
   const [showMenu, setShowMenu] = useState(false);
+  const isBuiltin = server.source === 'builtin';
 
   return (
     <div className="border-border bg-background hover:border-foreground/20 relative flex flex-col rounded-xl border p-4 transition-colors">
@@ -55,41 +57,49 @@ function MCPCard({
 
       <div className="border-border flex items-center justify-end border-t pt-3">
         <div className="flex items-center gap-1">
-          <button
-            onClick={onConfigure}
-            className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1.5 transition-colors"
-            title={t.settings.mcpGoToConfigure}
-          >
-            <Settings2 className="size-4" />
-          </button>
-          <div className="relative">
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1.5 transition-colors"
-            >
-              <MoreHorizontal className="size-4" />
-            </button>
-            {showMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowMenu(false)}
-                />
-                <div className="border-border bg-popover absolute right-0 bottom-full z-20 mb-1 min-w-max rounded-lg border py-1 shadow-lg">
-                  <button
-                    onClick={() => {
-                      onDelete();
-                      setShowMenu(false);
-                    }}
-                    className="hover:bg-destructive/10 text-destructive flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors"
-                  >
-                    <Trash2 className="size-3.5 shrink-0" />
-                    {t.settings.mcpDeleteServer}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          {isBuiltin ? (
+            <span className="text-muted-foreground bg-muted rounded-full px-2 py-1 text-xs">
+              Built-in
+            </span>
+          ) : (
+            <>
+              <button
+                onClick={onConfigure}
+                className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1.5 transition-colors"
+                title={t.settings.mcpGoToConfigure}
+              >
+                <Settings2 className="size-4" />
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1.5 transition-colors"
+                >
+                  <MoreHorizontal className="size-4" />
+                </button>
+                {showMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowMenu(false)}
+                    />
+                    <div className="border-border bg-popover absolute right-0 bottom-full z-20 mb-1 min-w-max rounded-lg border py-1 shadow-lg">
+                      <button
+                        onClick={() => {
+                          onDelete();
+                          setShowMenu(false);
+                        }}
+                        className="hover:bg-destructive/10 text-destructive flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors"
+                      >
+                        <Trash2 className="size-3.5 shrink-0" />
+                        {t.settings.mcpDeleteServer}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -183,7 +193,7 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/mcp/all-configs`);
+        const response = await apiFetch(`${API_BASE_URL}/mcp/all-configs`);
         const result = await response.json();
 
         if (!result.success) {
@@ -234,7 +244,7 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
               url: hasUrl ? cfg.url : undefined,
               headers: hasUrl ? cfg.headers : undefined,
               autoExecute: true,
-              source: configInfo.name as 'sage' | 'claude',
+              source: configInfo.name as 'sage' | 'claude' | 'builtin',
             });
           }
         }
@@ -263,7 +273,7 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
     try {
       const mcpServers: Record<string, unknown> = {};
       for (const server of serverList) {
-        if (server.source === 'claude') continue;
+        if (server.source !== 'sage') continue;
         if (server.type === 'http' || server.type === 'sse') {
           const serverConfig: Record<string, unknown> = {
             url: server.url || '',
@@ -291,7 +301,7 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
         mcpServers: mcpServers as MCPConfig['mcpServers'],
       };
 
-      const response = await fetch(`${API_BASE_URL}/mcp/config`, {
+      const response = await apiFetch(`${API_BASE_URL}/mcp/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -309,7 +319,7 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
   // Open folder in system file manager
   const openFolderInSystem = async (folderPath: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/files/open`, {
+      const response = await apiFetch(`${API_BASE_URL}/files/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: folderPath, expandHome: true }),
@@ -404,6 +414,8 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
 
   // Handle configure server (open config dialog for editing)
   const handleConfigureServer = (server: MCPServerUI) => {
+    if (server.source === 'builtin') return;
+
     setConfigDialog({
       open: true,
       mode: 'edit',
@@ -488,7 +500,7 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
   // Handle delete server
   const handleDeleteServer = (serverId: string) => {
     const server = servers.find((s) => s.id === serverId);
-    if (!server || server.source === 'claude') return;
+    if (!server || server.source !== 'sage') return;
 
     const newServers = servers.filter((s) => s.id !== serverId);
     setServers(newServers);
@@ -770,8 +782,8 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
         onOpenChange={setShowImportDialog}
       >
         <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/60" />
-          <DialogPrimitive.Content className="bg-background border-border fixed top-1/2 left-1/2 z-[100] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border p-6 shadow-2xl focus:outline-none">
+          <DialogPrimitive.Overlay className="fixed inset-0 z-100 bg-black/60" />
+          <DialogPrimitive.Content className="bg-background border-border fixed top-1/2 left-1/2 z-100 w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border p-6 shadow-2xl focus:outline-none">
             <DialogPrimitive.Title className="text-foreground text-lg font-semibold">
               {t.settings.mcpImportTitle}
             </DialogPrimitive.Title>
@@ -809,8 +821,8 @@ export function MCPSettings({ settings, onSettingsChange }: SettingsTabProps) {
         }}
       >
         <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/60" />
-          <DialogPrimitive.Content className="bg-background border-border fixed top-1/2 left-1/2 z-[100] flex max-h-[85vh] w-[500px] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border shadow-2xl focus:outline-none">
+          <DialogPrimitive.Overlay className="fixed inset-0 z-100 bg-black/60" />
+          <DialogPrimitive.Content className="bg-background border-border fixed top-1/2 left-1/2 z-100 flex max-h-[85vh] w-[500px] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border shadow-2xl focus:outline-none">
             {/* Header */}
             <div className="border-border shrink-0 border-b px-6 py-4">
               <DialogPrimitive.Title className="text-foreground text-lg font-semibold">

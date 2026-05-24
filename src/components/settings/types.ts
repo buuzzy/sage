@@ -62,7 +62,7 @@ export interface MCPServerUI {
   url?: string;
   headers?: Record<string, string>;
   autoExecute?: boolean;
-  source?: 'sage' | 'claude';
+  source?: 'sage' | 'claude' | 'builtin';
 }
 
 // Skill types
