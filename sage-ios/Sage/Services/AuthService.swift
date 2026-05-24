@@ -37,10 +37,15 @@ class AuthService: ObservableObject {
     // MARK: - Public API
 
     /// Google OAuth 登录
+    /// queryParams 传 prompt=select_account 强制弹出账号选择器，支持多账号切换
     func signInWithGoogle() async {
         errorMessage = nil
         do {
-            try await client.auth.signInWithOAuth(provider: .google, redirectTo: URL(string: "ai.sage.app://auth/callback"))
+            try await client.auth.signInWithOAuth(
+                provider: .google,
+                redirectTo: URL(string: "ai.sage.app://auth/callback"),
+                queryParams: [(name: "prompt", value: "select_account")]
+            )
         } catch {
             errorMessage = error.localizedDescription
         }

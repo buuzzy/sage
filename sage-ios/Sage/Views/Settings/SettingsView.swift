@@ -397,12 +397,25 @@ struct ProviderDetailView: View {
         Task {
             do {
                 let testBaseUrl = baseUrl.isEmpty ? (provider.baseUrl ?? "") : baseUrl
-                let url = URL(string: "\(testBaseUrl)/chat/completions")!
+                let isAnthropic = selectedApiType == "anthropic-messages"
+
+                // Anthropic Messages API 用 /v1/messages，OpenAI 兼容用 /chat/completions
+                let endpoint = isAnthropic ? "/v1/messages" : "/chat/completions"
+                let url = URL(string: "\(testBaseUrl)\(endpoint)")!
+
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
-                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.timeoutInterval = 15
+
+                if isAnthropic {
+                    // Anthropic 协议用 x-api-key header
+                    request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+                    request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+                } else {
+                    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                }
+
                 let body: [String: Any] = ["model": selectedModel, "messages": [["role": "user", "content": "hi"]], "max_tokens": 5]
                 request.httpBody = try JSONSerialization.data(withJSONObject: body)
                 let (_, response) = try await URLSession.shared.data(for: request)
