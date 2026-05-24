@@ -23,7 +23,10 @@ class AuthService: ObservableObject {
     private init() {
         client = SupabaseClient(
             supabaseURL: Self.supabaseURL,
-            supabaseKey: Self.supabaseAnonKey
+            supabaseKey: Self.supabaseAnonKey,
+            options: SupabaseClientOptions(
+                auth: .init(emitLocalSessionAsInitialSession: true)
+            )
         )
 
         // Listen for auth state changes
@@ -95,9 +98,10 @@ class AuthService: ObservableObject {
         Task {
             for await (event, session) in client.auth.authStateChanges {
                 switch event {
+                case .initialSession:
+                    applySession(session)
                 case .signedIn:
-                    currentUser = session?.user
-                    isAuthenticated = true
+                    applySession(session)
                 case .signedOut:
                     currentUser = nil
                     isAuthenticated = false
@@ -106,5 +110,16 @@ class AuthService: ObservableObject {
                 }
             }
         }
+    }
+
+    private func applySession(_ session: Session?) {
+        guard let session, !session.isExpired else {
+            currentUser = nil
+            isAuthenticated = false
+            return
+        }
+
+        currentUser = session.user
+        isAuthenticated = true
     }
 }
