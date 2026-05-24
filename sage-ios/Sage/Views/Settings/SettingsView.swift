@@ -14,22 +14,20 @@ struct SettingsView: View {
                 Section {
                     if let user = authService.currentUser {
                         HStack(spacing: SageTheme.Spacing.sm) {
-                            // 头像
-                            Image(systemName: "person.circle.fill")
-                                .font(.system(size: 36))
-                                .foregroundColor(SageTheme.ColorToken.brand)
+                            SageSymbolIcon(systemName: "person.crop.circle.fill", tone: .brand, size: 21, containerSize: 40)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(user.email ?? "用户")
-                                    .font(.system(size: 15, weight: .medium))
+                                    .font(SageTheme.Typography.rowTitleEmphasized)
                                 Text("已登录")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.green)
+                                    .font(SageTheme.Typography.rowSubtitle)
+                                    .foregroundColor(SageIconTone.success.foreground)
                             }
                             Spacer()
                         }
                         .padding(.vertical, 4)
                     }
                 }
+                .listRowBackground(sageListRowBackground)
 
                 // 主设置列表 — 所有选项紧凑排列
                 Section {
@@ -38,7 +36,7 @@ struct SettingsView: View {
                         GeneralSettingsView()
                             .environmentObject(settingsService)
                     } label: {
-                        settingsRow(icon: "gearshape.fill", color: .gray, title: "通用")
+                        SageSettingsRow(icon: "gearshape", title: "通用", tone: .neutral, showsChevron: false)
                     }
 
                     // 模型
@@ -46,53 +44,55 @@ struct SettingsView: View {
                         ModelSettingsView()
                             .environmentObject(settingsService)
                     } label: {
-                        settingsRow(icon: "cpu.fill", color: .blue, title: "模型")
+                        SageSettingsRow(icon: "cpu", title: "模型", tone: .brand, showsChevron: false)
                     }
 
                     // 画像
                     NavigationLink {
                         PersonaSettingsView()
                     } label: {
-                        settingsRow(icon: "brain", color: .purple, title: "画像")
+                        SageSettingsRow(icon: "brain", title: "画像", tone: .neutral, showsChevron: false)
                     }
 
                     // 定时任务
                     NavigationLink {
                         CronSettingsView()
                     } label: {
-                        settingsRow(icon: "clock.fill", color: .orange, title: "定时任务")
+                        SageSettingsRow(icon: "clock", title: "定时任务", tone: .neutral, showsChevron: false)
                     }
 
                     // MCP
                     NavigationLink {
                         MCPSettingsView()
                     } label: {
-                        settingsRow(icon: "server.rack", color: .teal, title: "MCP")
+                        SageSettingsRow(icon: "server.rack", title: "MCP", tone: .neutral, showsChevron: false)
                     }
 
                     // 技能
                     NavigationLink {
                         SkillsSettingsView()
                     } label: {
-                        settingsRow(icon: "sparkles", color: .pink, title: "技能")
+                        SageSettingsRow(icon: "sparkles", title: "技能", tone: .neutral, showsChevron: false)
                     }
                 }
+                .listRowBackground(sageListRowBackground)
 
                 // 数据 & 关于
                 Section {
                     NavigationLink {
                         DataSettingsView()
                     } label: {
-                        settingsRow(icon: "externaldrive.fill", color: .indigo, title: "数据")
+                        SageSettingsRow(icon: "externaldrive", title: "数据", tone: .neutral, showsChevron: false)
                     }
 
                     NavigationLink {
                         AboutSettingsView()
                             .environmentObject(authService)
                     } label: {
-                        settingsRow(icon: "info.circle.fill", color: .secondary, title: "关于")
+                        SageSettingsRow(icon: "info.circle", title: "关于", tone: .neutral, showsChevron: false)
                     }
                 }
+                .listRowBackground(sageListRowBackground)
 
                 // 退出登录
                 Section {
@@ -105,24 +105,26 @@ struct SettingsView: View {
                         HStack {
                             Spacer()
                             Text("退出登录")
-                                .font(.system(size: 15))
-                                .foregroundColor(.red)
+                                .font(SageTheme.Typography.button)
+                                .foregroundColor(SageIconTone.danger.foreground)
                             Spacer()
                         }
                     }
                 }
+                .listRowBackground(sageListRowBackground)
             }
             .listStyle(.insetGrouped)
+            .sageSettingsPage()
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
-                            .background(SageTheme.ColorToken.surfaceSecondary)
+                            .frame(width: 36, height: 36)
+                            .background(SageTheme.ColorToken.controlGlass)
                             .clipShape(Circle())
                     }
                 }
@@ -130,20 +132,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 设置项行（统一风格）
-
-    private func settingsRow(icon: String, color: Color, title: String) -> some View {
-        HStack(spacing: SageTheme.Spacing.sm) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundColor(color)
-                .frame(width: 30, height: 30)
-                .background(color.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.sm, style: .continuous))
-            Text(title)
-                .font(.system(size: 15))
-        }
-    }
 }
 
 // MARK: - General Settings (Theme + Language + Accent Color)
@@ -178,6 +166,7 @@ struct GeneralSettingsView: View {
                     settingsService.save()
                 }
             }
+            .listRowBackground(sageListRowBackground)
 
             Section("强调色") {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 16) {
@@ -204,6 +193,7 @@ struct GeneralSettingsView: View {
                 }
                 .padding(.vertical, 8)
             }
+            .listRowBackground(sageListRowBackground)
 
             Section("语言") {
                 Picker("语言", selection: $language) {
@@ -217,7 +207,9 @@ struct GeneralSettingsView: View {
                     settingsService.save()
                 }
             }
+            .listRowBackground(sageListRowBackground)
         }
+        .sageSettingsPage()
         .navigationTitle("通用")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -239,36 +231,34 @@ struct ModelSettingsView: View {
                     ProviderDetailView(provider: provider)
                         .environmentObject(settingsService)
                 } label: {
-                    HStack(spacing: 12) {
-                        // Provider 图标
-                        Text(provider.icon)
-                            .font(.system(size: 15, weight: .semibold))
-                            .frame(width: 32, height: 32)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(provider.name)
-                                .font(.system(size: 15))
-                            Text(provider.apiKey?.isEmpty == false ? "已配置" : "未配置")
-                                .font(.system(size: 12))
-                                .foregroundColor(provider.apiKey?.isEmpty == false ? .green : .secondary)
-                        }
-
-                        Spacer()
-
+                    SageSettingsRow(
+                        icon: providerSymbol(for: provider),
+                        title: provider.name,
+                        subtitle: provider.apiKey?.isEmpty == false ? "已配置" : "未配置",
+                        tone: provider.id == settingsService.currentSettings.defaultProvider ? .brand : .neutral,
+                        showsChevron: false
+                    ) {
                         if provider.id == settingsService.currentSettings.defaultProvider {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.system(size: 16))
+                            SageStatusPill(title: "默认", tone: .success)
                         }
                     }
-                    .padding(.vertical, 2)
                 }
+                .listRowBackground(sageListRowBackground)
             }
         }
+        .sageSettingsPage()
         .navigationTitle("模型")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func providerSymbol(for provider: ProviderConfig) -> String {
+        switch provider.id.lowercased() {
+        case let id where id.contains("anthropic"): return "sparkle.magnifyingglass"
+        case let id where id.contains("openai"): return "circle.hexagongrid"
+        case let id where id.contains("gemini"): return "diamond"
+        case let id where id.contains("deepseek"): return "brain"
+        default: return "cpu"
+        }
     }
 }
 
@@ -283,16 +273,20 @@ struct DataSettingsView: View {
                 Button(role: .destructive) {
                     showClearAlert = true
                 } label: {
-                    HStack {
-                        Image(systemName: "trash")
-                            .foregroundColor(.red)
-                        Text("清除所有对话记录")
-                    }
+                    SageSettingsRow(
+                        icon: "trash",
+                        title: "清除所有对话记录",
+                        subtitle: "仅删除本机缓存的历史对话",
+                        tone: .danger,
+                        showsChevron: false
+                    )
                 }
             } footer: {
                 Text("清除后无法恢复，请谨慎操作。")
             }
+            .listRowBackground(sageListRowBackground)
         }
+        .sageSettingsPage()
         .navigationTitle("数据")
         .navigationBarTitleDisplayMode(.inline)
         .alert("确认清除", isPresented: $showClearAlert) {
@@ -319,29 +313,16 @@ struct AboutSettingsView: View {
     var body: some View {
         List {
             Section {
-                HStack {
-                    Text("版本")
-                    Spacer()
-                    Text("1.0.0 (14)")
-                        .foregroundColor(.secondary)
-                }
-                HStack {
-                    Text("用户 ID")
-                    Spacer()
-                    Text(authService.userId?.prefix(8).description ?? "-")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 13, design: .monospaced))
-                }
+                SageKeyValueRow(title: "版本", value: "1.0.0 (14)")
+                SageKeyValueRow(title: "用户 ID", value: authService.userId?.prefix(8).description ?? "-", monospacedValue: true)
             }
+            .listRowBackground(sageListRowBackground)
             Section {
-                HStack {
-                    Text("开发者")
-                    Spacer()
-                    Text("Sage AI")
-                        .foregroundColor(.secondary)
-                }
+                SageKeyValueRow(title: "开发者", value: "Sage AI")
             }
+            .listRowBackground(sageListRowBackground)
         }
+        .sageSettingsPage()
         .navigationTitle("关于")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -379,6 +360,7 @@ struct ProviderDetailView: View {
                     Button { showKey.toggle() } label: {
                         Image(systemName: showKey ? "eye.slash" : "eye")
                             .foregroundColor(.secondary)
+                            .frame(width: 44, height: 44)
                     }
                 }
 
@@ -394,6 +376,7 @@ struct ProviderDetailView: View {
                     }
                 }
             }
+            .listRowBackground(sageListRowBackground)
 
             Section("Base URL") {
                 TextField(provider.baseUrl ?? "https://api.openai.com/v1", text: $baseUrl)
@@ -402,6 +385,7 @@ struct ProviderDetailView: View {
                     .keyboardType(.URL)
                     .font(.system(.body, design: .monospaced))
             }
+            .listRowBackground(sageListRowBackground)
 
             Section("API 类型") {
                 Picker("类型", selection: $selectedApiType) {
@@ -410,6 +394,7 @@ struct ProviderDetailView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            .listRowBackground(sageListRowBackground)
 
             Section("模型") {
                 ForEach(provider.models, id: \.self) { model in
@@ -419,55 +404,55 @@ struct ProviderDetailView: View {
                         HStack {
                             Text(model)
                                 .foregroundColor(.primary)
-                                .font(.system(size: 14))
+                                .font(SageTheme.Typography.rowTitle)
                             Spacer()
                             if selectedModel == model {
                                 Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(SageTheme.ColorToken.brand)
                             }
                         }
+                        .frame(minHeight: 44)
                     }
                 }
             }
+            .listRowBackground(sageListRowBackground)
 
             Section("连接测试") {
                 Button { testConnection() } label: {
                     HStack(spacing: 10) {
                         switch testStatus {
                         case .idle:
-                            Image(systemName: "bolt")
-                                .foregroundColor(.blue)
+                            SageSymbolIcon(systemName: "bolt", tone: .brand)
                             Text("测试响应")
-                                .foregroundColor(.blue)
+                                .font(SageTheme.Typography.rowTitle)
+                                .foregroundColor(.primary)
                         case .testing:
                             ProgressView().scaleEffect(0.8)
-                            Text("测试中...").foregroundColor(.secondary)
+                            Text("测试中...").font(SageTheme.Typography.rowTitle).foregroundColor(.secondary)
                         case .success:
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("连接成功").foregroundColor(.green)
+                            SageSymbolIcon(systemName: "checkmark.circle", tone: .success)
+                            Text("连接成功").font(SageTheme.Typography.rowTitle).foregroundColor(SageIconTone.success.foreground)
                         case .failure(let msg):
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.red)
-                            Text(msg).foregroundColor(.red).font(.system(size: 13)).lineLimit(2)
+                            SageSymbolIcon(systemName: "xmark.circle", tone: .danger)
+                            Text(msg).foregroundColor(.red).font(SageTheme.Typography.rowSubtitle).lineLimit(2)
                         }
                         Spacer()
                     }
                 }
                 .disabled(apiKey.isEmpty || testStatus == .testing)
             }
+            .listRowBackground(sageListRowBackground)
 
             Section {
                 Button { saveAndDismiss() } label: {
                     Text("保存并设为默认")
-                        .frame(maxWidth: .infinity)
-                        .fontWeight(.medium)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(SagePrimaryButtonStyle())
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             }
         }
+        .sageSettingsPage()
         .navigationTitle(provider.name)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

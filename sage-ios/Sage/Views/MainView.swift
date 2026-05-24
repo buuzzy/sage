@@ -13,9 +13,7 @@ struct MainView: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            SageTheme.ColorToken.surface
-                .ignoresSafeArea()
-            backgroundWash
+            SageBackground()
 
             // ─── Main Content ───────────────────────────────────────
             VStack(spacing: 0) {
@@ -29,54 +27,46 @@ struct MainView: View {
 
                 inputBar
             }
-            .disabled(showSidebar)
-            .blur(radius: showSidebar ? 1 : 0)
-
-            // ─── Sidebar Overlay ────────────────────────────────────
-            if showSidebar {
-                Color.black.opacity(0.35)
-                    .ignoresSafeArea()
-                    .onTapGesture { withAnimation(.easeOut(duration: 0.25)) { showSidebar = false } }
-                    .zIndex(1)
-            }
 
             // ─── Sidebar Panel ──────────────────────────────────────
-            SidebarView(
-                sessions: sessionListVM.sessions,
-                onSelectSession: { id in
-                    chatVM.loadSession(id)
-                    if let session = sessionListVM.sessions.first(where: { $0.id == id }) {
-                        chatVM.currentTitle = session.title
-                    }
-                    withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
-                },
-                onNewChat: {
-                    chatVM.startNewChat()
-                    withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
-                },
-                onDeleteSession: { id in
-                    sessionListVM.deleteSession(id)
-                    if chatVM.currentSessionId == id {
+            if showSidebar {
+                SidebarView(
+                    sessions: sessionListVM.sessions,
+                    onSelectSession: { id in
+                        chatVM.loadSession(id)
+                        if let session = sessionListVM.sessions.first(where: { $0.id == id }) {
+                            chatVM.currentTitle = session.title
+                        }
+                        withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
+                    },
+                    onNewChat: {
                         chatVM.startNewChat()
-                    }
-                },
-                onRenameSession: { id, newTitle in
-                    sessionListVM.updateTitle(id, title: newTitle)
-                    if chatVM.currentSessionId == id {
-                        chatVM.currentTitle = newTitle
-                    }
-                },
-                onOpenSettings: {
-                    withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showSettings = true }
-                },
-                runningSessionId: chatVM.isRunning ? chatVM.currentSessionId : nil
-            )
-            .frame(width: 300)
-            .offset(x: showSidebar ? 0 : -300)
-            .animation(.easeOut(duration: 0.25), value: showSidebar)
-            .zIndex(2)
+                        withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
+                    },
+                    onDeleteSession: { id in
+                        sessionListVM.deleteSession(id)
+                        if chatVM.currentSessionId == id {
+                            chatVM.startNewChat()
+                        }
+                    },
+                    onRenameSession: { id, newTitle in
+                        sessionListVM.updateTitle(id, title: newTitle)
+                        if chatVM.currentSessionId == id {
+                            chatVM.currentTitle = newTitle
+                        }
+                    },
+                    onOpenSettings: {
+                        withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showSettings = true }
+                    },
+                    runningSessionId: chatVM.isRunning ? chatVM.currentSessionId : nil
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.move(edge: .leading))
+                .zIndex(2)
+            }
         }
+        .animation(.easeOut(duration: 0.25), value: showSidebar)
         .gesture(
             DragGesture()
                 .onEnded { value in
@@ -169,8 +159,6 @@ struct MainView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(SageTheme.ColorToken.surfaceSecondary.opacity(0.82))
-                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
 
@@ -183,7 +171,6 @@ struct MainView: View {
         .padding(.horizontal, SageTheme.Spacing.md)
         .padding(.top, 8)
         .padding(.bottom, 6)
-        .background(.ultraThinMaterial.opacity(0.78))
     }
 
     // MARK: - Home (empty state)
@@ -367,23 +354,6 @@ struct MainView: View {
         case "dark": return .dark
         default: return nil
         }
-    }
-
-    private var backgroundWash: some View {
-        VStack {
-            LinearGradient(
-                colors: [
-                    SageTheme.ColorToken.brand.opacity(0.16),
-                    SageTheme.ColorToken.cyan.opacity(0.06),
-                    Color.clear,
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .frame(height: 240)
-            Spacer()
-        }
-        .ignoresSafeArea()
     }
 
     private var modelDisplayName: String {

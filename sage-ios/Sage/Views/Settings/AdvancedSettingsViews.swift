@@ -18,14 +18,12 @@ struct PersonaSettingsView: View {
     var body: some View {
         List {
             if isLoading {
-                HStack { Spacer(); ProgressView().padding(20); Spacer() }
-                    .listRowBackground(Color.clear)
+                SageLoadingRow()
             } else if let error = errorMessage {
                 Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.subheadline)
-                        .foregroundColor(.orange)
+                    SageErrorState(message: error)
                 }
+                .sageListSection()
             } else {
                 // 隐式字段（AI 推断，只读）
                 Section("AI 推断") {
@@ -33,98 +31,109 @@ struct PersonaSettingsView: View {
                     infoRow("能力水平", value: capabilityLevel)
                     infoRow("上次蒸馏", value: lastDistilled)
                 }
+                .sageListSection()
 
                 if let behaviorSummary, !behaviorSummary.isEmpty {
                     Section("行为摘要") {
                         Text(behaviorSummary)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(SageTheme.Typography.rowSubtitle)
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .lineSpacing(3)
                     }
+                    .sageListSection()
                 }
 
                 // 硬规则（可删除）
                 if !hardRules.isEmpty {
                     Section("硬规则") {
                         ForEach(hardRules) { rule in
-                            Text(rule.content).font(.subheadline)
+                            personaTextRow(rule.content, icon: "checkmark.seal")
                         }
                         .onDelete { offsets in hardRules.remove(atOffsets: offsets) }
                     }
+                    .sageListSection()
                 }
 
                 // 关注领域
                 if !focusAreas.isEmpty {
                     Section("主动关注") {
                         ForEach(focusAreas) { item in
-                            Text(item.content).font(.subheadline)
+                            personaTextRow(item.content, icon: "scope")
                         }
                         .onDelete { offsets in focusAreas.remove(atOffsets: offsets) }
                     }
+                    .sageListSection()
                 }
 
                 if !activeFocus.isEmpty {
                     Section("近期高频关注") {
                         ForEach(activeFocus) { item in
-                            Text(item.content).font(.subheadline)
+                            personaTextRow(item.content, icon: "chart.line.uptrend.xyaxis")
                         }
                     }
+                    .sageListSection()
                 }
 
                 // 排除项
                 if !exclusions.isEmpty {
                     Section("排除项") {
                         ForEach(exclusions) { item in
-                            Text(item.content).font(.subheadline)
+                            personaTextRow(item.content, icon: "minus.circle")
                         }
                         .onDelete { offsets in exclusions.remove(atOffsets: offsets) }
                     }
+                    .sageListSection()
                 }
 
                 if !recentViews.isEmpty {
                     Section("近期观点") {
                         ForEach(recentViews) { item in
-                            Text(item.content).font(.subheadline)
+                            personaTextRow(item.content, icon: "quote.bubble")
                         }
                     }
+                    .sageListSection()
                 }
 
                 if hardRules.isEmpty && focusAreas.isEmpty && activeFocus.isEmpty && exclusions.isEmpty && recentViews.isEmpty && behaviorSummary == nil {
                     Section {
-                        VStack(spacing: 8) {
-                            Image(systemName: "brain")
-                                .font(.system(size: 28))
-                                .foregroundColor(.secondary.opacity(0.5))
-                            Text("暂无画像数据")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Text("画像由云端蒸馏任务从对话中自动生成，通常需要完成几轮对话后才会出现")
-                                .font(.caption)
-                                .foregroundColor(.secondary.opacity(0.7))
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        SageEmptyPanel(
+                            icon: "brain",
+                            title: "暂无画像数据",
+                            message: "画像由云端蒸馏任务从对话中自动生成，通常需要完成几轮对话后才会出现",
+                            tone: .brand
+                        )
                     }
+                    .sageListSection()
                 }
             }
         }
+        .sageSettingsPage()
         .navigationTitle("画像")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadPersona() }
     }
 
     private func infoRow(_ title: String, value: String) -> some View {
-        HStack {
-            Text(title).font(.subheadline)
-            Spacer()
-            Text(value).font(.subheadline).foregroundColor(.secondary)
+        SageKeyValueRow(title: title, value: value)
+    }
+
+    private func personaTextRow(_ content: String, icon: String) -> some View {
+        HStack(alignment: .top, spacing: SageTheme.Spacing.sm) {
+            SageSymbolIcon(systemName: icon, tone: .neutral, size: 15, containerSize: 30)
+            Text(content)
+                .font(SageTheme.Typography.rowSubtitle)
+                .foregroundColor(.primary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 4)
     }
 
     private func loadPersona() {
         isLoading = true
         Task {
-            guard let userId = AuthService.shared.userId else {
+            guard AuthService.shared.userId != nil else {
                 errorMessage = "未登录"
                 isLoading = false
                 return
@@ -256,39 +265,32 @@ struct CronSettingsView: View {
     var body: some View {
         List {
             if isLoading {
-                HStack { Spacer(); ProgressView().padding(20); Spacer() }
-                    .listRowBackground(Color.clear)
+                SageLoadingRow()
             } else if let error = errorMessage {
                 Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.subheadline)
-                        .foregroundColor(.orange)
+                    SageErrorState(message: error)
                 }
+                .sageListSection()
             } else if jobs.isEmpty {
                 systemCronSection
                 Section {
-                    VStack(spacing: 8) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 28))
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text("暂无定时任务")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Text("这里显示你自己创建的定时任务。你可以在对话中让 Sage 定时提醒、定时复盘或定时检查市场。")
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.7))
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    SageEmptyPanel(
+                        icon: "clock",
+                        title: "暂无定时任务",
+                        message: "这里显示你自己创建的定时任务。你可以在对话中让 Sage 定时提醒、定时复盘或定时检查市场。",
+                        tone: .brand
+                    )
                 }
+                .sageListSection()
             } else {
                 systemCronSection
                 ForEach($jobs) { $job in
                     CronJobRow(job: $job, onDelete: { deleteJob(job.id) }, onTrigger: { triggerJob(job.id) })
+                        .sageListSection()
                 }
             }
         }
+        .sageSettingsPage()
         .navigationTitle("定时任务")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -303,28 +305,17 @@ struct CronSettingsView: View {
 
     private var systemCronSection: some View {
         Section("系统任务") {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 14))
-                        .foregroundColor(.purple)
-                    Text("画像蒸馏")
-                        .font(.system(size: 15, weight: .medium))
-                    Spacer()
-                    Text("云端")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(4)
-                }
-                Text("Railway 后台每天凌晨自动从对话中更新 persona_memory；它不是用户可删除的任务，所以不出现在用户任务列表里。")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            SageSettingsRow(
+                icon: "brain.head.profile",
+                title: "画像蒸馏",
+                subtitle: "Railway 后台每天凌晨自动从对话中更新 persona_memory；它不是用户可删除的任务。",
+                tone: .brand,
+                showsChevron: false
+            ) {
+                SageStatusPill(title: "云端", tone: .neutral)
             }
-            .padding(.vertical, 4)
         }
+        .sageListSection()
     }
 
     private func loadJobs() {
@@ -382,22 +373,16 @@ struct CronJobRow: View {
     let onTrigger: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(job.name)
-                        .font(.system(size: 15, weight: .medium))
-                    Text(job.prompt)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-                Spacer()
+        VStack(alignment: .leading, spacing: SageTheme.Spacing.sm) {
+            SageSettingsRow(
+                icon: "clock.arrow.circlepath",
+                title: job.name,
+                subtitle: job.prompt,
+                tone: job.enabled ? .brand : .neutral,
+                showsChevron: false
+            ) {
                 if job.system == true {
-                    Text("系统").font(.system(size: 10))
-                        .foregroundColor(.purple)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.purple.opacity(0.1)).cornerRadius(4)
+                    SageStatusPill(title: "系统", tone: .purple)
                 }
                 Toggle("", isOn: $job.enabled)
                     .labelsHidden()
@@ -405,18 +390,22 @@ struct CronJobRow: View {
                         Task { try? await APIClient.shared.toggleCronJob(jobId: job.id, enabled: val) }
                     }
             }
-            HStack(spacing: 12) {
+            HStack(spacing: SageTheme.Spacing.sm) {
                 if let s = job.schedule, let expr = s.expression {
-                    Text(expr).font(.caption2).foregroundColor(.secondary)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color(.systemGray6)).cornerRadius(4)
+                    SageStatusPill(title: expr, tone: .neutral)
                 }
                 Spacer()
                 Button { onTrigger() } label: {
-                    Image(systemName: "play.circle").font(.system(size: 16)).foregroundColor(.blue)
+                    Image(systemName: "play.circle")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(SageTheme.ColorToken.brand)
+                        .frame(width: 44, height: 36)
                 }
                 Button { onDelete() } label: {
-                    Image(systemName: "trash").font(.system(size: 14)).foregroundColor(.red)
+                    Image(systemName: "trash")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(SageIconTone.danger.foreground)
+                        .frame(width: 44, height: 36)
                 }
             }
         }
@@ -435,60 +424,52 @@ struct MCPSettingsView: View {
     var body: some View {
         List {
             if isLoading {
-                HStack { Spacer(); ProgressView().padding(20); Spacer() }
-                    .listRowBackground(Color.clear)
+                SageLoadingRow()
             } else if let error = errorMessage {
                 Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.subheadline)
-                        .foregroundColor(.orange)
+                    SageErrorState(message: error)
                 }
+                .sageListSection()
             } else if servers.isEmpty {
                 Section {
-                    VStack(spacing: 8) {
-                        Image(systemName: "server.rack")
-                            .font(.system(size: 28))
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text("暂无 MCP 服务器")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Text("MCP 服务器用于扩展 Sage 的工具能力")
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.7))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    SageEmptyPanel(
+                        icon: "server.rack",
+                        title: "暂无 MCP 服务器",
+                        message: "MCP 服务器用于扩展 Sage 的工具能力。",
+                        tone: .brand
+                    )
                 }
+                .sageListSection()
             } else {
                 ForEach(servers) { server in
-                    HStack(spacing: 12) {
-                        Image(systemName: "server.rack")
-                            .font(.system(size: 13)).foregroundColor(.teal).frame(width: 24)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(server.name).font(.system(size: 14, weight: .medium))
-                            Text(server.source.map { "\(server.type) · \($0)" } ?? server.type)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
+                    SageSettingsRow(
+                        icon: "server.rack",
+                        title: server.name,
+                        subtitle: server.source.map { "\(server.type) · \($0)" } ?? server.type,
+                        tone: .neutral,
+                        showsChevron: false
+                    ) {
                         if server.type == "stdio" {
-                            Text("仅桌面").font(.system(size: 10))
-                                .foregroundColor(.orange)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.orange.opacity(0.1)).cornerRadius(4)
+                            SageStatusPill(title: "仅桌面", tone: .warning)
                         }
                     }
+                    .sageListSection()
                 }
                 .onDelete { idxs in
                     servers.remove(atOffsets: idxs)
                 }
             }
         }
+        .sageSettingsPage()
         .navigationTitle("MCP")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showAddSheet = true } label: { Image(systemName: "plus") }
+                Button { showAddSheet = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(width: 36, height: 36)
+                }
             }
         }
         .sheet(isPresented: $showAddSheet) {
@@ -571,12 +552,18 @@ struct AddMCPServerSheet: View {
                     }.pickerStyle(.segmented)
                     TextField("URL", text: $url).autocapitalization(.none).keyboardType(.URL)
                 }
+                .sageListSection()
                 Section {
                     Button("添加") {
                         onAdd(MCPServerItem(id: UUID().uuidString, name: name, type: type, url: url, source: "local"))
-                    }.disabled(name.isEmpty || url.isEmpty)
+                    }
+                    .buttonStyle(SagePrimaryButtonStyle())
+                    .disabled(name.isEmpty || url.isEmpty)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 }
             }
+            .sageSettingsPage()
             .navigationTitle("添加 MCP")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -596,49 +583,40 @@ struct SkillsSettingsView: View {
     var body: some View {
         List {
             if isLoading {
-                HStack { Spacer(); ProgressView().padding(20); Spacer() }
-                    .listRowBackground(Color.clear)
+                SageLoadingRow()
             } else if let error = errorMessage {
                 Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.subheadline)
-                        .foregroundColor(.orange)
+                    SageErrorState(message: error)
                 }
+                .sageListSection()
             } else if allSkills.isEmpty {
                 Section {
-                    VStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 28))
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text("暂无技能")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Text("当前后端没有返回可用技能")
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.7))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    SageEmptyPanel(
+                        icon: "sparkles",
+                        title: "暂无技能",
+                        message: "当前后端没有返回可用技能。",
+                        tone: .brand
+                    )
                 }
+                .sageListSection()
             } else {
                 ForEach($allSkills) { $skill in
-                    HStack(spacing: 12) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 13)).foregroundColor(.purple).frame(width: 24)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(skill.name).font(.system(size: 14, weight: .medium))
-                            if let desc = skill.description {
-                                Text(desc).font(.caption).foregroundColor(.secondary).lineLimit(1)
-                            }
-                        }
-                        Spacer()
+                    SageSettingsRow(
+                        icon: "sparkles",
+                        title: skill.name,
+                        subtitle: skill.description,
+                        tone: skill.enabled ? .brand : .neutral,
+                        showsChevron: false
+                    ) {
                         Toggle("", isOn: $skill.enabled)
                             .labelsHidden()
                             .onChange(of: skill.enabled) { _ in toggleSkill(skill) }
                     }
+                    .sageListSection()
                 }
             }
         }
+        .sageSettingsPage()
         .navigationTitle("技能")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadSkills() }

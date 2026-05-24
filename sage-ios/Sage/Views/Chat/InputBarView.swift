@@ -77,7 +77,17 @@ struct InputBarView: View {
             .padding(.bottom, SageTheme.Spacing.xs)
         }
         .padding(.top, SageTheme.Spacing.xs)
-        .background(.ultraThinMaterial.opacity(0.78))
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    SageTheme.ColorToken.brandSoft.opacity(0.28)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .bottom)
+        )
         .sheet(isPresented: $showAttachMenu) {
             SageCapabilitySheet(
                 onCamera: { showCamera = true },

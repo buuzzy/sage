@@ -40,7 +40,10 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ZStack {
+            SageBackground()
+
+            VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
                 HStack(spacing: SageTheme.Spacing.sm) {
@@ -51,9 +54,9 @@ struct SidebarView: View {
                         .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.sm, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Sage")
-                            .font(.system(size: 20, weight: .semibold))
+                            .font(SageTheme.Typography.title)
                         Text("金融助手")
-                            .font(.system(size: 12))
+                            .font(SageTheme.Typography.rowSubtitle)
                             .foregroundColor(SageTheme.ColorToken.mutedText)
                     }
                 }
@@ -73,45 +76,42 @@ struct SidebarView: View {
             // Search
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 14))
+                    .foregroundColor(SageTheme.ColorToken.brand.opacity(0.75))
+                    .font(.system(size: 15, weight: .medium))
                 TextField("搜索对话", text: $searchText)
-                    .font(.subheadline)
+                    .font(SageTheme.Typography.rowTitle)
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(SageTheme.ColorToken.brand.opacity(0.55))
+                            .frame(width: 30, height: 30)
                     }
                 }
             }
             .padding(.horizontal, SageTheme.Spacing.sm)
-            .padding(.vertical, 10)
-            .background(SageTheme.ColorToken.surfaceSecondary)
-            .clipShape(Capsule())
+            .padding(.vertical, 12)
+            .sageGlassControl(cornerRadius: SageTheme.Radius.pill)
             .padding(.horizontal, SageTheme.Spacing.md)
             .padding(.bottom, SageTheme.Spacing.sm)
 
             Button(action: onNewChat) {
                 HStack(spacing: SageTheme.Spacing.sm) {
                     Image(systemName: "plus.message.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("新对话")
                         .font(.system(size: 15, weight: .semibold))
+                    Text("新对话")
+                        .font(SageTheme.Typography.button)
                     Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 11, weight: .bold))
-                        .opacity(0.7)
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, SageTheme.Spacing.md)
-                .padding(.vertical, 13)
+                .frame(minHeight: 48)
                 .background(SageTheme.ColorToken.brand)
                 .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SagePlainRowButtonStyle())
             .padding(.horizontal, SageTheme.Spacing.md)
             .padding(.bottom, SageTheme.Spacing.sm)
 
@@ -161,28 +161,24 @@ struct SidebarView: View {
 
             Button(action: onOpenSettings) {
                 HStack(spacing: SageTheme.Spacing.sm) {
-                    Image(systemName: "gearshape")
+                    SageSymbolIcon(systemName: "gearshape", tone: .neutral, size: 16, containerSize: 32)
                     Text("设置与账号")
+                        .font(SageTheme.Typography.rowTitleEmphasized)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(SageTheme.ColorToken.mutedText.opacity(0.42))
                 }
-                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.primary)
-                .padding(.horizontal, SageTheme.Spacing.md)
-                .padding(.vertical, 12)
-                .background(SageTheme.ColorToken.surfaceSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+                .padding(.horizontal, SageTheme.Spacing.sm)
+                .frame(minHeight: 56)
+                .sageGlassControl(cornerRadius: SageTheme.Radius.md)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SagePlainRowButtonStyle())
             .padding(.horizontal, SageTheme.Spacing.md)
             .padding(.bottom, SageTheme.Spacing.lg)
+            }
         }
-        .background(
-            SageTheme.ColorToken.surface
-                .clipShape(RoundedRectangle(cornerRadius: 0, style: .continuous))
-                .shadow(color: Color.black.opacity(0.12), radius: 24, x: 8, y: 0)
-        )
         .alert("重命名对话", isPresented: .init(
             get: { renamingSession != nil },
             set: { if !$0 { renamingSession = nil } }
@@ -204,9 +200,9 @@ struct SidebarView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.caption)
-            .fontWeight(.medium)
-            .foregroundColor(.secondary)
+            .font(SageTheme.Typography.section)
+            .foregroundColor(SageTheme.ColorToken.mutedText)
+            .tracking(0.3)
             .padding(.horizontal, SageTheme.Spacing.lg)
             .padding(.top, 16)
             .padding(.bottom, 6)
@@ -218,39 +214,38 @@ struct SidebarView: View {
         Button {
             onSelectSession(session.id)
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: SageTheme.Spacing.sm) {
                 // 运行中绿色脉冲点
                 if session.id == runningSessionId {
                     Circle()
-                        .fill(Color.green)
+                        .fill(SageIconTone.success.foreground)
                         .frame(width: 8, height: 8)
                         .overlay(
                             Circle()
-                                .stroke(Color.green.opacity(0.4), lineWidth: 2)
+                                .stroke(SageIconTone.success.foreground.opacity(0.4), lineWidth: 2)
                                 .scaleEffect(1.5)
                         )
+                        .frame(width: 32, height: 32)
                 } else {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                    SageSymbolIcon(systemName: "bubble.left", tone: .neutral, size: 14, containerSize: 32)
                 }
 
                 Text(session.title)
-                    .font(.subheadline)
+                    .font(SageTheme.Typography.rowTitle)
                     .foregroundColor(.primary)
                     .lineLimit(1)
 
                 Spacer()
             }
-            .padding(.horizontal, SageTheme.Spacing.md)
-            .padding(.vertical, 11)
+            .padding(.horizontal, SageTheme.Spacing.sm)
+            .frame(minHeight: 52)
             .background(
                 RoundedRectangle(cornerRadius: SageTheme.Radius.sm, style: .continuous)
                     .fill(session.id == runningSessionId ? SageTheme.ColorToken.brandSoft.opacity(0.75) : Color.clear)
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SagePlainRowButtonStyle())
         .padding(.horizontal, SageTheme.Spacing.xs)
         .contextMenu {
             Button {
