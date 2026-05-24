@@ -104,14 +104,26 @@ async function runJobPrompt(job: CronJob): Promise<string> {
   const providerManager = getProviderManager();
   const agentCfg = providerManager.getConfig().agent?.config as Record<string, unknown> | undefined;
 
-  const modelConfig = agentCfg
-    ? {
-        apiKey: agentCfg.apiKey as string | undefined,
-        baseUrl: agentCfg.baseUrl as string | undefined,
-        model: agentCfg.model as string | undefined,
-        apiType: agentCfg.apiType as 'anthropic-messages' | 'openai-completions' | undefined,
-      }
-    : undefined;
+  // Use global provider config if available; otherwise fall back to DeepSeek
+  let modelConfig: { apiKey?: string; baseUrl?: string; model?: string; apiType?: 'anthropic-messages' | 'openai-completions' } | undefined;
+
+  if (agentCfg?.apiKey) {
+    modelConfig = {
+      apiKey: agentCfg.apiKey as string,
+      baseUrl: agentCfg.baseUrl as string | undefined,
+      model: agentCfg.model as string | undefined,
+      apiType: agentCfg.apiType as 'anthropic-messages' | 'openai-completions' | undefined,
+    };
+  } else if (process.env.DEEPSEEK_API_KEY) {
+    // Cron 执行回退到 DeepSeek（Railway env: DEEPSEEK_API_KEY / DEEPSEEK_MODEL）
+    modelConfig = {
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      baseUrl: (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
+      apiType: 'openai-completions',
+    };
+    console.log(`[Cron] Using DeepSeek for job "${job.name}": ${modelConfig.model}`);
+  }
 
   const session = createSession('execute');
 
