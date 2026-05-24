@@ -38,18 +38,6 @@ class AuthService: ObservableObject {
 
     // MARK: - Public API
 
-    /// 邮箱密码登录
-    func signInWithEmail(_ email: String, password: String) async {
-        errorMessage = nil
-        do {
-            let session = try await client.auth.signIn(email: email, password: password)
-            currentUser = session.user
-            isAuthenticated = true
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     /// Google OAuth 登录
     func signInWithGoogle() async {
         errorMessage = nil
