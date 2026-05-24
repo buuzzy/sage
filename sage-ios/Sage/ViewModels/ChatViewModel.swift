@@ -70,7 +70,7 @@ class ChatViewModel: ObservableObject {
     private var retryCount: Int = 0
 
     // ─── 分组状态机 ───────────────────────────────────────────
-    // 收到 text 时暂存到 pendingText；收到 tool_use 时，如果有 pendingText 则创建 TaskGroup
+    // 收到 text 时暂存到 pendingText；收到 tool_use 时用 pendingText 创建/更新 TaskGroup
     private var pendingText: String = ""
     private var currentTaskGroupIndex: Int? = nil // 当前正在累积工具的 TaskGroup 索引
 
@@ -419,25 +419,22 @@ class ChatViewModel: ObservableObject {
         case .text, .directAnswer:
             guard let content = event.content, !content.isEmpty else { return }
 
-            if currentTaskGroupIndex != nil {
-                // 如果当前有 TaskGroup 正在累积工具，说明新的 text 是"下一段"的开始
-                // 关闭当前 TaskGroup
-                closeCurrentTaskGroup()
-            }
+            pendingText += content
 
-            // 追加到 pending text 或追加到已存在的 assistantText group
-            if let lastIdx = lastAssistantTextIndex() {
-                // 追加到已存在的 assistantText
+            if currentTaskGroupIndex != nil {
+                // 工具 card 已存在时先缓存文本：
+                // - 后续出现 tool_use：这段文本替换 card 标题；
+                // - 后续直接 done：这段文本作为最终回答输出。
+                return
+            } else if let lastIdx = lastAssistantTextIndex() {
+                // 工具开始前的文本先流式展示；若随后出现 tool_use，会转为 card 标题。
                 if case .assistantText(let id, let existingContent, _) = displayGroups[lastIdx] {
                     displayGroups[lastIdx] = .assistantText(id: id, content: existingContent + content, isStreaming: true)
                 }
             } else {
-                // 先把 pendingText 输出（如果有未输出的）
-                // 创建新的 assistantText group
                 let newId = UUID()
                 displayGroups.append(.assistantText(id: newId, content: content, isStreaming: true))
             }
-            pendingText += content
 
         case .session:
             if let sid = event.sessionId {
@@ -484,10 +481,17 @@ class ChatViewModel: ObservableObject {
             )
 
             if let taskIdx = currentTaskGroupIndex {
-                // 追加到当前 TaskGroup
+                // 同一轮 Agent 只保留一个 TaskGroup：新工具累加，标题用最新模型执行文本替换。
                 if case .taskGroup(let gId, let title, var tools, _) = displayGroups[taskIdx] {
                     tools.append(toolItem)
-                    displayGroups[taskIdx] = .taskGroup(id: gId, title: title, tools: tools, isComplete: false)
+                    let nextTitle = pendingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    displayGroups[taskIdx] = .taskGroup(
+                        id: gId,
+                        title: nextTitle.isEmpty ? title : nextTitle,
+                        tools: tools,
+                        isComplete: false
+                    )
+                    pendingText = ""
                 }
             } else {
                 // 创建新的 TaskGroup
@@ -530,6 +534,7 @@ class ChatViewModel: ObservableObject {
 
         case .result, .done:
             // 流结束 — 关闭所有 pending 状态
+            flushPendingTextAfterTaskGroup()
             closeCurrentTaskGroup()
 
         default:
@@ -547,6 +552,18 @@ class ChatViewModel: ObservableObject {
             }
         }
         currentTaskGroupIndex = nil
+    }
+
+    /// 若工具结束后最后一段 text 没再触发 tool_use，则它是最终回答，应作为 assistantText 输出。
+    private func flushPendingTextAfterTaskGroup() {
+        guard currentTaskGroupIndex != nil else { return }
+        let text = pendingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            pendingText = ""
+            return
+        }
+        displayGroups.append(.assistantText(id: UUID(), content: text, isStreaming: true))
+        pendingText = ""
     }
 
     /// 将 pendingText 刷出为 assistantText（如果尚未输出）
