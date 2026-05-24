@@ -6,8 +6,12 @@ import Foundation
 class CloudSyncService {
     static let shared = CloudSyncService()
 
-    private let supabaseUrl = "https://wymqgwtagpsjuonsclye.supabase.co"
-    private let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5bXFnd3RhZ3BzanVvbnNjbHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU3OTcwMTUsImV4cCI6MjA1MTM3MzAxNX0.eO7VZFXQ_VeMkTwKI3V1gq-9F5jAqS-y7yJCJy-xEq4"
+    // 复用 AuthService 的 single-source-of-truth；不在这里 hardcode anon key
+    // 之前这里有过一份 2025 年的老 key，Supabase 轮换 JWT secret 后所有
+    // syncSession/syncMessage/restoreSessions/clearAllConversationData 全部 401，
+    // 但因为 catch 块把 HTTPURLResponse error 吞了导致没人发现。
+    private var supabaseUrl: String { AuthService.supabaseURL.absoluteString }
+    private var supabaseAnonKey: String { AuthService.supabaseAnonKey }
 
     private var syncQueue: [(table: String, data: [String: Any])] = []
     private var isSyncing = false

@@ -100,6 +100,7 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(clearDataState == .clearing)
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
 
                     // 退出登录：常规操作，黑色字体（红色留给真正的破坏性操作）
                     Button {
@@ -116,6 +117,7 @@ struct SettingsView: View {
                             Spacer()
                         }
                     }
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 }
                 .listRowBackground(sageListRowBackground)
 
