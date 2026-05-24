@@ -248,9 +248,9 @@ Sage 后端已经有四层连续记忆能力（详见 `src-api/src/shared/memory
 |-----|------|----------|
 | `IWENCAI_API_KEY` | 11 个 iwencai 技能 | `~/.sage/.env` → Tauri sidecar 注入 |
 | `WESTOCK_API_KEY` | 4 个 westock 技能 | 同上 |
-| `MIMO_API_KEY` | Phase 3 persona 蒸馏（Railway 凌晨 2 点 cron） | Railway env only |
-| `MIMO_BASE_URL` | MiMo 入口（默认官方 `api.xiaomimimo.com/v1`） | Railway env only |
-| `MIMO_MODEL` | 蒸馏模型（默认 `mimo-v2-flash`） | Railway env only |
+| `MIMO_API_KEY` | Phase 3 persona 蒸馏 LLM 的 API Key（当前用 DeepSeek） | Railway env only |
+| `MIMO_BASE_URL` | 蒸馏 LLM 入口（当前 `https://api.deepseek.com`） | Railway env only |
+| `MIMO_MODEL` | 蒸馏模型（当前 `deepseek-v4-flash`） | Railway env only |
 | `SAGE_ENABLE_BACKGROUND_JOBS` | 设 `true` 才注册 cron。本地桌面端不设（避免双跑） | Railway env only |
 | `SAGE_API_TOKEN` | 云端 Bearer 鉴权（设了走 token check，未设走 loopback IP 白名单） | Railway env only |
 | `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 优先返回；缺失时用代码内置兜底） | Railway env only |
