@@ -47,6 +47,13 @@
   - v1.5.1: 原生 iOS Skills / MCP / Cron 设置页改用 Railway 后端真实接口，避免误显示空状态
   - v1.5.1: 新增 `/persona/memory` 用户画像接口，原生 iOS 画像页按 Phase 3 嵌套 schema 渲染；定时任务页补系统蒸馏任务说明
   - v1.5.1: 原生 iOS 完成 Gemini 风格首轮重构：DesignSystem、浮层顶栏、胶囊输入框、金融能力 Sheet、轻量抽屉、消息操作行和 artifact 全屏预览
+  - v1.5.1: Railway Docker 镜像补装 `bash` / `python3` / `curl`，修复 Agent Bash 工具 `spawn bash ENOENT` 和技能脚本运行时缺失
+  - v1.5.1: 原生 iOS 蓝白渐变背景全局化，主页/输入栏/全屏侧栏统一融合背景
+  - v1.5.1: 原生 iOS 侧边栏控件、设置首页与设置子页面统一浅蓝玻璃卡片配色
+  - v1.5.1: 原生 iOS 按 Apple HIG/ChatGPT 风格精修 DesignSystem、设置页、能力页和侧边栏组件规格
+  - v1.5.1: 原生 iOS 暗黑模式参考 ChatGPT 调整为纯黑背景、深灰控件和低对比分隔线
+  - v1.5.1: 原生 iOS Supabase Auth 启用 `emitLocalSessionAsInitialSession` 并过滤过期初始 session，清理 Xcode Auth 警告
+  - v1.5.1: 清理原生 iOS Xcode warnings：移除未引用 AppIcon 子资源并修复画像页未使用变量
 
 **仍需环境 / 实机验证**：
 
