@@ -24,8 +24,9 @@ class CronResultPoller {
         let baseUrl = SupabaseConfig.url.absoluteString
         let anonKey = SupabaseConfig.anonKey
 
-        // Query: sessions where platform=cron and created_at > lastCheckAt
-        let urlString = "\(baseUrl)/rest/v1/sessions?user_id=eq.\(userId)&platform=eq.cron&created_at=gt.\(since)&order=created_at.desc&limit=10"
+        // Query: sessions where title starts with [定时] and created_at > lastCheckAt
+        let encodedPrefix = "[定时]".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "[定时]"
+        let urlString = "\(baseUrl)/rest/v1/sessions?user_id=eq.\(userId)&title=like.\(encodedPrefix)*&created_at=gt.\(since)&order=created_at.desc&limit=10"
         guard let url = URL(string: urlString) else { return }
 
         var request = URLRequest(url: url)

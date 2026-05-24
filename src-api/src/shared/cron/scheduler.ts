@@ -155,12 +155,12 @@ async function writeCronResultToSupabase(job: CronJob, output: string): Promise<
   const now = new Date().toISOString();
   const nowPlus1 = new Date(Date.now() + 1).toISOString();
 
-  // 1. Create session
+  // 1. Create session (title prefixed with [定时] for iOS filtering)
   const { error: sessionErr } = await supabase.from('sessions').insert({
     id: sessionId,
     user_id: job.userId,
     title: `[定时] ${job.name}`,
-    platform: 'cron',
+    preview: job.prompt,
     created_at: now,
   });
   if (sessionErr) {
