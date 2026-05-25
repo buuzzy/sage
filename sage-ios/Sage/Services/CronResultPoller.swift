@@ -1,7 +1,7 @@
 import Foundation
 
 /// 轮询 Supabase 检测新的 Cron 执行结果会话
-/// 后端 cron 执行成功后会将结果写入 Supabase sessions + messages 表（platform='cron'）。
+/// 后端 cron 执行成功后会将结果写入 Supabase sessions + messages 表。
 /// 本服务在 App 进入前台时检查是否有新结果，并触发本地通知 + 会话列表刷新。
 class CronResultPoller {
     static let shared = CronResultPoller()
@@ -64,10 +64,14 @@ class CronResultPoller {
                 allSessions.insert(newSession, at: 0)
                 newCount += 1
 
+                // Fetch messages for this session and store locally
+                await fetchAndStoreMessages(sessionId: id, userId: userId, token: token, baseUrl: baseUrl, anonKey: anonKey)
+
                 // Send local notification for each new cron result
+                let preview = dict["preview"] as? String
                 NotificationService.shared.sendCronJobNotification(
                     jobName: title.replacingOccurrences(of: "[定时] ", with: ""),
-                    result: nil
+                    result: preview
                 )
             }
 
@@ -84,6 +88,58 @@ class CronResultPoller {
             lastCheckAt = Date()
         } catch {
             print("[CronPoller] Check failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Fetch messages and store in UserDefaults (same format as ChatViewModel)
+
+    private func fetchAndStoreMessages(sessionId: String, userId: String, token: String, baseUrl: String, anonKey: String) async {
+        // Query messages for this session's task_id
+        let msgUrlString = "\(baseUrl)/rest/v1/messages?task_id=eq.\(sessionId)&user_id=eq.\(userId)&order=created_at.asc"
+        guard let msgUrl = URL(string: msgUrlString) else { return }
+
+        var request = URLRequest(url: msgUrl)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return }
+            guard let messages = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+            if messages.isEmpty { return }
+
+            // Convert to StorableMessage format and save to UserDefaults
+            var storable: [[String: String?]] = []
+            for msg in messages {
+                let type = msg["type"] as? String ?? ""
+                let content = msg["content"] as? String ?? ""
+                // Map Supabase types to ChatViewModel storage types
+                let storageType: String
+                switch type {
+                case "user": storageType = "user"
+                case "text", "assistant": storageType = "assistant_text"
+                default: continue
+                }
+                storable.append(["type": storageType, "content": content])
+            }
+
+            // Encode as JSON matching StorableMessage format
+            let storableData = storable.map { dict -> [String: Any?] in
+                return [
+                    "type": dict["type"] ?? "",
+                    "content": dict["content"] ?? "",
+                    "title": nil as String?,
+                    "toolsJson": nil as String?
+                ]
+            }
+
+            if let jsonData = try? JSONSerialization.data(withJSONObject: storableData) {
+                let key = "sage_messages_\(sessionId)"
+                UserDefaults.standard.set(jsonData, forKey: key)
+                print("[CronPoller] Stored \(messages.count) messages for session \(sessionId)")
+            }
+        } catch {
+            print("[CronPoller] Failed to fetch messages for \(sessionId): \(error.localizedDescription)")
         }
     }
 }

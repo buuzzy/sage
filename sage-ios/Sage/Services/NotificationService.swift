@@ -3,10 +3,15 @@ import UserNotifications
 
 /// iOS 本地推送通知服务
 /// 用于 Cron 任务完成后发送通知
-class NotificationService {
+/// 实现 UNUserNotificationCenterDelegate 确保前台也能显示横幅
+class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationService()
 
-    private init() {}
+    private override init() {
+        super.init()
+        // 设置自己为 delegate，前台时也能显示通知横幅
+        UNUserNotificationCenter.current().delegate = self
+    }
 
     /// 请求通知权限
     func requestPermission() {
@@ -61,5 +66,16 @@ class NotificationService {
     /// 清除角标
     func clearBadge() {
         UNUserNotificationCenter.current().setBadgeCount(0)
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    /// 前台时也显示通知横幅（默认前台不显示）
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge])
     }
 }
