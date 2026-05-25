@@ -24,18 +24,20 @@ struct InputBarView: View {
             }
 
             HStack(alignment: .bottom, spacing: SageTheme.Spacing.xs) {
-                // "+" 按钮 — 黑白配色，与设置/侧边栏 icon 一致；无背景，仅保留点击热区
-                Button {
-                    showAttachMenu = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(SageTheme.ColorToken.iconNeutral)
-                        .frame(width: 38, height: 38)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(isRunning)
+                // "+" 按钮 — 多模态附件入口
+                // 当前隐藏：MiniMax/DeepSeek 不支持图片，展示会误导用户
+                // 等后续模型支持多模态后恢复（代码保留，仅隐藏 UI）
+                // Button {
+                //     showAttachMenu = true
+                // } label: {
+                //     Image(systemName: "plus")
+                //         .font(.system(size: 18, weight: .semibold))
+                //         .foregroundColor(SageTheme.ColorToken.iconNeutral)
+                //         .frame(width: 38, height: 38)
+                //         .contentShape(Rectangle())
+                // }
+                // .buttonStyle(.plain)
+                // .disabled(isRunning)
 
                 // 输入框
                 TextField(placeholder, text: $text, axis: .vertical)
