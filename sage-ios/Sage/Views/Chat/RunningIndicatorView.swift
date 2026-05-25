@@ -55,7 +55,7 @@ struct BouncingDots: View {
         HStack(spacing: 3) {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .fill(Color.primary.opacity(0.7))
+                    .fill(Color.primary.opacity(0.35))
                     .frame(width: 6, height: 6)
                     .offset(y: offsets[index])
             }

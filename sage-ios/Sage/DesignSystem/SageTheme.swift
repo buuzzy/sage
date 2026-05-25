@@ -107,13 +107,8 @@ struct SageSoftCard: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(.ultraThinMaterial)
+            .background(Color(.systemBackground).opacity(0.6))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(SageTheme.ColorToken.hairline, lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.05), radius: 14, x: 0, y: 8)
     }
 }
 

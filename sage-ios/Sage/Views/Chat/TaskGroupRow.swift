@@ -86,15 +86,15 @@ struct TaskGroupRow: View {
         if isComplete {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 16))
-                .foregroundColor(.green)
+                .foregroundColor(Color.primary.opacity(0.5))
         } else {
-            // 蓝色脉冲点 — 执行中
+            // 中性脉冲点 — 执行中
             Circle()
-                .fill(SageTheme.ColorToken.brand)
+                .fill(Color.primary.opacity(0.5))
                 .frame(width: 10, height: 10)
                 .overlay(
                     Circle()
-                        .stroke(SageTheme.ColorToken.brand.opacity(0.4), lineWidth: 2)
+                        .stroke(Color.primary.opacity(0.2), lineWidth: 2)
                         .scaleEffect(1.6)
                 )
                 .frame(width: 16, height: 16)

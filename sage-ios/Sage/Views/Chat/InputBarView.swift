@@ -62,10 +62,14 @@ struct InputBarView: View {
                     Button { send() } label: {
                         Image(systemName: "arrow.up")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(canSend ? .white : Color(.systemGray3))
                             .frame(width: 38, height: 38)
-                            .background(canSend ? Color.primary : Color(.systemGray4))
+                            .background(canSend ? Color.primary : Color.clear)
                             .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(canSend ? Color.clear : Color(.systemGray4), lineWidth: 1.5)
+                            )
                     }
                     .disabled(!canSend)
                 }

@@ -92,15 +92,13 @@ struct AssistantTextRow: View {
     private func actionLabel(icon: String, title: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 11, weight: .medium))
             Text(title)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12, weight: .regular))
         }
-        .foregroundColor(SageTheme.ColorToken.mutedText)
-        .padding(.horizontal, 9)
+        .foregroundColor(Color(.secondaryLabel))
+        .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(SageTheme.ColorToken.surfaceSecondary.opacity(0.72))
-        .clipShape(Capsule())
     }
 }
 
