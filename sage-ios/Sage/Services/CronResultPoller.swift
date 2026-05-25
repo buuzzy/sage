@@ -67,11 +67,12 @@ class CronResultPoller {
                 // Fetch messages for this session and store locally
                 await fetchAndStoreMessages(sessionId: id, userId: userId, token: token, baseUrl: baseUrl, anonKey: anonKey)
 
-                // Send local notification for each new cron result
+                // Send local notification with sessionId for tap-to-navigate
                 let preview = dict["preview"] as? String
                 NotificationService.shared.sendCronJobNotification(
                     jobName: title.replacingOccurrences(of: "[定时] ", with: ""),
-                    result: preview
+                    result: preview,
+                    sessionId: id
                 )
             }
 

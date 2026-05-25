@@ -132,6 +132,16 @@ struct MainView: View {
             sessionListVM.loadSessions()
             chatVM.startNewChat()
         }
+        // 点击推送通知 → 跳转到对应会话
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToSession)) { notification in
+            if let sessionId = notification.userInfo?["sessionId"] as? String {
+                chatVM.loadSession(sessionId)
+                if let session = sessionListVM.sessions.first(where: { $0.id == sessionId }) {
+                    chatVM.currentTitle = session.title
+                }
+                withAnimation(.easeOut(duration: 0.25)) { showSidebar = false }
+            }
+        }
     }
 
     // MARK: - Top Bar
