@@ -17,8 +17,10 @@ class CronResultPoller {
 
     /// 检查 Supabase 中是否有新的 cron 结果会话，有则插入本地 + 发通知
     func checkForNewResults() async {
-        guard let userId = AuthService.shared.userId,
-              let token = await AuthService.shared.getAccessToken() else { return }
+        // AuthService 和 ChatViewModel 是 @MainActor 隔离的，需要在 MainActor 上访问
+        let userId = await MainActor.run { AuthService.shared.userId }
+        let token = await AuthService.shared.getAccessToken()
+        guard let userId, let token else { return }
 
         let since = ISO8601DateFormatter().string(from: lastCheckAt)
         let baseUrl = SupabaseConfig.url.absoluteString
@@ -40,8 +42,8 @@ class CronResultPoller {
             guard let sessions = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
             if sessions.isEmpty { return }
 
-            // Insert new sessions into local storage
-            var allSessions = ChatViewModel.loadAllSessionsFromStorage()
+            // Insert new sessions into local storage (MainActor-isolated)
+            var allSessions = await MainActor.run { ChatViewModel.loadAllSessionsFromStorage() }
             var newCount = 0
 
             for dict in sessions {
@@ -70,7 +72,7 @@ class CronResultPoller {
             }
 
             if newCount > 0 {
-                ChatViewModel.saveAllSessionsToStorage(allSessions)
+                await MainActor.run { ChatViewModel.saveAllSessionsToStorage(allSessions) }
                 // Post notification so UI reloads session list
                 await MainActor.run {
                     NotificationCenter.default.post(name: .cronSessionsUpdated, object: nil)
