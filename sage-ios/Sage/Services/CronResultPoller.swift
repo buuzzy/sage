@@ -93,6 +93,14 @@ class CronResultPoller {
 
     // MARK: - Fetch messages and store in UserDefaults (same format as ChatViewModel)
 
+    /// Matches ChatViewModel's private StorableMessage layout for Codable compatibility
+    private struct CronStorableMessage: Codable {
+        let type: String
+        let content: String?
+        let title: String?
+        let toolsJson: String?
+    }
+
     private func fetchAndStoreMessages(sessionId: String, userId: String, token: String, baseUrl: String, anonKey: String) async {
         // Query messages for this session's task_id
         let msgUrlString = "\(baseUrl)/rest/v1/messages?task_id=eq.\(sessionId)&user_id=eq.\(userId)&order=created_at.asc"
@@ -108,8 +116,8 @@ class CronResultPoller {
             guard let messages = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
             if messages.isEmpty { return }
 
-            // Convert to StorableMessage format and save to UserDefaults
-            var storable: [[String: String?]] = []
+            // Convert to StorableMessage format
+            var storable: [CronStorableMessage] = []
             for msg in messages {
                 let type = msg["type"] as? String ?? ""
                 let content = msg["content"] as? String ?? ""
@@ -120,23 +128,14 @@ class CronResultPoller {
                 case "text", "assistant": storageType = "assistant_text"
                 default: continue
                 }
-                storable.append(["type": storageType, "content": content])
+                storable.append(CronStorableMessage(type: storageType, content: content, title: nil, toolsJson: nil))
             }
 
-            // Encode as JSON matching StorableMessage format
-            let storableData = storable.map { dict -> [String: Any?] in
-                return [
-                    "type": dict["type"] ?? "",
-                    "content": dict["content"] ?? "",
-                    "title": nil as String?,
-                    "toolsJson": nil as String?
-                ]
-            }
-
-            if let jsonData = try? JSONSerialization.data(withJSONObject: storableData) {
+            // Encode with JSONEncoder (matches ChatViewModel's JSONDecoder expectation)
+            if let jsonData = try? JSONEncoder().encode(storable) {
                 let key = "sage_messages_\(sessionId)"
                 UserDefaults.standard.set(jsonData, forKey: key)
-                print("[CronPoller] Stored \(messages.count) messages for session \(sessionId)")
+                print("[CronPoller] Stored \(storable.count) messages for session \(sessionId)")
             }
         } catch {
             print("[CronPoller] Failed to fetch messages for \(sessionId): \(error.localizedDescription)")
