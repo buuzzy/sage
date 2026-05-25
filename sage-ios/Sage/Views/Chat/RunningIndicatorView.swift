@@ -66,12 +66,14 @@ struct BouncingDots: View {
 
     private func startAnimation() {
         for i in 0..<3 {
-            withAnimation(
-                .easeInOut(duration: 0.4)
-                .repeatForever(autoreverses: true)
-                .delay(Double(i) * 0.15)
-            ) {
-                offsets[i] = -4
+            // 每个圆点延迟递增，形成波浪效果
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.15) {
+                withAnimation(
+                    .easeInOut(duration: 0.45)
+                    .repeatForever(autoreverses: true)
+                ) {
+                    offsets[i] = -5
+                }
             }
         }
     }

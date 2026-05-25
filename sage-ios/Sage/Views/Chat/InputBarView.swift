@@ -52,23 +52,23 @@ struct InputBarView: View {
                 if isRunning {
                     Button { onStop() } label: {
                         Image(systemName: "stop.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 11))
+                            .foregroundColor(.primary)
                             .frame(width: 38, height: 38)
-                            .background(Color.primary)
-                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.primary, lineWidth: 1.5)
+                            )
                     }
                 } else {
                     Button { send() } label: {
                         Image(systemName: "arrow.up")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(canSend ? .white : Color(.systemGray3))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(canSend ? .primary : Color(.systemGray3))
                             .frame(width: 38, height: 38)
-                            .background(canSend ? Color.primary : Color.clear)
-                            .clipShape(Circle())
                             .overlay(
                                 Circle()
-                                    .stroke(canSend ? Color.clear : Color(.systemGray4), lineWidth: 1.5)
+                                    .stroke(canSend ? Color.primary : Color(.systemGray4), lineWidth: 1.5)
                             )
                     }
                     .disabled(!canSend)

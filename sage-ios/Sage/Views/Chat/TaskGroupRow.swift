@@ -84,19 +84,14 @@ struct TaskGroupRow: View {
     @ViewBuilder
     private var statusIcon: some View {
         if isComplete {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 16))
-                .foregroundColor(Color.primary.opacity(0.5))
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color(.secondaryLabel))
         } else {
             // 中性脉冲点 — 执行中
             Circle()
-                .fill(Color.primary.opacity(0.5))
-                .frame(width: 10, height: 10)
-                .overlay(
-                    Circle()
-                        .stroke(Color.primary.opacity(0.2), lineWidth: 2)
-                        .scaleEffect(1.6)
-                )
+                .fill(Color(.secondaryLabel))
+                .frame(width: 8, height: 8)
                 .frame(width: 16, height: 16)
         }
     }
