@@ -48,29 +48,25 @@ struct InputBarView: View {
                     .frame(minHeight: 38)
                     .disabled(isRunning)
 
-                // 发送/停止
+                // 发送/停止 — 与 + 号一致的 iconNeutral 风格
                 if isRunning {
                     Button { onStop() } label: {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(.primary)
+                        Image(systemName: "stop.circle")
+                            .font(.system(size: 24, weight: .regular))
+                            .foregroundColor(SageTheme.ColorToken.iconNeutral)
                             .frame(width: 38, height: 38)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.primary, lineWidth: 1.5)
-                            )
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 } else {
                     Button { send() } label: {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(canSend ? .primary : Color(.systemGray3))
+                        Image(systemName: "arrow.up.circle")
+                            .font(.system(size: 24, weight: .regular))
+                            .foregroundColor(canSend ? SageTheme.ColorToken.iconNeutral : Color(.systemGray4))
                             .frame(width: 38, height: 38)
-                            .overlay(
-                                Circle()
-                                    .stroke(canSend ? Color.primary : Color(.systemGray4), lineWidth: 1.5)
-                            )
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .disabled(!canSend)
                 }
             }
