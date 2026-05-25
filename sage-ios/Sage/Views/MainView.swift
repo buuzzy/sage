@@ -242,7 +242,7 @@ struct MainView: View {
     private var chatContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 24) {
                     ForEach(chatVM.displayGroups) { group in
                         displayGroupView(group)
                             .id(group.id)

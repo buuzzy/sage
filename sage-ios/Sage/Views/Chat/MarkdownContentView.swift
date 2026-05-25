@@ -26,8 +26,8 @@ extension MarkdownUI.Theme {
         }
         .paragraph { configuration in
             configuration.label
-                .markdownMargin(top: 0, bottom: 14)
-                .lineSpacing(5)
+                .markdownMargin(top: 0, bottom: 16)
+                .lineSpacing(6)
         }
         // ─── 行内样式 ─────────────────────────────────────
         .strong {

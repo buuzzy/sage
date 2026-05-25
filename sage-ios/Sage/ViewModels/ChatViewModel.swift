@@ -128,7 +128,9 @@ class ChatViewModel: ObservableObject {
         if currentSessionId == nil {
             let newId = UUID().uuidString
             currentSessionId = newId
-            let session = SessionItem(id: newId, title: String(prompt.prefix(30)), lastMessage: prompt, createdAt: Date())
+            let sessionTitle = String(prompt.prefix(30))
+            currentTitle = sessionTitle
+            let session = SessionItem(id: newId, title: sessionTitle, lastMessage: prompt, createdAt: Date())
             onSessionCreated?(session)
             saveSessionToStorage(session)
         }
@@ -672,7 +674,7 @@ class ChatViewModel: ObservableObject {
                 modelConfig: settings.modelConfig,
                 language: "zh-CN"
             )
-            if !title.isEmpty && title != prompt {
+            if !title.isEmpty {
                 currentTitle = title
                 if let sessionId = currentSessionId {
                     onSessionTitleUpdated?(sessionId, title)

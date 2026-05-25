@@ -52,10 +52,10 @@ struct InputBarView: View {
                 if isRunning {
                     Button { onStop() } label: {
                         Image(systemName: "stop.fill")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundColor(.white)
                             .frame(width: 38, height: 38)
-                            .background(Color.red.opacity(0.88))
+                            .background(Color.primary)
                             .clipShape(Circle())
                     }
                 } else {
@@ -64,7 +64,7 @@ struct InputBarView: View {
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
                             .frame(width: 38, height: 38)
-                            .background(canSend ? SageTheme.ColorToken.brand : Color(.systemGray4))
+                            .background(canSend ? Color.primary : Color(.systemGray4))
                             .clipShape(Circle())
                     }
                     .disabled(!canSend)
