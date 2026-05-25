@@ -162,6 +162,7 @@ async function writeCronResultToSupabase(job: CronJob, output: string): Promise<
   const { getServiceSupabase } = await import('@/shared/supabase/client');
   const supabase = getServiceSupabase();
 
+  const { randomUUID } = await import('crypto');
   const { nanoid } = await import('nanoid');
   const sessionId = nanoid(21);
   const now = new Date().toISOString();
@@ -180,9 +181,9 @@ async function writeCronResultToSupabase(job: CronJob, output: string): Promise<
     return;
   }
 
-  // 2. Insert user prompt message
+  // 2. Insert user prompt message (id must be UUID — messages table constraint)
   const { error: msgErr1 } = await supabase.from('messages').insert({
-    id: nanoid(21),
+    id: randomUUID(),
     task_id: sessionId,
     user_id: job.userId,
     type: 'user',
@@ -195,7 +196,7 @@ async function writeCronResultToSupabase(job: CronJob, output: string): Promise<
 
   // 3. Insert agent reply message
   const { error: msgErr2 } = await supabase.from('messages').insert({
-    id: nanoid(21),
+    id: randomUUID(),
     task_id: sessionId,
     user_id: job.userId,
     type: 'text',
