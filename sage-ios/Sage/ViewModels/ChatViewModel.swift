@@ -133,10 +133,18 @@ class ChatViewModel: ObservableObject {
             let session = SessionItem(id: newId, title: sessionTitle, lastMessage: prompt, createdAt: Date())
             onSessionCreated?(session)
             saveSessionToStorage(session)
+            // Sync session to Supabase
+            if let userId = AuthService.shared.userId {
+                CloudSyncService.shared.syncSession(sessionId: newId, title: sessionTitle, userId: userId)
+            }
         }
 
         // Add user message group
         displayGroups.append(.userMessage(id: UUID(), content: prompt))
+        // Sync user message to Supabase
+        if let userId = AuthService.shared.userId, let taskId = currentSessionId {
+            CloudSyncService.shared.syncMessage(taskId: taskId, type: "user", content: prompt, userId: userId)
+        }
 
         // 保存初始 prompt（plan execute 需要）
         if initialPrompt.isEmpty {
@@ -214,6 +222,9 @@ class ChatViewModel: ObservableObject {
 
             // Save messages
             saveMessagesToStorage()
+
+            // Sync assistant response to Supabase
+            syncAssistantMessagesToCloud()
 
             // Generate title for first user message
             let userMessageCount = displayGroups.filter {
@@ -642,6 +653,36 @@ class ChatViewModel: ObservableObject {
         pendingText = ""
     }
 
+    /// 将本轮 assistant 回复同步到 Supabase
+    private func syncAssistantMessagesToCloud() {
+        guard let userId = AuthService.shared.userId,
+              let taskId = currentSessionId else { return }
+
+        // 找到最后一条 user message 之后的所有 assistant 内容
+        var lastUserIdx = -1
+        for (i, group) in displayGroups.enumerated() {
+            if case .userMessage = group { lastUserIdx = i }
+        }
+        guard lastUserIdx >= 0 else { return }
+
+        for i in (lastUserIdx + 1)..<displayGroups.count {
+            switch displayGroups[i] {
+            case .assistantText(_, let content, _):
+                if !content.isEmpty {
+                    CloudSyncService.shared.syncMessage(taskId: taskId, type: "text", content: content, userId: userId)
+                }
+            case .taskGroup(_, let title, let tools, _):
+                // Sync tool calls as summary
+                let toolSummary = tools.map { $0.name }.joined(separator: ", ")
+                CloudSyncService.shared.syncMessage(taskId: taskId, type: "tool_use", content: "[\(title)] \(toolSummary)", userId: userId)
+            case .error(_, let message):
+                CloudSyncService.shared.syncMessage(taskId: taskId, type: "error", content: message, userId: userId)
+            default:
+                break
+            }
+        }
+    }
+
     /// 将 pendingText 刷出为 assistantText（如果尚未输出）
     private func finalizePendingText() {
         // pendingText 在 text 事件中已经通过 lastAssistantTextIndex 实时追加到 displayGroups 了
@@ -755,6 +796,10 @@ class ChatViewModel: ObservableObject {
                 if let sessionId = currentSessionId {
                     onSessionTitleUpdated?(sessionId, title)
                     updateSessionTitleInStorage(sessionId: sessionId, title: title)
+                    // Sync updated title to Supabase
+                    if let userId = AuthService.shared.userId {
+                        CloudSyncService.shared.syncSession(sessionId: sessionId, title: title, userId: userId)
+                    }
                 }
             }
         } catch {
