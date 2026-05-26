@@ -5,7 +5,9 @@ import Combine
 @MainActor
 class SessionListViewModel: ObservableObject {
     @Published var sessions: [SessionItem] = []
+    @Published var isRestoring = false
     private var cancellables = Set<AnyCancellable>()
+    private var hasRestoredFromCloud = false
 
     init() {
         // Listen for cron result updates to refresh session list
@@ -16,8 +18,46 @@ class SessionListViewModel: ObservableObject {
     }
 
     func loadSessions() {
-        // Load from UserDefaults on app launch
+        // Load from UserDefaults
         sessions = ChatViewModel.loadAllSessionsFromStorage()
+
+        // If local is empty and haven't tried cloud restore yet, auto-restore
+        if sessions.isEmpty && !hasRestoredFromCloud {
+            restoreFromCloud()
+        }
+    }
+
+    /// 从 Supabase 恢复会话列表（合并到本地，不覆盖）
+    func restoreFromCloud() {
+        guard !isRestoring else { return }
+        guard let userId = AuthService.shared.userId else { return }
+
+        hasRestoredFromCloud = true
+        isRestoring = true
+
+        Task {
+            let cloudSessions = await CloudSyncService.shared.restoreSessions(userId: userId)
+
+            if !cloudSessions.isEmpty {
+                // Merge: cloud sessions that don't exist locally
+                var localIds = Set(sessions.map { $0.id })
+                var merged = sessions
+                for cs in cloudSessions {
+                    if !localIds.contains(cs.id) {
+                        merged.append(cs)
+                        localIds.insert(cs.id)
+                    }
+                }
+                // Sort by createdAt descending
+                merged.sort { $0.createdAt > $1.createdAt }
+                sessions = merged
+                // Persist merged list locally
+                ChatViewModel.saveAllSessionsToStorage(sessions)
+                print("[SessionList] Restored \(cloudSessions.count) sessions from cloud, merged total: \(sessions.count)")
+            }
+
+            isRestoring = false
+        }
     }
 
     func addSession(_ session: SessionItem) {

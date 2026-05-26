@@ -382,6 +382,78 @@ class ChatViewModel: ObservableObject {
     func loadSession(_ sessionId: String) {
         currentSessionId = sessionId
         loadMessagesFromStorage(sessionId: sessionId)
+
+        // If local storage is empty, try to restore from Supabase
+        if displayGroups.isEmpty {
+            Task { await restoreMessagesFromCloud(sessionId: sessionId) }
+        }
+    }
+
+    /// 从 Supabase 拉取会话消息（当本地无数据时）
+    private func restoreMessagesFromCloud(sessionId: String) async {
+        guard let token = await AuthService.shared.getAccessToken(),
+              let userId = AuthService.shared.userId else { return }
+
+        let supabaseUrl = SupabaseConfig.url.absoluteString
+        let anonKey = SupabaseConfig.anonKey
+
+        // 查询该 session 关联的 task
+        guard let tasksUrl = URL(string: "\(supabaseUrl)/rest/v1/tasks?session_id=eq.\(sessionId)&user_id=eq.\(userId)&select=id&order=created_at.asc") else { return }
+        var tasksReq = URLRequest(url: tasksUrl)
+        tasksReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        tasksReq.setValue(anonKey, forHTTPHeaderField: "apikey")
+
+        guard let (tasksData, tasksResp) = try? await URLSession.shared.data(for: tasksReq),
+              let tasksHttp = tasksResp as? HTTPURLResponse, tasksHttp.statusCode == 200,
+              let tasks = try? JSONSerialization.jsonObject(with: tasksData) as? [[String: Any]] else { return }
+
+        let taskIds = tasks.compactMap { $0["id"] as? String }
+        guard !taskIds.isEmpty else { return }
+
+        // 查询所有 task 的 messages
+        guard let msgsUrl = URL(string: "\(supabaseUrl)/rest/v1/messages?task_id=in.(\(taskIds.joined(separator: ",")))&user_id=eq.\(userId)&order=created_at.asc") else { return }
+        var msgsReq = URLRequest(url: msgsUrl)
+        msgsReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        msgsReq.setValue(anonKey, forHTTPHeaderField: "apikey")
+
+        guard let (msgsData, msgsResp) = try? await URLSession.shared.data(for: msgsReq),
+              let msgsHttp = msgsResp as? HTTPURLResponse, msgsHttp.statusCode == 200,
+              let messages = try? JSONSerialization.jsonObject(with: msgsData) as? [[String: Any]] else { return }
+
+        guard !messages.isEmpty else { return }
+
+        // 转换为 DisplayGroup
+        var groups: [DisplayGroup] = []
+        for msg in messages {
+            let type = msg["type"] as? String ?? ""
+            let content = msg["content"] as? String ?? ""
+
+            switch type {
+            case "user":
+                groups.append(.userMessage(id: UUID(), content: content))
+            case "text", "assistant":
+                if !content.isEmpty {
+                    groups.append(.assistantText(id: UUID(), content: content, isStreaming: false))
+                }
+            case "tool_use":
+                let toolName = msg["tool_name"] as? String ?? "tool"
+                let toolInput = msg["tool_input"] as? String
+                let toolOutput = msg["tool_output"] as? String
+                let tool = ToolCallItem(id: UUID().uuidString, name: toolName, input: toolInput, output: toolOutput, isError: false, isComplete: true)
+                groups.append(.taskGroup(id: UUID(), title: toolName, tools: [tool], isComplete: true))
+            case "error":
+                groups.append(.error(id: UUID(), message: content))
+            default:
+                break
+            }
+        }
+
+        if !groups.isEmpty {
+            displayGroups = groups
+            // Cache locally for next time
+            saveMessagesToStorage()
+            print("[Chat] Restored \(groups.count) messages from cloud for session \(sessionId)")
+        }
     }
 
     // MARK: - Conversation History (多轮对话上下文)
