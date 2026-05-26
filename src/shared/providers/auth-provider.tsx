@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { bindUserId, unbindUser } from '@/shared/db/database';
 import { reloadSettingsForCurrentUser } from '@/shared/db/settings';
+import { USE_LOCAL_SQLITE } from '@/config';
 import { supabase, type Session, type User } from '@/shared/lib/supabase';
 import {
   startMessageSyncWorker,
@@ -198,6 +199,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setDbReady(true);
         // Phase 1: 启动云端双写后台 worker（幂等，已运行则 no-op）
         startMessageSyncWorker();
+        // 当桌面端连接云端后端（不用本地 SQLite）时，首次启动自动从 Supabase 恢复会话历史到 IndexedDB
+        if (!USE_LOCAL_SQLITE) {
+          try {
+            const { restoreCloudConversations } = await import('@/shared/sync/cloud-restore');
+            const { getAllSessions } = await import('@/shared/db/sessions');
+            const localSessions = await getAllSessions();
+            // 只在本地无数据时恢复（避免每次启动都全量拉取）
+            if (localSessions.length === 0) {
+              console.log('[Auth] IndexedDB empty, restoring from Supabase...');
+              const result = await restoreCloudConversations();
+              console.log('[Auth] Cloud restore complete:', result);
+            }
+          } catch (err) {
+            console.warn('[Auth] Cloud restore failed (non-blocking):', err);
+          }
+        }
       } catch (err) {
         console.error('[Auth] bindUserId failed:', err);
         if (!cancelled) {

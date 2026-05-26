@@ -104,40 +104,32 @@ async function getSessionsBaseDir(): Promise<string> {
 
 const AGENT_SERVER_URL = API_BASE_URL;
 
-// ─── 通用请求 header（非 Tauri 时自动注入 Bearer token）─────
-const isTauriEnv =
-  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-
-// Auth strategy for non-Tauri environments (Web):
+// ─── 通用请求 header（所有环境统一注入 Bearer token）─────────
+//
+// Auth strategy (all platforms — Tauri desktop + Web + iOS):
 // 1. Prefer: Supabase JWT from getCurrentAccessToken() (user-scoped)
 // 2. Fallback: VITE_RAILWAY_API_TOKEN env var (for testing/CI)
 //
-// For Railway backend (cloud) deployment, either strategy works:
-// - Supabase JWT: validated against supabase instance
-// - Railway token: validated against SAGE_API_TOKEN environment variable
-//
+// All platforms connect to the same Railway cloud backend.
 // See: CLAUDE.md > API Key 管理 section for token lifecycle
 
 async function getRequestHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  // Non-Tauri (Web) → Railway cloud backend requires Bearer auth
-  if (!isTauriEnv) {
-    // Try Supabase JWT first (preferred for authenticated users)
-    const supabaseToken = await getCurrentAccessToken();
-    if (supabaseToken) {
-      headers['Authorization'] = `Bearer ${supabaseToken}`;
-    } else {
-      // Fallback to environment variable (for testing/CI)
-      const fallbackToken = import.meta.env.VITE_RAILWAY_API_TOKEN;
-      if (fallbackToken) {
-        headers['Authorization'] = `Bearer ${fallbackToken}`;
-        if (!import.meta.env.PROD) {
-          console.warn(
-            '[API] No Supabase token available, using VITE_RAILWAY_API_TOKEN fallback'
-          );
-        }
+  // All environments → Railway cloud backend requires Bearer auth
+  const supabaseToken = await getCurrentAccessToken();
+  if (supabaseToken) {
+    headers['Authorization'] = `Bearer ${supabaseToken}`;
+  } else {
+    // Fallback to environment variable (for testing/CI)
+    const fallbackToken = import.meta.env.VITE_RAILWAY_API_TOKEN;
+    if (fallbackToken) {
+      headers['Authorization'] = `Bearer ${fallbackToken}`;
+      if (!import.meta.env.PROD) {
+        console.warn(
+          '[API] No Supabase token available, using VITE_RAILWAY_API_TOKEN fallback'
+        );
       }
     }
   }

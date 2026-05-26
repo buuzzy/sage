@@ -14,6 +14,7 @@ struct ApiSidecar(Mutex<Option<CommandChild>>);
 /// Load .env file and return key-value pairs.
 /// Supports lines like: KEY=value or KEY="value"
 /// Ignores comments (#) and blank lines.
+#[cfg(not(debug_assertions))]
 fn load_dotenv(path: &std::path::Path) -> Vec<(String, String)> {
     let mut pairs = Vec::new();
     if let Ok(content) = std::fs::read_to_string(path) {
@@ -291,12 +292,36 @@ pub fn run() {
     }
 
     builder
-        .setup(|app| {
-            // In development mode (tauri dev), skip sidecar and use external API server
-            // Run `pnpm dev:api` separately for hot-reload support
-            // In production, spawn the bundled API sidecar
+        .setup(|#[allow(unused)] app| {
+            // ─── Sidecar Launch Strategy ───────────────────────────────────────
+            // Default: desktop connects to Railway cloud backend (same as iOS).
+            // Set SAGE_USE_LOCAL_SIDECAR=1 in ~/.sage/.env to launch local sidecar
+            // (useful for offline dev or low-latency local testing).
             #[cfg(not(debug_assertions))]
             {
+                // Pre-read ~/.sage/.env to check SAGE_USE_LOCAL_SIDECAR before
+                // deciding whether to spawn the sidecar.
+                let use_local_sidecar = {
+                    let mut val = std::env::var("SAGE_USE_LOCAL_SIDECAR")
+                        .unwrap_or_default();
+                    if val.is_empty() {
+                        if let Some(home) = dirs::home_dir() {
+                            let env_path = home.join(".sage").join(".env");
+                            for (k, v) in load_dotenv(&env_path) {
+                                if k == "SAGE_USE_LOCAL_SIDECAR" {
+                                    val = v;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    val == "1" || val.to_lowercase() == "true"
+                };
+
+                if !use_local_sidecar {
+                    println!("[API] Sidecar disabled — using Railway cloud backend.");
+                    println!("[API] Set SAGE_USE_LOCAL_SIDECAR=1 in ~/.sage/.env to use local sidecar.");
+                } else {
                 const API_PORT: u16 = 2026;
 
                 // Kill any existing process on the API port
@@ -455,6 +480,7 @@ pub fn run() {
                         }
                     }
                 });
+                } // end else (use_local_sidecar)
             }
 
             #[cfg(debug_assertions)]

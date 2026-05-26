@@ -23,11 +23,12 @@ macOS 桌面应用的原生壳。管理窗口、sidecar 生命周期、deep-link
 
 ```
 Tauri 启动
-  → lib.rs: load_dotenv() 读 ~/.sage/.env
-  → 以 env 启动 sage-api binary（端口 2026）
+  → lib.rs: 检查 SAGE_USE_LOCAL_SIDECAR 环境变量（预读 ~/.sage/.env）
+  → 默认：跳过 sidecar，桌面端直连 Railway 云端后端
+  → SAGE_USE_LOCAL_SIDECAR=1：启动本地 sage-api binary（端口 2026）
   → WebView 加载前端（localhost:1420 dev / dist/ prod）
-  → 前端通过 127.0.0.1:2026 与 sidecar 通信
-  → App 退出 → sidecar 进程随之终止
+  → 前端通过 Railway URL 或 127.0.0.1:2026 与后端通信
+  → App 退出 → sidecar 进程随之终止（若已启动）
 ```
 
 ## tauri.conf.json 关键配置

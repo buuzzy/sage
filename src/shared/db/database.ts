@@ -2,6 +2,7 @@ import {
   ensureUserDirs,
   getUserDbConnString,
 } from '@/shared/lib/user-scoped-paths';
+import { USE_LOCAL_SQLITE } from '@/config';
 
 export interface BackupImportData {
   sessions?: unknown[];
@@ -408,8 +409,8 @@ async function ensureSchema(db: SqliteHandle): Promise<void> {
  *   - Tauri fs/sql 插件不可用
  */
 export async function bindUserId(uid: string): Promise<void> {
-  // IDB 模式（iOS / 浏览器）也要 track 当前 uid，让 createMessage 等能注入 user_id
-  if (!isTauriSync()) {
+  // IDB 模式（iOS / 浏览器 / 桶面端连接云端时）也要 track 当前 uid，让 createMessage 等能注入 user_id
+  if (!USE_LOCAL_SQLITE || !isTauriSync()) {
     currentUid = uid;
     notifyBindChange();
     return;
@@ -476,7 +477,7 @@ export async function bindUserId(uid: string): Promise<void> {
  * 用于登出流程。
  */
 export async function unbindUser(): Promise<void> {
-  if (!isTauriSync()) {
+  if (!USE_LOCAL_SQLITE || !isTauriSync()) {
     currentUid = null;
     notifyBindChange();
     return;
@@ -508,7 +509,9 @@ export async function unbindUser(): Promise<void> {
 }
 
 export async function getSQLiteDatabase() {
-  if (!isTauriSync()) {
+  // When using cloud backend (Railway), skip SQLite entirely.
+  // All platforms use IndexedDB + Supabase for consistent data.
+  if (!USE_LOCAL_SQLITE || !isTauriSync()) {
     return null;
   }
 

@@ -17,15 +17,31 @@ export const API_PORT = 2026;
 /**
  * API base URL
  *
- * Tauri desktop: connects to local sidecar at localhost:2026
- * Web:           connects to cloud backend via VITE_API_URL env var
+ * Both Tauri desktop and Web connect to the same Railway cloud backend.
+ * This ensures consistent data (sessions, skills, MCP) across all platforms.
+ *
+ * Dev mode: override with VITE_API_URL=http://localhost:2026 if needed.
  */
 const isTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-export const API_BASE_URL = isTauri
-  ? `http://127.0.0.1:${API_PORT}`
-  : import.meta.env.VITE_API_URL || `http://localhost:${API_PORT}`;
+const RAILWAY_URL = 'https://sage-production-28e1.up.railway.app';
+
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL || RAILWAY_URL;
+
+/**
+ * Whether to use local SQLite as the primary data store.
+ *
+ * When connecting to Railway cloud backend, we skip local SQLite and use
+ * IndexedDB + Supabase instead (same as iOS/Web). This ensures session
+ * history is consistent across all platforms.
+ *
+ * Set VITE_USE_LOCAL_SQLITE=1 to force local SQLite (for offline dev).
+ */
+export const USE_LOCAL_SQLITE =
+  import.meta.env.VITE_USE_LOCAL_SQLITE === '1' ||
+  (isTauri && !!import.meta.env.VITE_API_URL);
 
 // =============================================================================
 // App Configuration
