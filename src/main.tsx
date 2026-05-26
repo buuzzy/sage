@@ -8,6 +8,7 @@ import { router } from './app/router';
 import { ErrorBoundary } from './components/error-boundary';
 import { API_BASE_URL } from './config';
 import { initializeSettings } from './shared/db/settings';
+import { installFetchInterceptor } from './shared/lib/api/fetch-interceptor';
 import { AntdThemeProvider } from './shared/providers/antd-theme-provider';
 import { AuthProvider } from './shared/providers/auth-provider';
 import { LanguageProvider } from './shared/providers/language-provider';
@@ -23,6 +24,10 @@ import {
 } from './shared/sync';
 
 import '@/config/style/global.css';
+
+// Install global fetch interceptor to inject Bearer token for all API requests.
+// Must run before any component renders / fetches.
+installFetchInterceptor();
 
 /**
  * 桌面端 sidecar 后台就绪探测。
