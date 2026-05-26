@@ -97,6 +97,53 @@ pnpm format                         # Prettier
 5. GitHub Release 必须上传每个平台的 DMG、`.app.tar.gz`、`.app.tar.gz.sig`、`latest.json`；二进制下载源保持 GitHub。
 6. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本、`darwin-aarch64` / `darwin-x86_64` 平台项与有效签名。
 7. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布。
+8. **若 `build-signed.sh` 因 Apple 公证服务 500 失败**，必须手动补完以下步骤（见下方「手动补签名 + 公证流程」）。
+
+**手动补签名 + 公证流程**（当 `build-signed.sh` 因 Apple 500 失败时）:
+
+```bash
+# ── 前置变量
+BUNDLE_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle"
+APP_PATH="$BUNDLE_DIR/macos/Sage.app"
+IDENTITY="Developer ID Application: YIYANG CAI (QB576QUT2S)"
+ENTITLEMENTS="src-tauri/entitlements.devid.plist"
+API_KEY_PATH="/Users/nakocai/Documents/Projects/项目/Sage/.env/AuthKey_QQKFHN5SQ3.p8"
+
+# 1️⃣ 重新签名（hardened runtime + timestamp，公证必需）
+codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" --entitlements "$ENTITLEMENTS" "$APP_PATH/Contents/MacOS/sage-api"
+codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" --entitlements "$ENTITLEMENTS" "$APP_PATH/Contents/MacOS/sage"
+codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" --entitlements "$ENTITLEMENTS" "$APP_PATH"
+codesign --verify --deep --strict "$APP_PATH"
+
+# 2️⃣ 清除 extended attributes + 打包 tar.gz（必须用 COPYFILE_DISABLE）
+xattr -cr "$APP_PATH"
+COPYFILE_DISABLE=1 tar -czf "$BUNDLE_DIR/macos/Sage.app.tar.gz" -C "$BUNDLE_DIR/macos" Sage.app
+
+# 3️⃣ 签名 tar.gz（Tauri updater 验签用）
+source configs/env/.env.tauri-signing
+pnpm tauri signer sign --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$BUNDLE_DIR/macos/Sage.app.tar.gz"
+
+# 4️⃣ 创建 DMG + 签名
+rm -f "$BUNDLE_DIR/dmg/Sage_<version>_aarch64.dmg"
+hdiutil create -volname "Sage" -srcfolder "$APP_PATH" -ov -format UDZO "$BUNDLE_DIR/dmg/Sage_<version>_aarch64.dmg"
+codesign --force --sign "$IDENTITY" --timestamp "$BUNDLE_DIR/dmg/Sage_<version>_aarch64.dmg"
+
+# 5️⃣ 公证 DMG
+xcrun notarytool submit "$BUNDLE_DIR/dmg/Sage_<version>_aarch64.dmg" \
+  --key "$API_KEY_PATH" --key-id "QQKFHN5SQ3" --issuer "4fd5778f-6e6d-4fd3-8546-fb36937b3036" --wait
+xcrun stapler staple "$BUNDLE_DIR/dmg/Sage_<version>_aarch64.dmg"
+```
+
+**打包严重注意事项**:
+
+| 项目 | 说明 |
+|------|------|
+| `tauri.conf.json` 的 `externalBin` | 只允许 `["../src-api/dist/sage-api"]`。不要加其他二进制（如 codex/claude），否则会报错或膨胀 |
+| `tauri.conf.json` 的 `resources` | 只允许 `{"../src-api/resources": "resources"}`。不要加 `cli-bundle` 等大目录，否则 .app 会从 ~85MB 膨胀到 700MB+ |
+| `COPYFILE_DISABLE=1` | macOS `tar` 默认会打包 `._` AppleDouble 文件，Tauri updater 解包时会报错 `failed to unpack ._Sage.app`。**必须**用 `COPYFILE_DISABLE=1 tar` |
+| `xattr -cr` | 打包前必须清除 extended attributes，否则即使用了 `COPYFILE_DISABLE` 也可能残留问题 |
+| `--options runtime --timestamp` | codesign 必须加这两个参数，否则 Apple 公证会拒绝（"hardened runtime not enabled" / "no secure timestamp"） |
+| 提交前检查 `git diff` | 确认没有意外的 `tauri.conf.json` 改动被带入（尤其是 `externalBin` 和 `resources` 字段） |
 
 **Apple 签名凭据位置**（不入 git，本地机器持有）:
 
@@ -263,6 +310,10 @@ Sage 后端已经有四层连续记忆能力（详见 `src-api/src/shared/memory
 - **Agent 工具循环必须有可见终止语义**：`error_max_turns` 不能让 task 继续保持 running。
 - **Supabase 列类型必须与前端 ID 生成方式一致**：`createTask()` 用 `Date.now().toString()`（TEXT），新建表的 FK 不要误用 UUID。`PostgrestError` 不是 `Error` 实例，序列化时需要特殊处理。
 - **启动体验**：v1.4.15 移除了 blocking startup screen，App 直接进入主 UI，sidecar readiness 异步检查。
+- **Tauri updater 解包失败 `._Sage.app`**：macOS `tar` 默认生成 AppleDouble `._` 文件。打包前必须 `xattr -cr` + `COPYFILE_DISABLE=1 tar`。
+- **App 从 ~40MB 膨胀到 700MB**：`tauri.conf.json` 的 `resources` 或 `externalBin` 被意外添加了大目录/文件。发布前必须检查 `externalBin` 只有 `sage-api`，`resources` 只有 `resources/`。
+- **Apple 公证 500 不影响构建产物**：Tauri 构建 + codesign 已完成，只是公证步骤失败。等 Apple 服务恢复后手动补公证即可，不需要重新构建。
+- **提交前必须 `git diff` 检查 `tauri.conf.json`**：避免将其他分支/实验性改动（externalBin、resources）意外带入 release commit。
 
 ## 待办事项
 
