@@ -92,10 +92,27 @@ pnpm format                         # Prettier
 **固定桌面 release 流程**:
 1. 只有用户明确要求 release，或改动涉及 `src-tauri/tauri.conf.json` / updater / 桌面 sidecar 行为时，才发布新桌面版本。
 2. 先提交功能修复，再用 `./scripts/version.sh <next>` bump 版本并单独提交 `chore: bump version to <next>`。
-3. 发布前必须通过 `pnpm build:api`、`pnpm build`，正式桌面包还必须用本地签名密钥运行 `pnpm build:app:mac-arm:release`；维护 Intel 时同步运行 `pnpm build:app:mac-intel:release`。
-4. GitHub Release 必须上传每个平台的 DMG、`.app.tar.gz`、`.app.tar.gz.sig`、`latest.json`；二进制下载源保持 GitHub。
-5. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本、`darwin-aarch64` / `darwin-x86_64` 平台项与有效签名。
-6. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布。
+3. 打 tag 并推送：`git tag -a v<next> -m "v<next>" && git push origin main && git push origin v<next>`
+4. 本地构建签名 + 公证包：`pnpm build:app:mac-arm:release`（即 `./scripts/build-signed.sh mac-arm`）。
+5. GitHub Release 必须上传每个平台的 DMG、`.app.tar.gz`、`.app.tar.gz.sig`、`latest.json`；二进制下载源保持 GitHub。
+6. Railway `SAGE_UPDATER_MANIFEST_JSON` 是 updater manifest 的权威控制面；发布后必须更新 env、redeploy，并校验 Railway endpoint 和 GitHub fallback endpoint 都返回新版本、`darwin-aarch64` / `darwin-x86_64` 平台项与有效签名。
+7. `src-api/src/app/api/updater.ts` 的 `BUILT_IN_MANIFEST` 只是 env 缺失时的最后兜底，不要依赖它长期发布。
+
+**Apple 签名凭据位置**（不入 git，本地机器持有）:
+
+| 凭据 | 路径 / 值 |
+|------|-----------|
+| Developer ID Application 证书 | Keychain: `Developer ID Application: YIYANG CAI (QB576QUT2S)` |
+| 证书文件备份 | `/Users/nakocai/Documents/Projects/项目/Sage/.env/developerID_application.cer` |
+| Apple API Key (.p8) | `/Users/nakocai/Documents/Projects/项目/Sage/.env/AuthKey_QQKFHN5SQ3.p8` |
+| API Key ID | `QQKFHN5SQ3` |
+| API Issuer ID | `4fd5778f-6e6d-4fd3-8546-fb36937b3036` |
+| Team ID | `QB576QUT2S` |
+| CSR 文件 | `/Users/nakocai/Documents/Projects/项目/Sage/.env/CertificateSigningRequest.certSigningRequest` |
+| Tauri updater 签名密钥 | `configs/env/.env.tauri-signing` (TAURI_SIGNING_PRIVATE_KEY) |
+| MAS Provisioning Profile | `/Users/nakocai/Documents/Projects/项目/Sage/.env/Sage_Mac_App_Store.provisionprofile` |
+
+`build-signed.sh` 自动读取以上凭据完成：codesign → Tauri 构建 → notarytool 公证 → staple。产出的 DMG 用户双击即可安装，无需 `xattr -cr`。
 
 **iOS 端注意**: iOS 现在是 `sage-ios/` SwiftUI 原生客户端，不再使用 Capacitor WebView。改 Swift 代码后用 `pnpm open:ios` 打开 `sage-ios/Sage.xcodeproj`，或用 `pnpm build:ios` 走命令行构建。
 
