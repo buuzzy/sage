@@ -49,16 +49,13 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "../src-api/dist/codex",
-      "../src-api/dist/claude",
       "../src-api/dist/sage-api"
     ],
     "macOS": {
       "entitlements": "entitlements.plist"
     },
     "resources": {
-      "../src-api/resources": "resources",
-      "../src-api/dist/cli-bundle/**/*": "cli-bundle"
+      "../src-api/resources": "resources"
     }
   }
 }
