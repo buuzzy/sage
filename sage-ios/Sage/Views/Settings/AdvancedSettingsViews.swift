@@ -13,6 +13,9 @@ struct PersonaSettingsView: View {
     @State private var riskPreference: String = "-"
     @State private var capabilityLevel: String = "-"
     @State private var lastDistilled: String = "尚未蒸馏"
+    @State private var languagePreference: String?
+    @State private var explanationStyle: String?
+    @State private var responseLength: String?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -25,85 +28,168 @@ struct PersonaSettingsView: View {
                 }
                 .sageListSection()
             } else {
-                // 隐式字段（AI 推断，只读）
-                Section("AI 推断") {
-                    infoRow("风险偏好", value: riskPreference)
-                    infoRow("能力水平", value: capabilityLevel)
-                    infoRow("上次蒸馏", value: lastDistilled)
+                // 顶部：上次更新时间 + 刷新按钮
+                Section {
+                    HStack {
+                        Text("上次更新")
+                            .font(SageTheme.Typography.rowSubtitle)
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                        Spacer()
+                        Text(lastDistilled)
+                            .font(SageTheme.Typography.rowSubtitle)
+                            .foregroundColor(.primary)
+                        Button { loadPersona() } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(SageTheme.ColorToken.brand)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .sageListSection()
 
-                if let behaviorSummary, !behaviorSummary.isEmpty {
-                    Section("行为摘要") {
-                        Text(behaviorSummary)
-                            .font(SageTheme.Typography.rowSubtitle)
-                            .foregroundColor(SageTheme.ColorToken.mutedText)
-                            .lineSpacing(3)
-                    }
-                    .sageListSection()
-                }
+                // Section 1: 你的明确声明（explicit）
+                Section {
+                    Text("Sage 从对话中识别你立的规则、关注与排除。可在此撤销。")
+                        .font(SageTheme.Typography.rowSubtitle)
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                        .lineSpacing(2)
+                        .padding(.vertical, 2)
 
-                // 硬规则（可删除）
-                if !hardRules.isEmpty {
-                    Section("硬规则") {
+                    if !hardRules.isEmpty {
                         ForEach(hardRules) { rule in
                             personaTextRow(rule.content, icon: "checkmark.seal")
                         }
                         .onDelete { offsets in hardRules.remove(atOffsets: offsets) }
                     }
-                    .sageListSection()
-                }
 
-                // 关注领域
-                if !focusAreas.isEmpty {
-                    Section("主动关注") {
+                    if !focusAreas.isEmpty {
                         ForEach(focusAreas) { item in
                             personaTextRow(item.content, icon: "scope")
                         }
                         .onDelete { offsets in focusAreas.remove(atOffsets: offsets) }
                     }
-                    .sageListSection()
-                }
 
-                if !activeFocus.isEmpty {
-                    Section("近期高频关注") {
-                        ForEach(activeFocus) { item in
-                            personaTextRow(item.content, icon: "chart.line.uptrend.xyaxis")
-                        }
-                    }
-                    .sageListSection()
-                }
-
-                // 排除项
-                if !exclusions.isEmpty {
-                    Section("排除项") {
+                    if !exclusions.isEmpty {
                         ForEach(exclusions) { item in
                             personaTextRow(item.content, icon: "minus.circle")
                         }
                         .onDelete { offsets in exclusions.remove(atOffsets: offsets) }
                     }
-                    .sageListSection()
-                }
 
-                if !recentViews.isEmpty {
-                    Section("近期观点") {
-                        ForEach(recentViews) { item in
-                            personaTextRow(item.content, icon: "quote.bubble")
+                    if hardRules.isEmpty && focusAreas.isEmpty && exclusions.isEmpty {
+                        Text("尚无明确声明。在对话中告诉 Sage「以后不要 X」、「我开始研究 Y 了」等表达，蒸馏后会出现在这里。")
+                            .font(SageTheme.Typography.rowSubtitle)
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .lineSpacing(2)
+                            .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("你的明确声明")
+                }
+                .sageListSection()
+
+                // Section 2: Sage 对你的观察（implicit）
+                Section {
+                    Text("基于以往对话蒸馏的画像，由 AI 每天自动更新，仅供参考。")
+                        .font(SageTheme.Typography.rowSubtitle)
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                        .lineSpacing(2)
+                        .padding(.vertical, 2)
+
+                    // 风险偏好 & 能力水平 网格
+                    if riskPreference != "-" || capabilityLevel != "-" {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: SageTheme.Spacing.sm) {
+                            personaGridCell(title: "风险偏好", value: riskPreference)
+                            personaGridCell(title: "能力水平", value: capabilityLevel)
                         }
+                        .padding(.vertical, 4)
                     }
-                    .sageListSection()
-                }
 
-                if hardRules.isEmpty && focusAreas.isEmpty && activeFocus.isEmpty && exclusions.isEmpty && recentViews.isEmpty && behaviorSummary == nil {
-                    Section {
-                        SageEmptyPanel(
-                            icon: "brain",
-                            title: "暂无画像数据",
-                            message: "画像由云端蒸馏任务从对话中自动生成，通常需要完成几轮对话后才会出现",
-                            tone: .brand
-                        )
+                    // 偏好设置网格
+                    if languagePreference != nil || explanationStyle != nil || responseLength != nil {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: SageTheme.Spacing.sm) {
+                            if let lang = languagePreference {
+                                personaGridCell(title: "语言偏好", value: lang)
+                            }
+                            if let style = explanationStyle {
+                                personaGridCell(title: "解释风格", value: style)
+                            }
+                            if let length = responseLength {
+                                personaGridCell(title: "回应详略", value: length)
+                            }
+                        }
+                        .padding(.vertical, 4)
                     }
-                    .sageListSection()
+
+                    // 近期高频关注（标签形式）
+                    if !activeFocus.isEmpty {
+                        VStack(alignment: .leading, spacing: SageTheme.Spacing.xs) {
+                            Text("近期高频关注")
+                                .font(SageTheme.Typography.rowSubtitle)
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                            FlowLayout(spacing: 6) {
+                                ForEach(activeFocus) { item in
+                                    Text(item.content)
+                                        .font(.system(size: 13))
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(SageTheme.ColorToken.controlGlass)
+                                        .cornerRadius(12)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    // 行为摘要（90天）
+                    if let behaviorSummary, !behaviorSummary.isEmpty {
+                        VStack(alignment: .leading, spacing: SageTheme.Spacing.xs) {
+                            Text("行为摘要（90天）")
+                                .font(SageTheme.Typography.rowSubtitle)
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                            Text(behaviorSummary)
+                                .font(SageTheme.Typography.rowSubtitle)
+                                .foregroundColor(.primary)
+                                .lineSpacing(3)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    // 近期观点
+                    if !recentViews.isEmpty {
+                        VStack(alignment: .leading, spacing: SageTheme.Spacing.xs) {
+                            Text("近期观点")
+                                .font(SageTheme.Typography.rowSubtitle)
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                            ForEach(recentViews) { item in
+                                personaTextRow(item.content, icon: "quote.bubble")
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    // 观察类空状态
+                    if riskPreference == "-" && capabilityLevel == "-" && activeFocus.isEmpty && behaviorSummary == nil && recentViews.isEmpty && languagePreference == nil && explanationStyle == nil && responseLength == nil {
+                        Text("画像还没建立。多和 Sage 聊一些金融问题，蒸馏会逐步识别你的偏好。")
+                            .font(SageTheme.Typography.rowSubtitle)
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .lineSpacing(2)
+                            .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("Sage 对你的观察")
+                }
+                .sageListSection()
+
+                // 底部说明
+                Section {
+                    EmptyView()
+                } footer: {
+                    Text("画像由 AI 蒸馏自动产生，每天更新一次。明确声明可在此撤销；观察类信息会跟随你的对话演化。")
+                        .font(SageTheme.Typography.rowSubtitle)
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                        .lineSpacing(2)
                 }
             }
         }
@@ -113,8 +199,19 @@ struct PersonaSettingsView: View {
         .onAppear { loadPersona() }
     }
 
-    private func infoRow(_ title: String, value: String) -> some View {
-        SageKeyValueRow(title: title, value: value)
+    private func personaGridCell(title: String, value: String) -> some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.system(size: 11))
+                .foregroundColor(SageTheme.ColorToken.mutedText)
+            Text(value)
+                .font(SageTheme.Typography.rowTitleEmphasized)
+                .foregroundColor(.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(SageTheme.ColorToken.controlGlass)
+        .cornerRadius(8)
     }
 
     private func personaTextRow(_ content: String, icon: String) -> some View {
@@ -179,6 +276,13 @@ struct PersonaSettingsView: View {
             behaviorSummary = summary
         }
 
+        // preferences
+        if let prefs = implicit?["preferences"] as? [String: Any] {
+            languagePreference = prefs["language"] as? String
+            explanationStyle = prefs["explanation_style"] as? String
+            responseLength = prefs["response_length"] as? String
+        }
+
         if let rules = explicit?["hard_rules"] as? [[String: Any]] {
             hardRules = rules.enumerated().compactMap { idx, rule in
                 guard let content = rule["content"] as? String, !content.isEmpty else { return nil }
@@ -232,6 +336,9 @@ struct PersonaSettingsView: View {
         riskPreference = "-"
         capabilityLevel = "-"
         lastDistilled = "尚未蒸馏"
+        languagePreference = nil
+        explanationStyle = nil
+        responseLength = nil
         errorMessage = nil
     }
 
@@ -253,6 +360,49 @@ struct PersonaSettingsView: View {
 struct PersonaItem: Identifiable {
     let id: String
     let content: String
+}
+
+// MARK: - FlowLayout (Tag Layout Helper)
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > maxWidth && currentX > 0 {
+                currentX = 0
+                currentY += lineHeight + spacing
+                lineHeight = 0
+            }
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        return CGSize(width: maxWidth, height: currentY + lineHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var currentX: CGFloat = bounds.minX
+        var currentY: CGFloat = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > bounds.maxX && currentX > bounds.minX {
+                currentX = bounds.minX
+                currentY += lineHeight + spacing
+                lineHeight = 0
+            }
+            subview.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
+            currentX += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
 }
 
 // MARK: - Cron Settings (定时任务)

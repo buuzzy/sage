@@ -240,6 +240,22 @@ struct ModelSettingsView: View {
                 }
                 .listRowBackground(sageListRowBackground)
             }
+
+            // 添加供应商按钮
+            Section {
+                NavigationLink {
+                    AddProviderView()
+                        .environmentObject(settingsService)
+                } label: {
+                    HStack(spacing: SageTheme.Spacing.sm) {
+                        SageSymbolIcon(systemName: "plus.circle", tone: .brand, size: 17, containerSize: 30)
+                        Text("添加供应商")
+                            .font(SageTheme.Typography.rowTitle)
+                            .foregroundColor(SageTheme.ColorToken.brand)
+                    }
+                }
+                .listRowBackground(sageListRowBackground)
+            }
         }
         .sageSettingsPage()
         .navigationTitle("模型")
@@ -252,6 +268,7 @@ struct ModelSettingsView: View {
         case let id where id.contains("openai"): return "circle.hexagongrid"
         case let id where id.contains("gemini"): return "diamond"
         case let id where id.contains("deepseek"): return "brain"
+        case let id where id.contains("custom"): return "wrench.and.screwdriver"
         default: return "cpu"
         }
     }
@@ -380,6 +397,22 @@ struct ProviderDetailView: View {
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             }
+
+            // 自定义 Provider 显示删除按钮
+            if provider.id.hasPrefix("custom-") {
+                Section {
+                    Button(role: .destructive) { deleteProvider() } label: {
+                        HStack {
+                            Spacer()
+                            Text("删除供应商")
+                                .font(SageTheme.Typography.button)
+                                .foregroundColor(SageIconTone.danger.foreground)
+                            Spacer()
+                        }
+                    }
+                    .listRowBackground(sageListRowBackground)
+                }
+            }
         }
         .sageSettingsPage()
         .navigationTitle(provider.name)
@@ -447,6 +480,147 @@ struct ProviderDetailView: View {
             model: selectedModel,
             apiType: selectedApiType
         )
+        settingsService.save()
+        dismiss()
+    }
+
+    private func deleteProvider() {
+        settingsService.currentSettings.providers.removeAll { $0.id == provider.id }
+        // 如果删除的是默认 provider，重置默认
+        if settingsService.currentSettings.defaultProvider == provider.id {
+            settingsService.currentSettings.defaultProvider = settingsService.currentSettings.providers.first?.id
+            settingsService.currentSettings.defaultModel = settingsService.currentSettings.providers.first?.defaultModel
+            settingsService.currentSettings.modelConfig = nil
+        }
+        settingsService.save()
+        dismiss()
+    }
+}
+
+// MARK: - Add Provider
+
+struct AddProviderView: View {
+    @EnvironmentObject var settingsService: SettingsService
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var baseUrl: String = ""
+    @State private var apiKey: String = ""
+    @State private var modelsText: String = ""
+    @State private var apiType: String = "openai-completions"
+    @State private var showKey = false
+
+    private var isValid: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !baseUrl.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !apiKey.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var body: some View {
+        Form {
+            Section("名称") {
+                TextField("供应商名称", text: $name)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
+            }
+            .listRowBackground(sageListRowBackground)
+
+            Section("Base URL") {
+                TextField("https://api.openai.com/v1", text: $baseUrl)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .font(.system(.body, design: .monospaced))
+            }
+            .listRowBackground(sageListRowBackground)
+
+            Section("API Key") {
+                HStack {
+                    if showKey {
+                        TextField("sk-...", text: $apiKey)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                            .font(.system(.body, design: .monospaced))
+                    } else {
+                        SecureField("sk-...", text: $apiKey)
+                    }
+                    Button { showKey.toggle() } label: {
+                        Image(systemName: showKey ? "eye.slash" : "eye")
+                            .foregroundColor(.secondary)
+                            .frame(width: 44, height: 44)
+                    }
+                }
+            }
+            .listRowBackground(sageListRowBackground)
+
+            Section("模型列表") {
+                TextField("gpt-4o, gpt-4o-mini", text: $modelsText)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
+                    .font(.system(.body, design: .monospaced))
+                Text("多个模型用逗号分隔")
+                    .font(SageTheme.Typography.rowSubtitle)
+                    .foregroundColor(SageTheme.ColorToken.mutedText)
+            }
+            .listRowBackground(sageListRowBackground)
+
+            Section("API 类型") {
+                Picker("类型", selection: $apiType) {
+                    Text("OpenAI 兼容").tag("openai-completions")
+                    Text("Anthropic").tag("anthropic-messages")
+                }
+                .pickerStyle(.segmented)
+            }
+            .listRowBackground(sageListRowBackground)
+
+            Section {
+                Button { saveProvider() } label: {
+                    Text("保存")
+                }
+                .buttonStyle(SagePrimaryButtonStyle())
+                .disabled(!isValid)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
+        }
+        .sageSettingsPage()
+        .navigationTitle("添加供应商")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func saveProvider() {
+        let id = "custom-\(Int(Date().timeIntervalSince1970 * 1000))"
+        let models = modelsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        let provider = ProviderConfig(
+            id: id,
+            name: name.trimmingCharacters(in: .whitespaces),
+            apiKey: apiKey.trimmingCharacters(in: .whitespaces),
+            baseUrl: baseUrl.trimmingCharacters(in: .whitespaces),
+            models: models.isEmpty ? ["default"] : models,
+            defaultModel: models.first,
+            apiType: apiType,
+            icon: "C",
+            canDelete: true
+        )
+
+        settingsService.currentSettings.providers.append(provider)
+
+        // 如果是第一个自定义 provider，自动设为默认
+        let customProviders = settingsService.currentSettings.providers.filter { $0.id.hasPrefix("custom-") }
+        if customProviders.count == 1 {
+            settingsService.currentSettings.defaultProvider = id
+            settingsService.currentSettings.defaultModel = provider.defaultModel
+            settingsService.currentSettings.modelConfig = ModelConfig(
+                apiKey: provider.apiKey,
+                baseUrl: provider.baseUrl,
+                model: provider.defaultModel,
+                apiType: provider.apiType
+            )
+        }
+
         settingsService.save()
         dismiss()
     }
