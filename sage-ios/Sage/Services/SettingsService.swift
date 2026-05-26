@@ -85,7 +85,7 @@ struct ProviderConfig: Codable, Identifiable {
         ProviderConfig(
             id: "deepseek",
             name: "DeepSeek",
-            baseUrl: "https://api.deepseek.com",
+            baseUrl: "https://api.deepseek.com/v1",
             models: ["deepseek-v4-flash", "deepseek-v4-pro"],
             defaultModel: "deepseek-v4-flash",
             apiType: "openai-completions",

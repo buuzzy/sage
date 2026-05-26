@@ -425,16 +425,25 @@ struct ProviderDetailView: View {
         }
     }
 
+    /// 归一化 Base URL：去掉尾部斜杠和可能已存在的 /v1 后缀，再统一拼接标准路径
+    private func normalizeBaseUrl(_ raw: String) -> String {
+        var url = raw
+        while url.hasSuffix("/") { url = String(url.dropLast()) }
+        if url.hasSuffix("/v1") { url = String(url.dropLast(3)) }
+        return url
+    }
+
     private func testConnection() {
         testStatus = .testing
         Task {
             do {
-                let testBaseUrl = baseUrl.isEmpty ? (provider.baseUrl ?? "") : baseUrl
+                let rawBaseUrl = baseUrl.isEmpty ? (provider.baseUrl ?? "") : baseUrl
                 let isAnthropic = selectedApiType == "anthropic-messages"
 
-                // Anthropic Messages API 用 /v1/messages，OpenAI 兼容用 /chat/completions
-                let endpoint = isAnthropic ? "/v1/messages" : "/chat/completions"
-                let url = URL(string: "\(testBaseUrl)\(endpoint)")!
+                // 归一化后统一拼接完整 API 版本路径，兼容所有 provider
+                let normalized = normalizeBaseUrl(rawBaseUrl)
+                let endpoint = isAnthropic ? "/v1/messages" : "/v1/chat/completions"
+                let url = URL(string: "\(normalized)\(endpoint)")!
 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
