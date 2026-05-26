@@ -68,6 +68,10 @@ fi
 # Tauri 在 macOS 上会自动读取 APPLE_SIGNING_IDENTITY 进行 codesign
 export APPLE_SIGNING_IDENTITY="Developer ID Application: YIYANG CAI (QB576QUT2S)"
 
+# Use Developer ID entitlements (NO sandbox — sandbox is MAS-only)
+# The default entitlements.plist has app-sandbox=true which kills the process on launch.
+export TAURI_MACOS_SIGN_ENTITLEMENTS="entitlements.devid.plist"
+
 # Apple Notarization via API Key (faster & more reliable than password)
 APPLE_API_KEY_ID="QQKFHN5SQ3"
 APPLE_API_ISSUER="4fd5778f-6e6d-4fd3-8546-fb36937b3036"
