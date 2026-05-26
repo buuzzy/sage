@@ -35,10 +35,44 @@ index 6c414d9a71617916410d5ae7a3e019202bda4e3f..e7dfc0a3b2ae299bc74fdf94ca5d035c
  /**
   * Hook configuration (from settings).
 diff --git a/dist/providers/openai.js b/dist/providers/openai.js
-index a137c3813dd97d09941742c68ac61d58a0593127..8fe2bc520dbc8da1237d4e7f536cb8f243914771 100644
+index a137c3813dd97d09941742c68ac61d58a0593127..5bed7443ee602b636113f13e79f09a3e65d33389 100644
 --- a/dist/providers/openai.js
 +++ b/dist/providers/openai.js
-@@ -149,6 +149,51 @@ export class OpenAIProvider {
+@@ -104,9 +104,10 @@ export class OpenAIProvider {
+             result.push({ role: 'assistant', content: msg.content });
+             return;
+         }
+-        // Extract text and tool_use blocks
++        // Extract text, tool_use, and thinking blocks
+         const textParts = [];
+         const toolCalls = [];
++        let reasoningContent = null;
+         for (const block of msg.content) {
+             if (block.type === 'text') {
+                 textParts.push(block.text);
+@@ -123,6 +124,10 @@ export class OpenAIProvider {
+                     },
+                 });
+             }
++            else if (block.type === 'thinking') {
++                // Preserve reasoning/thinking content for models that require it
++                reasoningContent = block.thinking || null;
++            }
+         }
+         const assistantMsg = {
+             role: 'assistant',
+@@ -131,6 +136,10 @@ export class OpenAIProvider {
+         if (toolCalls.length > 0) {
+             assistantMsg.tool_calls = toolCalls;
+         }
++        // Pass back reasoning_content for thinking-enabled models (DeepSeek, OpenAI-o, etc.)
++        if (reasoningContent) {
++            assistantMsg.reasoning_content = reasoningContent;
++        }
+         result.push(assistantMsg);
+     }
+     // --------------------------------------------------------------------------
+@@ -149,6 +158,51 @@ export class OpenAIProvider {
      // --------------------------------------------------------------------------
      // Response Conversion: OpenAI → Internal
      // --------------------------------------------------------------------------
@@ -90,11 +124,16 @@ index a137c3813dd97d09941742c68ac61d58a0593127..8fe2bc520dbc8da1237d4e7f536cb8f2
      convertResponse(data) {
          const choice = data.choices[0];
          if (!choice) {
-@@ -159,11 +204,21 @@ export class OpenAIProvider {
+@@ -159,11 +213,26 @@ export class OpenAIProvider {
              };
          }
          const content = [];
 -        // Add text content
++        // Capture reasoning_content from thinking-enabled models (DeepSeek, OpenAI-o, etc.)
++        // This MUST be preserved and passed back in subsequent assistant messages.
++        if (choice.message.reasoning_content) {
++            content.push({ type: 'thinking', thinking: choice.message.reasoning_content });
++        }
 +        // Add text content — but first check for MiniMax inline XML tool calls
          if (choice.message.content) {
 -            content.push({ type: 'text', text: choice.message.content });
@@ -115,7 +154,7 @@ index a137c3813dd97d09941742c68ac61d58a0593127..8fe2bc520dbc8da1237d4e7f536cb8f2
          if (choice.message.tool_calls) {
              for (const tc of choice.message.tool_calls) {
                  let input;
-@@ -185,8 +240,15 @@ export class OpenAIProvider {
+@@ -185,8 +254,15 @@ export class OpenAIProvider {
          if (content.length === 0) {
              content.push({ type: 'text', text: '' });
          }
@@ -133,6 +172,31 @@ index a137c3813dd97d09941742c68ac61d58a0593127..8fe2bc520dbc8da1237d4e7f536cb8f2
          return {
              content,
              stopReason,
+diff --git a/dist/tools/web-search.js b/dist/tools/web-search.js
+index 73644b8deac296b5553c44d6736e93478dba4365..cddaaf57d364b38d92a58649a8abd27d3cfb298b 100644
+--- a/dist/tools/web-search.js
++++ b/dist/tools/web-search.js
+@@ -44,8 +44,19 @@ export const WebSearchTool = defineTool({
+             let match;
+             const links = [];
+             while ((match = resultRegex.exec(html)) !== null) {
+-                const href = match[1];
++                let href = match[1];
+                 const title = match[2].replace(/<[^>]+>/g, '').trim();
++                // DuckDuckGo wraps links via //duckduckgo.com/l/?uddg=<real_url>
++                // Extract the real URL from the uddg parameter
++                if (href.includes('uddg=')) {
++                    try {
++                        const uddgMatch = href.match(/uddg=([^&]*)/);
++                        if (uddgMatch) {
++                            href = decodeURIComponent(uddgMatch[1]);
++                        }
++                    }
++                    catch (e) { /* keep original href */ }
++                }
+                 if (href && title && !href.includes('duckduckgo.com')) {
+                     links.push({ title, url: href });
+                 }
 diff --git a/src/engine.ts b/src/engine.ts
 index 00f186a98049c69742dd89c4f44ddbd435763d64..2202b25d8586a4d1ce8c9a6921dcdaac0fe6a6cd 100644
 --- a/src/engine.ts
@@ -169,30 +233,86 @@ index f7b95d0a325a2fce068b83ce54586bb87388d23a..1c0a3b23f6458aab7b80b8d3c924f1f3
 +  /** Replace the tool output content before it re-enters the LLM conversation */
 +  modifiedOutput?: string
  }
-
+ 
  /**
-diff --git a/dist/tools/web-search.js b/dist/tools/web-search.js
-index 1234567..abcdefg 100644
---- a/dist/tools/web-search.js
-+++ b/dist/tools/web-search.js
-@@ -44,8 +44,19 @@ export const WebSearchTool = defineTool({
-             let match;
-             const links = [];
-             while ((match = resultRegex.exec(html)) !== null) {
--                const href = match[1];
-+                let href = match[1];
-                 const title = match[2].replace(/<[^>]+>/g, '').trim();
-+                // DuckDuckGo wraps links via //duckduckgo.com/l/?uddg=<real_url>
-+                // Extract the real URL from the uddg parameter
-+                if (href.includes('uddg=')) {
-+                    try {
-+                        const uddgMatch = href.match(/uddg=([^&]*)/);
-+                        if (uddgMatch) {
-+                            href = decodeURIComponent(uddgMatch[1]);
-+                        }
-+                    }
-+                    catch (e) { /* keep original href */ }
-+                }
-                 if (href && title && !href.includes('duckduckgo.com')) {
-                     links.push({ title, url: href });
-                 }
+diff --git a/src/providers/openai.ts b/src/providers/openai.ts
+index 81aa68bb3b3b8a0262c4a4c254310bb7b3b6e854..f4c4e9cb7ec99fd7eaea2ab45fb7f326e51ee61f 100644
+--- a/src/providers/openai.ts
++++ b/src/providers/openai.ts
+@@ -26,6 +26,8 @@ interface OpenAIChatMessage {
+   content?: string | null
+   tool_calls?: OpenAIToolCall[]
+   tool_call_id?: string
++  /** DeepSeek / OpenAI-o reasoning output — must be echoed back for thinking models */
++  reasoning_content?: string | null
+ }
+ 
+ interface OpenAIToolCall {
+@@ -54,6 +56,8 @@ interface OpenAIChatResponse {
+       role: 'assistant'
+       content: string | null
+       tool_calls?: OpenAIToolCall[]
++      /** Reasoning/thinking content from thinking-enabled models (DeepSeek, OpenAI-o, etc.) */
++      reasoning_content?: string | null
+     }
+     finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | string
+   }>
+@@ -192,9 +196,10 @@ export class OpenAIProvider implements LLMProvider {
+       return
+     }
+ 
+-    // Extract text and tool_use blocks
++    // Extract text, tool_use, and thinking blocks
+     const textParts: string[] = []
+     const toolCalls: OpenAIToolCall[] = []
++    let reasoningContent: string | null = null
+ 
+     for (const block of msg.content) {
+       if (block.type === 'text') {
+@@ -210,6 +215,9 @@ export class OpenAIProvider implements LLMProvider {
+               : JSON.stringify(block.input),
+           },
+         })
++      } else if (block.type === 'thinking') {
++        // Preserve reasoning/thinking content for models that require it
++        reasoningContent = (block as any).thinking || null
+       }
+     }
+ 
+@@ -222,6 +230,11 @@ export class OpenAIProvider implements LLMProvider {
+       assistantMsg.tool_calls = toolCalls
+     }
+ 
++    // Pass back reasoning_content for thinking-enabled models (DeepSeek, OpenAI-o, etc.)
++    if (reasoningContent) {
++      assistantMsg.reasoning_content = reasoningContent
++    }
++
+     result.push(assistantMsg)
+   }
+ 
+@@ -256,6 +269,12 @@ export class OpenAIProvider implements LLMProvider {
+ 
+     const content: NormalizedResponseBlock[] = []
+ 
++    // Capture reasoning_content from thinking-enabled models (DeepSeek, OpenAI-o, etc.)
++    // This MUST be preserved and passed back in subsequent assistant messages.
++    if (choice.message.reasoning_content) {
++      content.push({ type: 'thinking', thinking: choice.message.reasoning_content } as any)
++    }
++
+     // Add text content
+     if (choice.message.content) {
+       content.push({ type: 'text', text: choice.message.content })
+diff --git a/src/providers/types.ts b/src/providers/types.ts
+index d71eae56b0ee6da2f4c2e7b7605102d33d67b388..99219cb49def18553c287c8739526ad443ce84dd 100644
+--- a/src/providers/types.ts
++++ b/src/providers/types.ts
+@@ -71,6 +71,7 @@ export interface CreateMessageResponse {
+ export type NormalizedResponseBlock =
+   | { type: 'text'; text: string }
+   | { type: 'tool_use'; id: string; name: string; input: any }
++  | { type: 'thinking'; thinking: string }
+ 
+ // --------------------------------------------------------------------------
+ // Provider Interface

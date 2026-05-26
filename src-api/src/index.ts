@@ -231,6 +231,9 @@ async function start() {
   if (!process.env.WESTOCK_API_KEY) {
     console.warn('[Startup] WESTOCK_API_KEY not set — westock skills will fail');
   }
+  if (!process.env.HTSC_APP_KEY) {
+    console.warn('[Startup] HTSC_APP_KEY not set — htsc skills and MCP will fail');
+  }
 
   // Install built-in skills to ~/.sage/skills/
   const { installBuiltinSkills } = await import('@/shared/skills/loader');

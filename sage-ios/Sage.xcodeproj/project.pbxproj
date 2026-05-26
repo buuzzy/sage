@@ -22,7 +22,9 @@
 		6B583865173F1339120311F9 /* SessionListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111321A93E8702484878EC87 /* SessionListViewModel.swift */; };
 		914380C41EFD2E4B3F24C9B4 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB69E085D2785A94448F0943 /* Message.swift */; };
 		9B1AC6465453D6D8028A0E14 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 85A7B46EBBC2C8D7771BA494 /* MarkdownUI */; };
+		9FB1F91041C8C7508911927F /* ErrorReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB04C176A72F85CDFA7206FE /* ErrorReportService.swift */; };
 		AA56D2E62D41F5EBBC3C59BC /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4823D99B23EB6EF1F756052 /* SupabaseConfig.swift */; };
+		AEBCC0A453CDF5F64F7531F0 /* NativeKLineChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17667FB2BEE57EF8196A4C9E /* NativeKLineChartView.swift */; };
 		BD6A7EE7617143F99585E9CE /* AssistantTextRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF5A8963DEA9503B903A8FDF /* AssistantTextRow.swift */; };
 		C167A820DE946235CC2981DF /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = C58F4678ACB6ED1830642DF4 /* Supabase */; };
 		C726F9A7CF656F290E88B94C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5F5E40A859731C554CEC012 /* APIClient.swift */; };
@@ -39,6 +41,7 @@
 
 /* Begin PBXFileReference section */
 		111321A93E8702484878EC87 /* SessionListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListViewModel.swift; sourceTree = "<group>"; };
+		17667FB2BEE57EF8196A4C9E /* NativeKLineChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeKLineChartView.swift; sourceTree = "<group>"; };
 		1E4D5FE1AE1342BA5FB45BAC /* InputBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarView.swift; sourceTree = "<group>"; };
 		261B235D4430C68D81CE4F68 /* AdvancedSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsViews.swift; sourceTree = "<group>"; };
 		3BFEAA4D7A4620B67805156C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -59,6 +62,7 @@
 		B4823D99B23EB6EF1F756052 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		B79DFB16952208376ADC2D9F /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		B8ED8000B2E965ABA3EA381C /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		BB04C176A72F85CDFA7206FE /* ErrorReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorReportService.swift; sourceTree = "<group>"; };
 		CB69E085D2785A94448F0943 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		D27B7EE01C66AB3AAA4A980A /* CloudSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncService.swift; sourceTree = "<group>"; };
 		D5DB2469CC4F53FE7EEDBA51 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -147,6 +151,7 @@
 				B8ED8000B2E965ABA3EA381C /* AuthService.swift */,
 				D27B7EE01C66AB3AAA4A980A /* CloudSyncService.swift */,
 				547DBDFD30DB3D54E8FD2AA6 /* CronResultPoller.swift */,
+				BB04C176A72F85CDFA7206FE /* ErrorReportService.swift */,
 				ADCEEA60168B7DC21805DB87 /* NotificationService.swift */,
 				7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */,
 				B4823D99B23EB6EF1F756052 /* SupabaseConfig.swift */,
@@ -197,6 +202,7 @@
 				DF5A8963DEA9503B903A8FDF /* AssistantTextRow.swift */,
 				1E4D5FE1AE1342BA5FB45BAC /* InputBarView.swift */,
 				FD9EBDF198ED56CE4AC60C3A /* MarkdownContentView.swift */,
+				17667FB2BEE57EF8196A4C9E /* NativeKLineChartView.swift */,
 				DA905465D20ACF67D7612988 /* RunningIndicatorView.swift */,
 				8580F2BE4CB44035E3CA3E4A /* TaskGroupRow.swift */,
 				4F9FF1339C5CC4F9AC93CC1D /* ToolItemRow.swift */,
@@ -307,11 +313,13 @@
 				24B8746173142CFBCB5B50C6 /* ChatViewModel.swift in Sources */,
 				D3D15A9DB3DECA05759D7C0A /* CloudSyncService.swift in Sources */,
 				2FFFC92D23DB92EB1A6BBA94 /* CronResultPoller.swift in Sources */,
+				9FB1F91041C8C7508911927F /* ErrorReportService.swift in Sources */,
 				658CEFC1D9F0A48A85575BA9 /* InputBarView.swift in Sources */,
 				15EB865398B182EF9E0EF19C /* LoginView.swift in Sources */,
 				073859AD5046F6C96AE4D00E /* MainView.swift in Sources */,
 				02522A474D50EA578CE14C82 /* MarkdownContentView.swift in Sources */,
 				914380C41EFD2E4B3F24C9B4 /* Message.swift in Sources */,
+				AEBCC0A453CDF5F64F7531F0 /* NativeKLineChartView.swift in Sources */,
 				C75FDBB75AF22B665FB30185 /* NotificationService.swift in Sources */,
 				C7E81A1E19D336DF40EF22C4 /* RunningIndicatorView.swift in Sources */,
 				FFC9A9D0A482246C12E134F6 /* SageApp.swift in Sources */,

@@ -16,6 +16,32 @@ class SettingsService: ObservableObject {
         } else {
             currentSettings = AppSettings()
         }
+        // 迁移：确保新增的 Provider 出现在列表中
+        migrateNewProviders()
+    }
+
+    /// 将 allDefaults 中新增的 Provider 追加到用户已有列表；同时更新已有 Provider 的模型列表
+    private func migrateNewProviders() {
+        let existingIds = Set(currentSettings.providers.map(\.id))
+        var changed = false
+
+        for (index, defaultProvider) in ProviderConfig.allDefaults.enumerated() {
+            if !existingIds.contains(defaultProvider.id) {
+                // 新 Provider 插入到对应位置
+                let insertAt = min(index, currentSettings.providers.count)
+                currentSettings.providers.insert(defaultProvider, at: insertAt)
+                changed = true
+            } else if let existingIdx = currentSettings.providers.firstIndex(where: { $0.id == defaultProvider.id }) {
+                // 已有 Provider — 更新模型列表（保留用户的 apiKey 和其他自定义配置）
+                let existing = currentSettings.providers[existingIdx]
+                if existing.models != defaultProvider.models {
+                    currentSettings.providers[existingIdx].models = defaultProvider.models
+                    currentSettings.providers[existingIdx].defaultModel = defaultProvider.defaultModel
+                    changed = true
+                }
+            }
+        }
+        if changed { save() }
     }
 
     func save() {
@@ -54,8 +80,19 @@ struct ProviderConfig: Codable, Identifiable {
     var apiKeyUrl: String?
     var canDelete: Bool?
 
-    /// DMG 桌面版全部默认 Provider（8 个）
+    /// DMG 桌面版全部默认 Provider（9 个）
     static let allDefaults: [ProviderConfig] = [
+        ProviderConfig(
+            id: "deepseek",
+            name: "DeepSeek",
+            baseUrl: "https://api.deepseek.com",
+            models: ["deepseek-v4-flash", "deepseek-v4-pro"],
+            defaultModel: "deepseek-v4-flash",
+            apiType: "openai-completions",
+            icon: "D",
+            apiKeyUrl: "https://platform.deepseek.com/api_keys",
+            canDelete: true
+        ),
         ProviderConfig(
             id: "openrouter",
             name: "OpenRouter",

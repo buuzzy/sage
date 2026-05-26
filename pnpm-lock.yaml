@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@codeany/open-agent-sdk@0.2.1':
-    hash: 787683dd6f8866a0ea6334381fcb42e9b26c5b5aefac8f8025ae9960e1fdd9bf
+    hash: eff5d8089a324c0a890c07ec499f59598cfe97f808b84be0234c5109a543fe79
     path: patches/@codeany__open-agent-sdk@0.2.1.patch
 
 importers:
@@ -223,7 +223,7 @@ importers:
         version: 0.78.0(zod@4.3.5)
       '@codeany/open-agent-sdk':
         specifier: ^0.2.1
-        version: 0.2.1(patch_hash=787683dd6f8866a0ea6334381fcb42e9b26c5b5aefac8f8025ae9960e1fdd9bf)
+        version: 0.2.1(patch_hash=eff5d8089a324c0a890c07ec499f59598cfe97f808b84be0234c5109a543fe79)
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.19.9(hono@4.11.4)
@@ -4714,7 +4714,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@codeany/open-agent-sdk@0.2.1(patch_hash=787683dd6f8866a0ea6334381fcb42e9b26c5b5aefac8f8025ae9960e1fdd9bf)':
+  '@codeany/open-agent-sdk@0.2.1(patch_hash=eff5d8089a324c0a890c07ec499f59598cfe97f808b84be0234c5109a543fe79)':
     dependencies:
       '@anthropic-ai/sdk': 0.52.0
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)

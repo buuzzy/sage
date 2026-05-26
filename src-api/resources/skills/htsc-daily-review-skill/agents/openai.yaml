@@ -1,0 +1,3 @@
+interface:
+  display_name: "HTSC Daily Review"
+  short_description: "Query HTSC daily market review and analysis"

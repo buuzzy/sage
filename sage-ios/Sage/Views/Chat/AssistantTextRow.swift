@@ -6,9 +6,10 @@ struct AssistantTextRow: View {
     let content: String
     let isStreaming: Bool
     @State private var cursorVisible = true
+    @State private var reportSubmitted = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             if content.isEmpty && isStreaming {
                 // 等待中的点动画
                 HStack(spacing: 6) {
@@ -22,9 +23,10 @@ struct AssistantTextRow: View {
             } else {
                 let parsed = ArtifactParser.extract(from: content)
 
-                // Artifact 渲染
+                // Artifact 渲染（带上下间距）
                 ForEach(parsed.artifacts, id: \.id) { artifact in
                     ArtifactView(type: artifact.type, jsonData: artifact.jsonData)
+                        .padding(.vertical, 4)
                 }
 
                 // Markdown 渲染 + 流式光标
@@ -67,15 +69,6 @@ struct AssistantTextRow: View {
                 actionLabel(icon: "doc.on.doc", title: "复制")
             }
 
-            // 报告问题
-            Button {
-                // 打开系统分享/反馈（简化版）
-                let feedbackText = "问题反馈:\n\n回答内容:\n\(content.prefix(500))"
-                UIPasteboard.general.string = feedbackText
-            } label: {
-                actionLabel(icon: "exclamationmark.triangle", title: "反馈")
-            }
-
             Button {
                 let parsed = ArtifactParser.extract(from: content)
                 UIPasteboard.general.string = parsed.cleanText
@@ -83,10 +76,38 @@ struct AssistantTextRow: View {
                 actionLabel(icon: "square.and.arrow.up", title: "分享")
             }
 
+            // 提交报错 — 将完整内容上报到 Supabase error_logs
+            Button {
+                submitErrorReport()
+            } label: {
+                if reportSubmitted {
+                    actionLabel(icon: "checkmark.circle", title: "已提交")
+                } else {
+                    actionLabel(icon: "exclamationmark.bubble", title: "提交报错")
+                }
+            }
+            .disabled(reportSubmitted)
+
             Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
+    }
+
+    private func submitErrorReport() {
+        Task {
+            await ErrorReportService.shared.submit(
+                errorType: "user_report",
+                message: "用户主动报错",
+                context: [
+                    "content": String(content.prefix(2000)),
+                    "platform": "ios"
+                ]
+            )
+            await MainActor.run {
+                withAnimation { reportSubmitted = true }
+            }
+        }
     }
 
     private func actionLabel(icon: String, title: String) -> some View {
@@ -177,5 +198,18 @@ struct ArtifactParser {
         let afterOpen = text[lastOpen.upperBound...]
         // Check if there's a closing ``` after the opening
         return !afterOpen.contains("```")
+    }
+
+    /// 清除文本中的 artifact 代码块，返回剩余纯文字（用于 TaskGroup 标题）
+    static func stripArtifactFences(_ text: String) -> String {
+        let pattern = "```artifact:[\\w-]+\\s*\\n[\\s\\S]*?```"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        let nsText = text as NSString
+        let cleaned = regex.stringByReplacingMatches(
+            in: text,
+            range: NSRange(location: 0, length: nsText.length),
+            withTemplate: ""
+        )
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

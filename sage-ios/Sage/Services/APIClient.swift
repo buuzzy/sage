@@ -118,7 +118,17 @@ actor APIClient {
         return try await getJSON(endpoint: "/persona/memory", bearerToken: accessToken)
     }
 
-    // MARK: - SSE Stream Implementation (with background task support)
+    // MARK: - SSE Stream Implementation (with retry + background task support)
+
+    /// 最大自动重试次数
+    private let maxRetries = 2
+    /// 可重试的网络错误码
+    private let retryableErrorCodes: Set<Int> = [
+        -1005, // NSURLErrorNetworkConnectionLost — 网络连接已中断
+        -1001, // NSURLErrorTimedOut — 请求超时
+        -1009, // NSURLErrorNotConnectedToInternet — 无网络
+        -1004, // NSURLErrorCannotConnectToHost — 无法连接服务器
+    ]
 
     private func streamRequest<T: Encodable>(endpoint: String, body: T) -> AsyncThrowingStream<SSEEvent, Error> {
         AsyncThrowingStream { continuation in
@@ -126,12 +136,11 @@ actor APIClient {
                 // 请求后台执行时间（防止切后台时连接被立即杀掉）
                 let bgTaskId = await MainActor.run {
                     UIApplication.shared.beginBackgroundTask(withName: "SageSSEStream") {
-                        // 系统要求结束后台任务时的回调
+                        // 系统要求结束后台任务时的回调 — 不做额外处理，defer 会 endBackgroundTask
                     }
                 }
 
                 defer {
-                    // 结束后台任务
                     Task { @MainActor in
                         if bgTaskId != .invalid {
                             UIApplication.shared.endBackgroundTask(bgTaskId)
@@ -139,53 +148,95 @@ actor APIClient {
                     }
                 }
 
-                do {
-                    let url = URL(string: "\(self.baseURL)\(endpoint)")!
-                    var request = URLRequest(url: url)
-                    request.httpMethod = "POST"
-                    request.setValue("Bearer \(self.apiToken)", forHTTPHeaderField: "Authorization")
-                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.httpBody = try JSONEncoder().encode(body)
-                    // 延长超时 — 长时间流式响应
-                    request.timeoutInterval = 300
+                var lastError: Error?
+                var attempt = 0
 
-                    // 创建支持后台的 URLSession 配置
-                    let config = URLSessionConfiguration.default
-                    config.timeoutIntervalForRequest = 300
-                    config.timeoutIntervalForResource = 600
-                    config.shouldUseExtendedBackgroundIdleMode = true
-                    let session = URLSession(configuration: config)
+                while attempt <= self.maxRetries {
+                    if Task.isCancelled { break }
 
-                    // Use bytes for streaming
-                    let (bytes, response) = try await session.bytes(for: request)
-
-                    guard let httpResponse = response as? HTTPURLResponse else {
-                        throw APIError.invalidResponse
-                    }
-
-                    guard httpResponse.statusCode == 200 else {
-                        throw APIError.httpError(statusCode: httpResponse.statusCode)
-                    }
-
-                    // Parse SSE using lines (correctly handles UTF-8 multi-byte characters)
-                    for try await line in bytes.lines {
+                    // 重试时等待（指数退避：1s, 2s）
+                    if attempt > 0 {
+                        let delay = UInt64(pow(2.0, Double(attempt - 1))) * 1_000_000_000
+                        try? await Task.sleep(nanoseconds: delay)
                         if Task.isCancelled { break }
-                        if line.hasPrefix("data: ") {
-                            let jsonStr = String(line.dropFirst(6))
-                            if let jsonData = jsonStr.data(using: .utf8),
-                               let event = try? self.decoder.decode(SSEEvent.self, from: jsonData) {
-                                continuation.yield(event)
-                                if event.type == .done {
-                                    continuation.finish()
-                                    return
+                    }
+
+                    do {
+                        let url = URL(string: "\(self.baseURL)\(endpoint)")!
+                        var request = URLRequest(url: url)
+                        request.httpMethod = "POST"
+                        request.setValue("Bearer \(self.apiToken)", forHTTPHeaderField: "Authorization")
+                        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        request.httpBody = try JSONEncoder().encode(body)
+                        request.timeoutInterval = 300
+
+                        let config = URLSessionConfiguration.default
+                        config.timeoutIntervalForRequest = 300
+                        config.timeoutIntervalForResource = 600
+                        config.shouldUseExtendedBackgroundIdleMode = true
+                        // 网络切换时允许等待连接恢复
+                        config.waitsForConnectivity = true
+                        let session = URLSession(configuration: config)
+
+                        let (bytes, response) = try await session.bytes(for: request)
+
+                        guard let httpResponse = response as? HTTPURLResponse else {
+                            throw APIError.invalidResponse
+                        }
+
+                        guard httpResponse.statusCode == 200 else {
+                            throw APIError.httpError(statusCode: httpResponse.statusCode)
+                        }
+
+                        // 成功连接 — 开始解析 SSE
+                        // Parse SSE lines
+                        for try await line in bytes.lines {
+                            if Task.isCancelled { break }
+                            if line.hasPrefix("data: ") {
+                                let jsonStr = String(line.dropFirst(6))
+                                if let jsonData = jsonStr.data(using: .utf8),
+                                   let event = try? self.decoder.decode(SSEEvent.self, from: jsonData) {
+                                    continuation.yield(event)
+                                    if event.type == .done {
+                                        continuation.finish()
+                                        return
+                                    }
                                 }
                             }
                         }
+                        // 正常结束（stream exhausted without done event）
+                        continuation.finish()
+                        return
+
+                    } catch {
+                        lastError = error
+
+                        // 判断是否可重试
+                        let nsError = error as NSError
+                        let isRetryable = self.retryableErrorCodes.contains(nsError.code)
+
+                        if isRetryable && attempt < self.maxRetries {
+                            attempt += 1
+                            continue
+                        } else {
+                            // 不可重试或已耗尽重试 — 失败
+                            break
+                        }
                     }
-                    continuation.finish()
-                } catch {
-                    if !Task.isCancelled {
-                        continuation.finish(throwing: error)
+                }
+
+                // 最终失败
+                if !Task.isCancelled {
+                    if let error = lastError {
+                        let nsError = error as NSError
+                        if self.retryableErrorCodes.contains(nsError.code) {
+                            // 网络错误 — 给用户更友好的提示
+                            continuation.finish(throwing: APIError.networkLost)
+                        } else {
+                            continuation.finish(throwing: error)
+                        }
+                    } else {
+                        continuation.finish()
                     }
                 }
             }
@@ -235,6 +286,7 @@ enum APIError: LocalizedError {
     case invalidResponse
     case httpError(statusCode: Int)
     case decodingError(String)
+    case networkLost
 
     var errorDescription: String? {
         switch self {
@@ -244,6 +296,8 @@ enum APIError: LocalizedError {
             return "请求失败 (HTTP \(code))"
         case .decodingError(let msg):
             return "数据解析失败: \(msg)"
+        case .networkLost:
+            return "网络连接不稳定，请检查网络后重试"
         }
     }
 }

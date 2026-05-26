@@ -84,15 +84,38 @@ struct TaskGroupRow: View {
     @ViewBuilder
     private var statusIcon: some View {
         if isComplete {
-            Image(systemName: "checkmark.circle")
+            Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color(.secondaryLabel))
+                .foregroundColor(.green)
         } else {
-            // 中性脉冲点 — 执行中
-            Circle()
-                .fill(Color(.secondaryLabel))
-                .frame(width: 8, height: 8)
+            // 绿色雷达扩散动画 — 执行中
+            RadarPulseView()
                 .frame(width: 16, height: 16)
+        }
+    }
+}
+
+// MARK: - Radar Pulse Animation
+
+private struct RadarPulseView: View {
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            // 外圈扩散
+            Circle()
+                .stroke(Color.green.opacity(animate ? 0 : 0.6), lineWidth: 1.5)
+                .frame(width: animate ? 16 : 6, height: animate ? 16 : 6)
+
+            // 内圈实心点
+            Circle()
+                .fill(Color.green)
+                .frame(width: 6, height: 6)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
+                animate = true
+            }
         }
     }
 }

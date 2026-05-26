@@ -1,0 +1,3 @@
+interface:
+  display_name: "HTSC Valuation"
+  short_description: "Query HTSC valuation models, financial statements, and indicators"

@@ -75,11 +75,25 @@ class AuthService: ObservableObject {
     // MARK: - Private
 
     private func checkSession() async {
+        // 使用超时保护，避免网络不好时启动卡死
+        let timeout: UInt64 = 3_000_000_000 // 3 秒超时
         do {
-            let session = try await client.auth.session
+            let session = try await withThrowingTaskGroup(of: Supabase.Session.self) { group in
+                group.addTask {
+                    try await self.client.auth.session
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: timeout)
+                    throw AuthTimeoutError()
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
             currentUser = session.user
             isAuthenticated = true
         } catch {
+            // 超时或无 session — 不阻塞启动，让用户进登录页或等 authStateChanges 回调
             isAuthenticated = false
         }
         isLoading = false
@@ -114,3 +128,7 @@ class AuthService: ObservableObject {
         isAuthenticated = true
     }
 }
+
+// MARK: - Auth Timeout Error
+
+private struct AuthTimeoutError: Error {}

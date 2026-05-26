@@ -1,0 +1,17 @@
+# 华泰证券研报查询脚本依赖说明
+# 本脚本仅使用 Python 标准库，无需安装任何第三方包
+# 兼容 Python 3.7+
+#
+# 标准库依赖列表（供参考）：
+# - os          : 环境变量读取与文件路径操作
+# - sys         : 标准输入输出与退出码
+# - json        : JSON 序列化与反序列化
+# - argparse    : 命令行参数解析
+# - typing      : 类型注解支持
+# - urllib.request : HTTP POST 请求发送
+# - urllib.error   : HTTP 错误处理
+#
+# 如需在虚拟环境中运行，可直接使用：
+#   python scripts/fetch_reports.py
+#
+# 无需执行 pip install -r requirements.txt

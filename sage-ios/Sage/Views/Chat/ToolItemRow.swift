@@ -16,7 +16,7 @@ struct ToolItemRow: View {
                     .frame(width: 1)
 
                 Circle()
-                    .fill(Color.primary.opacity(0.35))
+                    .fill(Color.green)
                     .frame(width: 5, height: 5)
 
                 if !isLast {
@@ -86,7 +86,7 @@ struct ToolItemRow: View {
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(Color.primary.opacity(0.6))
+                    .foregroundColor(.green)
             }
         } else {
             ProgressView()

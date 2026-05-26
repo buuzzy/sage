@@ -1,0 +1,4 @@
+interface:
+  display_name: "华泰研报查询"
+  short_description: "调用华泰证券RIS接口，按条件获取最新5篇研报"
+  name: "htsc-report-skill"

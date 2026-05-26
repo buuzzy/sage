@@ -1,7 +1,7 @@
 import SwiftUI
 import WebKit
 
-/// Artifact 渲染视图 — 使用 WKWebView + ECharts 渲染金融图表
+/// Artifact 渲染视图 — K 线图使用 Swift Charts 原生渲染，其他类型用 WKWebView + ECharts
 /// 支持的类型：kline-chart, bar-chart, line-chart, quote-card, data-table 等
 struct ArtifactView: View {
     let type: String
@@ -9,40 +9,84 @@ struct ArtifactView: View {
     @State private var showFullScreen = false
 
     var body: some View {
-        Button {
-            showFullScreen = true
-        } label: {
-            VStack(alignment: .leading, spacing: SageTheme.Spacing.sm) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(artifactTitle)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.primary)
-                        Text("点击全屏查看")
-                            .font(.system(size: 12))
-                            .foregroundColor(SageTheme.ColorToken.mutedText)
+        // K 线图走 Swift Charts 原生渲染
+        if type == "kline-chart", let chartData = parseKLineData(jsonData) {
+            Button {
+                showFullScreen = true
+            } label: {
+                VStack(alignment: .leading, spacing: SageTheme.Spacing.sm) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(artifactTitle)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text("点击全屏查看")
+                                .font(.system(size: 12))
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(SageTheme.ColorToken.brand)
+                            .frame(width: 30, height: 30)
+                            .background(SageTheme.ColorToken.brandSoft)
+                            .clipShape(Circle())
                     }
-                    Spacer()
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(SageTheme.ColorToken.brand)
-                        .frame(width: 30, height: 30)
-                        .background(SageTheme.ColorToken.brandSoft)
-                        .clipShape(Circle())
-                }
 
-                ArtifactWebView(type: type, jsonData: jsonData)
-                    .frame(height: compactHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+                    NativeKLineChartView(data: chartData, compact: true)
+                        .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+                }
+                .padding(SageTheme.Spacing.sm)
+                .sageSoftCard(cornerRadius: SageTheme.Radius.lg)
+                .padding(.horizontal, 16)
             }
-            .padding(SageTheme.Spacing.sm)
-            .sageSoftCard(cornerRadius: SageTheme.Radius.lg)
-            .padding(.horizontal, 16)
+            .buttonStyle(.plain)
+            .fullScreenCover(isPresented: $showFullScreen) {
+                NativeKLineFullScreenView(data: chartData)
+            }
+        } else {
+            // 其他 artifact 类型保留 WebView 渲染
+            Button {
+                showFullScreen = true
+            } label: {
+                VStack(alignment: .leading, spacing: SageTheme.Spacing.sm) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(artifactTitle)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text("点击全屏查看")
+                                .font(.system(size: 12))
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(SageTheme.ColorToken.brand)
+                            .frame(width: 30, height: 30)
+                            .background(SageTheme.ColorToken.brandSoft)
+                            .clipShape(Circle())
+                    }
+
+                    ArtifactWebView(type: type, jsonData: jsonData)
+                        .frame(height: compactHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: SageTheme.Radius.md, style: .continuous))
+                }
+                .padding(SageTheme.Spacing.sm)
+                .sageSoftCard(cornerRadius: SageTheme.Radius.lg)
+                .padding(.horizontal, 16)
+            }
+            .buttonStyle(.plain)
+            .fullScreenCover(isPresented: $showFullScreen) {
+                ArtifactFullScreenView(type: type, title: artifactTitle, jsonData: jsonData)
+            }
         }
-        .buttonStyle(.plain)
-        .fullScreenCover(isPresented: $showFullScreen) {
-            ArtifactFullScreenView(type: type, title: artifactTitle, jsonData: jsonData)
-        }
+    }
+
+    /// 解析 K 线 JSON 数据
+    private func parseKLineData(_ json: String) -> KLineChartData? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(KLineChartData.self, from: data)
     }
 
     private var compactHeight: CGFloat {
@@ -206,7 +250,7 @@ struct ArtifactWebView: UIViewRepresentable {
 
                         if (type === 'kline-chart') {
                             const kData = data.klines || data.data || [];
-                            const dates = kData.map(k => k.date || k[0]);
+                            const dates = kData.map(k => k.time || k.date || k[0]);
                             const values = kData.map(k => [k.open || k[1], k.close || k[2], k.low || k[3], k.high || k[4]]);
                             option = {
                                 backgroundColor: 'transparent',

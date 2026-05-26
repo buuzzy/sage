@@ -46,35 +46,31 @@ struct RunningIndicatorView: View {
     }
 }
 
-// MARK: - Bouncing Dots Animation (Gemini style)
+// MARK: - Bouncing Dots Animation (使用 TimelineView 保证动画始终运行)
 
 struct BouncingDots: View {
-    @State private var offsets: [CGFloat] = [0, 0, 0]
-
     var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(Color.primary.opacity(0.35))
-                    .frame(width: 6, height: 6)
-                    .offset(y: offsets[index])
-            }
-        }
-        .frame(width: 24, height: 16)
-        .onAppear { startAnimation() }
-    }
-
-    private func startAnimation() {
-        for i in 0..<3 {
-            // 每个圆点延迟递增，形成波浪效果
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.15) {
-                withAnimation(
-                    .easeInOut(duration: 0.45)
-                    .repeatForever(autoreverses: true)
-                ) {
-                    offsets[i] = -5
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            HStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { index in
+                    let offset = dotOffset(for: index, date: timeline.date)
+                    Circle()
+                        .fill(Color.primary.opacity(0.35))
+                        .frame(width: 6, height: 6)
+                        .offset(y: offset)
                 }
             }
+            .frame(width: 24, height: 16)
         }
     }
+
+    /// 基于时间计算每个圆点的 Y 偏移（正弦波 + 相位差）
+    private func dotOffset(for index: Int, date: Date) -> CGFloat {
+        let elapsed = date.timeIntervalSinceReferenceDate
+        let frequency = 2.5  // 每秒跳动次数
+        let phase = Double(index) * 0.4  // 圆点间相位差
+        let y = sin((elapsed * frequency + phase) * .pi) * 4.0
+        return CGFloat(-max(y, 0))  // 只取正值（向上跳）
+    }
 }
+

@@ -486,7 +486,8 @@ class ChatViewModel: ObservableObject {
                 // 同一轮 Agent 只保留一个 TaskGroup：新工具累加，标题用最新模型执行文本替换。
                 if case .taskGroup(let gId, let title, var tools, _) = displayGroups[taskIdx] {
                     tools.append(toolItem)
-                    let nextTitle = pendingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let rawNextTitle = pendingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let nextTitle = ArtifactParser.stripArtifactFences(rawNextTitle)
                     displayGroups[taskIdx] = .taskGroup(
                         id: gId,
                         title: nextTitle.isEmpty ? title : nextTitle,
@@ -497,8 +498,9 @@ class ChatViewModel: ObservableObject {
                 }
             } else {
                 // 创建新的 TaskGroup
-                // title 取之前累积的 pendingText（AI 描述文字）
-                let title = pendingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                // title 取之前累积的 pendingText（AI 描述文字），清理 artifact 代码块
+                let rawTitle = pendingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let title = ArtifactParser.stripArtifactFences(rawTitle)
 
                 // 如果之前有 assistantText group 作为这个 TaskGroup 的标题，移除它
                 if let lastTextIdx = lastAssistantTextIndex() {
@@ -621,6 +623,8 @@ class ChatViewModel: ObservableObject {
                 return ClassifiedError(category: "network", message: "无效响应", retryable: true)
             case .decodingError(let detail):
                 return ClassifiedError(category: "decode", message: "数据解析失败: \(detail)", retryable: false)
+            case .networkLost:
+                return ClassifiedError(category: "network", message: "网络连接不稳定，请检查网络后重试", retryable: true)
             }
         }
 

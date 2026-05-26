@@ -69,7 +69,7 @@ async function signInWithProvider(provider: 'github' | 'google') {
     // 2. Browsers can't render a sage:// URL, so the tab hangs with a loading bar
     // 3. The Railway page extracts hash params, triggers deep link via JS, and auto-closes
     const callbackUrl =
-      'https://zlclaw-production.up.railway.app/auth/callback';
+      'https://sage-production-28e1.up.railway.app/auth/callback';
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
