@@ -75,3 +75,67 @@ export async function restoreCloudConversations(): Promise<RestoreCloudConversat
     cloudSessions: normalizedSessions.length,
   };
 }
+
+/**
+ * 增量同步：拉取比本地最新 session 更新的数据。
+ * 每次启动调用，不会重复导入已有数据（importBackupData 内部去重）。
+ */
+export async function incrementalCloudSync(): Promise<void> {
+  const { getAllSessions } = await import('@/shared/db/sessions');
+  const localSessions = await getAllSessions();
+
+  // 找到本地最新的 updated_at
+  let latestLocal: string | null = null;
+  if (localSessions.length > 0) {
+    const dates = localSessions
+      .map((s) => s.updated_at || s.created_at)
+      .filter(Boolean) as string[];
+    if (dates.length > 0) {
+      dates.sort();
+      latestLocal = dates[dates.length - 1];
+    }
+  }
+
+  // 从 Supabase 拉取比本地更新的 sessions
+  let sessionsQuery = supabase.from('sessions').select('*').order('updated_at', { ascending: false });
+  if (latestLocal) {
+    sessionsQuery = sessionsQuery.gt('updated_at', latestLocal);
+  }
+  const { data: newSessions, error: sessionsError } = await sessionsQuery;
+  if (sessionsError) {
+    console.warn('[CloudSync] Failed to fetch new sessions:', sessionsError.message);
+    return;
+  }
+
+  if (!newSessions || newSessions.length === 0) {
+    console.log('[CloudSync] No new sessions to sync');
+    return;
+  }
+
+  console.log(`[CloudSync] Found ${newSessions.length} new/updated sessions, syncing...`);
+
+  // 拉取这些 session 关联的 tasks 和 messages
+  const sessionIds = newSessions.map((s: { id: string }) => s.id);
+
+  const [{ data: tasks }, { data: messages }] = await Promise.all([
+    supabase.from('tasks').select('*').in('session_id', sessionIds).order('created_at', { ascending: true }),
+    supabase.from('messages').select('*').in('task_id', sessionIds).order('created_at', { ascending: true }),
+  ]);
+
+  const normalizedSessions = (newSessions as CloudSessionRow[]).map((session) => ({
+    id: session.id,
+    prompt: session.title || session.preview || session.id,
+    task_count: session.message_count ?? 0,
+    created_at: session.created_at ?? session.updated_at,
+    updated_at: session.updated_at ?? session.created_at,
+  }));
+
+  const result = await importBackupData({
+    sessions: normalizedSessions,
+    tasks: tasks ?? [],
+    messages: messages ?? [],
+    files: [],
+  });
+
+  console.log(`[CloudSync] Incremental sync done: ${result.sessions} sessions, ${result.messages} messages`);
+}
