@@ -83,18 +83,7 @@ async function vaultStoreSecret(
   });
 
   if (error) {
-    // 如果 vault_insert_secret RPC 不存在，fallback 到直接 SQL
-    // Supabase Vault 提供 vault.create_secret() SQL 函数
-    const { data: sqlData, error: sqlError } = await sb.rpc('create_vault_secret', {
-      secret_value: apiKey,
-      secret_name: name,
-      secret_description: `API Key for user ${userId} provider ${providerKind}`,
-    });
-
-    if (sqlError) {
-      throw new Error(`[user-store] Failed to store secret in Vault: ${sqlError.message}`);
-    }
-    return sqlData as string;
+    throw new Error(`[user-store] Failed to store secret in Vault: ${error.message}`);
   }
 
   return data as string;
