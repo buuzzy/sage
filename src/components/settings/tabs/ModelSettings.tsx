@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/config';
 import { cn } from '@/shared/lib/utils';
 import { useLanguage } from '@/shared/providers/language-provider';
+import { useCloudProviders } from '@/shared/hooks/useCloudProviders';
+import { BUILTIN_PROVIDER_TEMPLATES, type ProviderTemplate } from '@/shared/sync/providers-sync';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
@@ -147,6 +149,10 @@ export function ModelSettings({
   const [searchQuery, setSearchQuery] = useState('');
   const { t, tt } = useLanguage();
 
+  // Cloud providers hook — 云端数据源
+  const cloud = useCloudProviders();
+  const [selectedTemplate, setSelectedTemplate] = useState<ProviderTemplate | null>(null);
+
   // Detect connection states for "Add Provider" form
   const [detectStatus, setDetectStatus] = useState<
     'idle' | 'loading' | 'success' | 'error'
@@ -159,7 +165,22 @@ export function ModelSettings({
   >('idle');
   const [editDetectMessage, setEditDetectMessage] = useState('');
 
-  const selectedProvider = settings.providers.find(
+  // 数据源切换：云端可用时用云端数据，否则 fallback 到本地 settings
+  const effectiveProviders: AIProvider[] = cloud.isAuthenticated
+    ? cloud.providers.map((cp) => ({
+        id: cp.id,
+        name: cp.display_name,
+        apiKey: '••••••••', // 云端不返回明文 key，用占位符表示已配置
+        baseUrl: cp.base_url,
+        enabled: cp.enabled,
+        models: cp.models as string[],
+        defaultModel: cp.default_model || undefined,
+        apiType: cp.api_type,
+        canDelete: true,
+      }))
+    : settings.providers;
+
+  const selectedProvider = effectiveProviders.find(
     (p) => p.id === editingProvider
   );
 
@@ -286,12 +307,12 @@ export function ModelSettings({
   };
 
   // Get all available models from enabled providers
-  const availableModels = settings.providers
+  const availableModels = effectiveProviders
     .filter((p) => p.enabled && p.apiKey)
     .flatMap((p) => p.models.map((m) => ({ provider: p, model: m })));
 
   // Sort providers: enabled first, then configured, then others
-  const sortedProviders = [...settings.providers]
+  const sortedProviders = [...effectiveProviders]
     .filter(
       (p) =>
         !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -304,10 +325,29 @@ export function ModelSettings({
       return 0;
     });
 
-  const handleProviderUpdate = (
+  const handleProviderUpdate = async (
     providerId: string,
     updates: Partial<AIProvider>
   ) => {
+    // 云端模式
+    if (cloud.isAuthenticated) {
+      try {
+        const patch: Record<string, unknown> = {};
+        if (updates.name !== undefined) patch.display_name = updates.name;
+        if (updates.apiType !== undefined) patch.api_type = updates.apiType;
+        if (updates.baseUrl !== undefined) patch.base_url = updates.baseUrl;
+        if (updates.models !== undefined) patch.models = updates.models;
+        if (updates.defaultModel !== undefined) patch.default_model = updates.defaultModel;
+        if (updates.apiKey !== undefined) patch.api_key = updates.apiKey;
+        if (updates.enabled !== undefined) patch.enabled = updates.enabled;
+        await cloud.update(providerId, patch);
+      } catch (err) {
+        console.error('[ModelSettings] Cloud update failed:', err);
+      }
+      return;
+    }
+
+    // Fallback: 本地模式
     const newProviders = settings.providers.map((p) => {
       if (p.id !== providerId) return p;
       const updated = { ...p, ...updates };
@@ -319,9 +359,34 @@ export function ModelSettings({
     onSettingsChange({ ...settings, providers: newProviders });
   };
 
-  const handleAddProvider = () => {
+  const handleAddProvider = async () => {
     if (!newProvider.name || !newProvider.baseUrl) return;
 
+    // 云端模式：调用 cloud API
+    if (cloud.isAuthenticated) {
+      try {
+        const template = selectedTemplate;
+        await cloud.create({
+          provider_kind: template?.kind || 'custom',
+          display_name: newProvider.name,
+          api_type: newProvider.apiType,
+          base_url: newProvider.baseUrl,
+          endpoint_path: template?.endpoint_path || (newProvider.apiType === 'anthropic-messages' ? '/v1/messages' : '/v1/chat/completions'),
+          models: newProvider.models.split(',').map(m => m.trim()).filter(m => m),
+          default_model: newProvider.models.split(',').map(m => m.trim()).filter(m => m)[0] || undefined,
+          api_key: newProvider.apiKey,
+          is_default: cloud.providers.length === 0,
+        });
+      } catch (err) {
+        console.error('[ModelSettings] Cloud create failed:', err);
+      }
+      setNewProvider({ name: '', baseUrl: '', apiKey: '', models: '', apiType: 'openai-completions' });
+      setShowAddProvider(false);
+      setSelectedTemplate(null);
+      return;
+    }
+
+    // Fallback: 本地模式
     const id = `custom-${Date.now()}`;
     const models = newProvider.models
       .split(',')
@@ -361,7 +426,21 @@ export function ModelSettings({
     setEditingProvider(id);
   };
 
-  const handleDeleteProvider = (providerId: string) => {
+  const handleDeleteProvider = async (providerId: string) => {
+    // 云端模式
+    if (cloud.isAuthenticated) {
+      try {
+        await cloud.remove(providerId);
+      } catch (err) {
+        console.error('[ModelSettings] Cloud delete failed:', err);
+      }
+      if (editingProvider === providerId) {
+        setEditingProvider(null);
+      }
+      return;
+    }
+
+    // Fallback: 本地模式
     const newProviders = settings.providers.filter((p) => p.id !== providerId);
 
     let newSettings = { ...settings, providers: newProviders };
@@ -594,6 +673,39 @@ export function ModelSettings({
             {/* Content */}
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
               <div className="space-y-4">
+                {/* 品牌下拉选择（云端模式下显示） */}
+                {cloud.isAuthenticated && (
+                  <div className="flex flex-col gap-2">
+                    <label className="text-foreground block text-sm font-medium">
+                      选择品牌
+                    </label>
+                    <select
+                      value={selectedTemplate?.kind || 'custom'}
+                      onChange={(e) => {
+                        const tmpl = BUILTIN_PROVIDER_TEMPLATES.find(t => t.kind === e.target.value) || null;
+                        setSelectedTemplate(tmpl);
+                        if (tmpl) {
+                          setNewProvider({
+                            name: tmpl.name,
+                            baseUrl: tmpl.base_url,
+                            apiKey: newProvider.apiKey,
+                            models: tmpl.models.join(', '),
+                            apiType: tmpl.api_type,
+                          });
+                        } else {
+                          setNewProvider({ name: '', baseUrl: '', apiKey: newProvider.apiKey, models: '', apiType: 'openai-completions' });
+                        }
+                      }}
+                      className="border-input bg-background text-foreground focus:ring-ring h-10 w-full appearance-none rounded-lg border px-3 text-sm focus:ring-2 focus:outline-none"
+                    >
+                      {BUILTIN_PROVIDER_TEMPLATES.map((tmpl) => (
+                        <option key={tmpl.kind} value={tmpl.kind}>{tmpl.name}</option>
+                      ))}
+                      <option value="custom">自定义</option>
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-2">
                   <label className="text-foreground block text-sm font-medium">
                     {t.settings.providerName}
