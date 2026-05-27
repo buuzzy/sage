@@ -230,7 +230,7 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
             语言
           </h2>
           <div className="border-border divide-border flex divide-x rounded-xl border">
-            {(['zh', 'en'] as const).map((lang) => (
+            {(['zh-CN', 'en-US'] as const).map((lang) => (
               <button
                 key={lang}
                 onClick={() => setLanguage(lang)}
@@ -240,7 +240,7 @@ export function MobileSettings({ onClose }: MobileSettingsProps) {
                     : 'text-muted-foreground'
                 }`}
               >
-                {lang === 'zh' ? '中文' : 'English'}
+                {lang === 'zh-CN' ? '中文' : 'English'}
               </button>
             ))}
           </div>

@@ -996,8 +996,6 @@ function extractArtifacts(messages: AgentMessage[]): Artifact[] {
 }
 
 export {
-  ToolUsage,
-  WorkingFile,
   getFileIconByExt,
   getArtifactTypeByExt,
   getToolIcon,
@@ -1009,7 +1007,6 @@ export {
   FileTreeItem,
   EmptyState,
   CollapsibleSection,
-  SkillsDirInfo,
   extractUsedSkillNames,
   extractExternalFolders,
   getFileIcon,
@@ -1017,4 +1014,4 @@ export {
   extractArtifacts,
   fetchSkillsDirs,
 };
-export type { RightSidebarProps };
+export type { ToolUsage, WorkingFile, SkillsDirInfo, RightSidebarProps };

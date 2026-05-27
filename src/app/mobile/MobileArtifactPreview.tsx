@@ -15,8 +15,8 @@ import { useRef, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { ChevronDown, Download, Share2, X } from 'lucide-react';
 
-import { ArtifactRenderer } from '@/components/artifacts/ArtifactRenderer';
-import type { Artifact } from '@/components/artifacts/types';
+import { ArtifactRenderer } from '@/components/htui/ArtifactRenderer';
+import type { Artifact } from '@/shared/types/artifact';
 
 interface MobileArtifactPreviewProps {
   artifact: Artifact;
@@ -68,9 +68,7 @@ export function MobileArtifactPreview({
   };
 
   // Get artifact file extension for display
-  const fileExt = artifact.filename
-    ? artifact.filename.split('.').pop()?.toLowerCase()
-    : artifact.type;
+  const fileExt = artifact.type;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 animate-in fade-in">
@@ -101,7 +99,7 @@ export function MobileArtifactPreview({
             {/* Title and type */}
             <div className="flex-1 min-w-0">
               <p className="text-foreground text-sm font-medium truncate">
-                {artifact.filename || 'Artifact'}
+                {artifact.type || 'Artifact'}
               </p>
               <p className="text-muted-foreground text-xs">
                 {artifact.type} {fileExt && `• ${fileExt.toUpperCase()}`}
@@ -122,9 +120,7 @@ export function MobileArtifactPreview({
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="p-4">
             <ArtifactRenderer
-              artifact={artifact}
-              onClose={onClose}
-              isCompact={true}
+              artifacts={[artifact]}
             />
           </div>
         </div>
@@ -146,10 +142,10 @@ export function MobileArtifactPreview({
           {['html', 'code', 'json'].includes(fileExt || '') && (
             <button
               onClick={() => {
-                if (navigator.share && artifact.code) {
+                if (navigator.share) {
                   navigator.share({
-                    title: artifact.filename,
-                    text: artifact.code,
+                    title: artifact.type,
+                    text: JSON.stringify(artifact.data),
                   }).catch(err => console.log('Share failed:', err));
                 }
               }}

@@ -959,7 +959,7 @@ export function useAgent(): UseAgentReturn {
                   (data.type === 'text' && Boolean(data.content?.trim())) ||
                   data.type === 'tool_use' ||
                   data.type === 'tool_result' ||
-                  data.type === 'permission_request' ||
+                  (data as AgentMessage).type === 'permission_request' ||
                   data.type === 'error'
                 ) {
                   sawVisibleStreamOutput = true;

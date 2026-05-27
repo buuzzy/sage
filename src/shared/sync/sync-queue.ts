@@ -17,7 +17,7 @@ import { uuidv7 } from 'uuidv7';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type SyncOperation = 'insert' | 'update' | 'delete';
+export type SyncOperation = 'insert' | 'update' | 'delete' | 'upsert';
 
 export interface SyncQueueRow {
   id: string;
