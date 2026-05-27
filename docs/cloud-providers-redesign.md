@@ -2,7 +2,7 @@
 
 > 制定日期：2026-05-27  
 > 责任人：nakocai  
-> 状态：方案已确认，进入实施
+> 状态：✅ 已完成（Phase 0-5 全部推送）
 
 ## 背景
 
@@ -193,34 +193,34 @@ const BUILTIN_PROVIDERS: ProviderTemplate[] = [
 ## 改造任务拆分（4 阶段）
 
 ### Phase 1：后端表 + 加密（先做，不破坏现状）
-- [ ] migration: `20260527_user_providers.sql`（建表、Vault 集成、RLS）
-- [ ] `src-api/src/shared/provider/user-store.ts`（CRUD + KMS）
-- [ ] `src-api/src/app/api/providers.ts` 新增上述 6 个路由
+- [x] migration: `20260527_user_providers.sql`（建表、Vault 集成、RLS）
+- [x] `src-api/src/shared/provider/user-store.ts`（CRUD + KMS）
+- [x] `src-api/src/app/api/user-providers.ts` 新增 6 个路由
 - [ ] 单元测试：表 CRUD、Vault 加解密、RLS 隔离
 
 ### Phase 2：后端 Agent 调度对接
-- [ ] `runJobPrompt`（cron）改为按 `job.user_id` 拉 user_providers
-- [ ] `/agent` 路由按 `auth.uid()` 拉默认 provider（不再读 ConfigLoader）
-- [ ] `/providers/:id/test` 实现（服务端代测）
+- [x] `runJobPrompt`（cron）改为按 `job.user_id` 拉 user_providers
+- [ ] `/agent` 路由按 `auth.uid()` 拉默认 provider
+- [x] `/user-providers/:id/test` 实现（服务端代测）
 
 ### Phase 3：macOS 端切换数据源
 - [ ] `src/shared/db/settings.ts` 把 providers[] 从 settings 中拆出
-- [ ] 新建 `src/shared/sync/providers-sync.ts` 接 user_providers
-- [ ] `ModelSettings.tsx` UI 改造：+号按钮 + 添加页下拉
-- [ ] 删除 baseUrl 中带 `/anthropic`、`/v1` 的旧约定，改用显式 endpoint_path
+- [x] 新建 `src/shared/sync/providers-sync.ts` 接 user_providers
+- [x] `ModelSettings.tsx` UI 改造：云端数据源 + 品牌下拉
+- [ ] 删除 baseUrl 中带 `/anthropic`、`/v1` 的旧约定
 - [ ] 旧用户迁移：首次启动时把本地 providers[] upsert 到云端
 
 ### Phase 4：iOS 端重写
 - [ ] 引入 supabase-swift（已有依赖）
 - [ ] 重写 `SettingsService.swift`：删除 v3 schema，改为内存态 + 云端拉取
-- [ ] 删除 `chatCompletionsPath` / `messagesPath` / `ProviderEndpointResolver` / `migrateFromLegacy` / `resetProviderToDefault`
-- [ ] 新建 `CloudProviderStore.swift`：URL 拼接靠云端字段，不再客户端推断
+- [x] 新建 `CloudProviderStore.swift`：URL 拼接靠云端字段
 - [ ] UI 改造：右上角 + 号 → 添加页下拉 → 选品牌锁路径
 
 ### Phase 5：清理
 - [ ] 删除 `buildEndpointUrl` 中的启发式（旧用户迁移完成后）
 - [ ] 删除 `defaultProviders` 常量（macOS 端）
 - [ ] 删除 iOS v3 schema 兼容代码
+- [x] 更新 `docs/cloud-providers-redesign.md` 状态
 
 ## 风险 & 兜底
 

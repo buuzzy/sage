@@ -32,7 +32,10 @@ index.ts (Hono server 入口)
 | /feishu/event | feishu.ts | POST | 飞书事件回调 |
 | /health | health.ts | GET | 健康检查 |
 | /skills | skills.ts | GET/POST | 技能管理 |
-| /providers | providers.ts | GET/POST | 模型 provider 配置 |
+| /providers | providers.ts | GET/POST | 模型 provider 配置（旧，本地模式） |
+| /user-providers | user-providers.ts | GET/POST/PATCH/DELETE | 云端 provider CRUD + Vault 加密 |
+| /user-providers/:id/default | user-providers.ts | POST | 设为默认 provider |
+| /user-providers/:id/test | user-providers.ts | POST | 服务端代测连通性 |
 | /cron | cron.ts | GET/POST/DELETE | 定时任务管理 |
 | /files | files.ts | GET/POST | 文件管理 + GitHub skill 导入 |
 | /sandbox | sandbox.ts | POST | 沙箱执行 |
