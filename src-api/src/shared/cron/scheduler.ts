@@ -101,28 +101,59 @@ async function runJobPrompt(job: CronJob): Promise<string> {
   // Dynamically import to avoid circular dependency at module load time
   const { createSession, runAgent } = await import('@/shared/services/agent');
 
-  const providerManager = getProviderManager();
-  const agentCfg = providerManager.getConfig().agent?.config as Record<string, unknown> | undefined;
-
-  // Use global provider config if available; otherwise fall back to DeepSeek
   let modelConfig: { apiKey?: string; baseUrl?: string; model?: string; apiType?: 'anthropic-messages' | 'openai-completions' } | undefined;
 
-  if (agentCfg?.apiKey) {
-    modelConfig = {
-      apiKey: agentCfg.apiKey as string,
-      baseUrl: agentCfg.baseUrl as string | undefined,
-      model: agentCfg.model as string | undefined,
-      apiType: agentCfg.apiType as 'anthropic-messages' | 'openai-completions' | undefined,
-    };
-  } else if (process.env.DEEPSEEK_API_KEY) {
-    // Cron 执行回退到 DeepSeek（Railway env: DEEPSEEK_API_KEY / DEEPSEEK_MODEL）
-    modelConfig = {
-      apiKey: process.env.DEEPSEEK_API_KEY,
-      baseUrl: (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
-      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
-      apiType: 'openai-completions',
-    };
-    console.log(`[Cron] Using DeepSeek for job "${job.name}": ${modelConfig.model}`);
+  // Phase 2: 优先从 user_providers 拉用户配置（云端化）
+  if (job.userId) {
+    try {
+      const { getDefaultProvider } = await import('@/shared/provider/user-store');
+      const provider = await getDefaultProvider(job.userId);
+      if (provider && provider.api_key) {
+        // 从 endpoint_path 中去掉尾部的 /messages 或 /chat/completions，拼出 SDK 需要的 baseUrl
+        const pathSuffix = provider.api_type === 'anthropic-messages' ? '/messages' : '/chat/completions';
+        let sdkBaseUrl = provider.base_url.replace(/\/+$/, '');
+        const fullPath = provider.endpoint_path.replace(/\/+$/, '');
+        // SDK 需要的是不含最终 endpoint 的 base（如 https://api.deepseek.com/anthropic/v1）
+        if (fullPath.endsWith(pathSuffix)) {
+          sdkBaseUrl += fullPath.slice(0, -pathSuffix.length);
+        } else {
+          sdkBaseUrl += fullPath;
+        }
+        modelConfig = {
+          apiKey: provider.api_key,
+          baseUrl: sdkBaseUrl,
+          model: provider.default_model || undefined,
+          apiType: provider.api_type,
+        };
+        console.log(`[Cron] Using user provider "${provider.display_name}" for job "${job.name}": ${modelConfig.model}`);
+      }
+    } catch (err) {
+      console.warn(`[Cron] Failed to load user provider for job "${job.name}":`, err);
+    }
+  }
+
+  // Fallback: 全局 provider manager 配置
+  if (!modelConfig) {
+    const providerManager = getProviderManager();
+    const agentCfg = providerManager.getConfig().agent?.config as Record<string, unknown> | undefined;
+
+    if (agentCfg?.apiKey) {
+      modelConfig = {
+        apiKey: agentCfg.apiKey as string,
+        baseUrl: agentCfg.baseUrl as string | undefined,
+        model: agentCfg.model as string | undefined,
+        apiType: agentCfg.apiType as 'anthropic-messages' | 'openai-completions' | undefined,
+      };
+    } else if (process.env.DEEPSEEK_API_KEY) {
+      // 最终兜底：Railway env DEEPSEEK_API_KEY（将在后续版本移除）
+      modelConfig = {
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        baseUrl: (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
+        model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
+        apiType: 'openai-completions',
+      };
+      console.log(`[Cron] Fallback to env DEEPSEEK_API_KEY for job "${job.name}": ${modelConfig.model}`);
+    }
   }
 
   const session = createSession('execute');
