@@ -81,6 +81,7 @@ supabase/.temp/
 /docs/*
 # …但发布流程文档进仓库（团队协作 / 换机器 / CI 参考点）
 !/docs/RELEASE.md
+!/docs/cloud-providers-redesign.md
 
 *.pkg
 *.provisionprofile
@@ -94,6 +95,7 @@ github-recovery-codes*.txt
 *.cer
 *.mobileprovision
 sage-ios/.build/
+sage-ios/build/
 
 # Xcode user-specific state (per-developer noise; should not be tracked)
 **/xcuserdata/

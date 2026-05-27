@@ -1,13 +1,25 @@
 import Foundation
 
-/// 本地设置管理 — Provider 列表和 DMG 桌面版完全一致
+/// 本地设置管理（Phase 0 — 最小骨架版）
+///
+/// 仅作为云端化改造期间的占位实现。未来 Phase 4 会把 providers 数据源换成 Supabase
+/// `user_providers` 表，本类将被 CloudProviderStore 接管。当前版本只满足：
+/// 1. 现有 ViewModel 引用的 `currentSettings.modelConfig / defaultProvider / providers / theme` 不爆
+/// 2. 简单 UserDefaults 持久化
+/// 3. 提供 7 家内置 Provider 的最终端点表（一次到位，避免后面再迁移）
+///
+/// 已删除的旧逻辑（Phase 0 清理）：
+/// - chatCompletionsPath / messagesPath（无效字段）
+/// - ProviderEndpointResolver（启发式拼接）
+/// - migrateFromLegacy / sage_settings_v2/v3 schema bump
+/// - resetProviderToDefault（兜底按钮）
 class SettingsService: ObservableObject {
     static let shared = SettingsService()
 
     @Published var currentSettings: AppSettings
 
     private let defaults = UserDefaults.standard
-    private let settingsKey = "sage_settings_v2"
+    private let settingsKey = "sage_settings_v4"
 
     private init() {
         if let data = defaults.data(forKey: settingsKey),
@@ -16,31 +28,32 @@ class SettingsService: ObservableObject {
         } else {
             currentSettings = AppSettings()
         }
-        // 迁移：确保新增的 Provider 出现在列表中
-        migrateNewProviders()
+        // 始终把内置 Provider 列表对齐到最新默认（保留用户已填的 apiKey）
+        reconcileBuiltinProviders()
     }
 
-    /// 将 allDefaults 中新增的 Provider 追加到用户已有列表；同时更新已有 Provider 的模型列表
-    private func migrateNewProviders() {
-        let existingIds = Set(currentSettings.providers.map(\.id))
+    /// 把内置 Provider 列表对齐到最新默认值，保留用户已填的 apiKey 和 defaultModel。
+    private func reconcileBuiltinProviders() {
         var changed = false
-
-        for (index, defaultProvider) in ProviderConfig.allDefaults.enumerated() {
-            if !existingIds.contains(defaultProvider.id) {
-                // 新 Provider 插入到对应位置
-                let insertAt = min(index, currentSettings.providers.count)
-                currentSettings.providers.insert(defaultProvider, at: insertAt)
-                changed = true
-            } else if let existingIdx = currentSettings.providers.firstIndex(where: { $0.id == defaultProvider.id }) {
-                // 已有 Provider — 更新模型列表（保留用户的 apiKey 和其他自定义配置）
-                let existing = currentSettings.providers[existingIdx]
-                if existing.models != defaultProvider.models {
-                    currentSettings.providers[existingIdx].models = defaultProvider.models
-                    currentSettings.providers[existingIdx].defaultModel = defaultProvider.defaultModel
-                    changed = true
+        var newProviders: [ProviderConfig] = []
+        for builtin in ProviderConfig.allDefaults {
+            if let userCopy = currentSettings.providers.first(where: { $0.id == builtin.id }) {
+                var merged = builtin
+                merged.apiKey = userCopy.apiKey
+                if let m = userCopy.defaultModel, builtin.models.contains(m) {
+                    merged.defaultModel = m
                 }
+                newProviders.append(merged)
+                if merged != userCopy { changed = true }
+            } else {
+                newProviders.append(builtin)
+                changed = true
             }
         }
+        // 保留用户自定义 provider（custom-*）
+        let customs = currentSettings.providers.filter { $0.id.hasPrefix("custom-") }
+        newProviders.append(contentsOf: customs)
+        currentSettings.providers = newProviders
         if changed { save() }
     }
 
@@ -67,8 +80,9 @@ struct AppSettings: Codable {
     var providers: [ProviderConfig] = ProviderConfig.allDefaults
 }
 
-/// Provider 配置 — 和 DMG 桌面版 defaultProviders 完全一致
-struct ProviderConfig: Codable, Identifiable {
+/// Provider 配置（Phase 0 简化版 — 不再含 chatCompletionsPath/messagesPath，
+/// 路径拼接交给后端 buildEndpointUrl 处理）
+struct ProviderConfig: Codable, Identifiable, Equatable {
     var id: String
     var name: String
     var apiKey: String?
@@ -80,98 +94,88 @@ struct ProviderConfig: Codable, Identifiable {
     var apiKeyUrl: String?
     var canDelete: Bool?
 
-    /// DMG 桌面版全部默认 Provider（9 个）
+    /// 7 家内置 Provider + 终端端点（已逐家核对官方文档 2026-05-27）
+    /// baseUrl 形态遵循后端 `buildEndpointUrl` 约定：直接附带版本路径，testConnection
+    /// 时拼 /chat/completions 或 /messages 即可。
     static let allDefaults: [ProviderConfig] = [
+        // —— Anthropic 协议 ——
         ProviderConfig(
             id: "deepseek",
             name: "DeepSeek",
-            baseUrl: "https://api.deepseek.com/v1",
+            baseUrl: "https://api.deepseek.com/anthropic/v1",
             models: ["deepseek-v4-flash", "deepseek-v4-pro"],
             defaultModel: "deepseek-v4-flash",
-            apiType: "openai-completions",
+            apiType: "anthropic-messages",
             icon: "D",
             apiKeyUrl: "https://platform.deepseek.com/api_keys",
             canDelete: true
         ),
         ProviderConfig(
-            id: "openrouter",
-            name: "OpenRouter",
-            baseUrl: "https://openrouter.ai/api",
-            models: ["anthropic/claude-sonnet-4.5", "anthropic/claude-opus-4.5"],
-            apiType: "openai-completions",
-            icon: "O",
-            apiKeyUrl: "https://openrouter.ai/keys",
-            canDelete: true
-        ),
-        ProviderConfig(
             id: "minimax",
             name: "MiniMax",
-            baseUrl: "https://api.minimaxi.com/anthropic",
-            models: ["MiniMax-M2", "MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.7", "MiniMax-M2.7-highspeed"],
-            defaultModel: "MiniMax-M2",
+            baseUrl: "https://api.minimaxi.com/anthropic/v1",
+            models: ["MiniMax-M2", "MiniMax-M2.5", "MiniMax-M2.7"],
+            defaultModel: "MiniMax-M2.7",
             apiType: "anthropic-messages",
             icon: "M",
             apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan?code=9hgHKlPO3G&source=link",
             canDelete: true
         ),
         ProviderConfig(
-            id: "zai",
-            name: "Z.ai",
-            baseUrl: "https://api.z.ai/api/anthropic",
-            models: ["glm-4.7"],
+            id: "zhipu",
+            name: "智谱 BigModel",
+            baseUrl: "https://open.bigmodel.cn/api/anthropic/v1",
+            models: ["glm-5.1", "glm-5-turbo", "glm-4.7"],
+            defaultModel: "glm-5.1",
             apiType: "anthropic-messages",
             icon: "Z",
-            apiKeyUrl: "https://z.ai/subscribe?ic=7YS469UOXD",
+            apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys",
             canDelete: true
         ),
         ProviderConfig(
             id: "volcengine",
-            name: "Volcengine",
-            baseUrl: "https://ark.cn-beijing.volces.com/api/coding",
+            name: "火山方舟",
+            baseUrl: "https://ark.cn-beijing.volces.com/api/coding/v1",
             models: ["ark-code-latest"],
-            apiType: "openai-completions",
+            defaultModel: "ark-code-latest",
+            apiType: "anthropic-messages",
             icon: "V",
             apiKeyUrl: "https://volcengine.com/L/Sq5rSgyFu_E",
             canDelete: true
         ),
-        ProviderConfig(
-            id: "302ai",
-            name: "302.AI",
-            baseUrl: "https://api.302.ai/cc",
-            models: ["claude-sonnet-4-5-20250929"],
-            apiType: "anthropic-messages",
-            icon: "3",
-            apiKeyUrl: "https://302.ai/?utm_source=sage_desktop",
-            canDelete: true
-        ),
-        ProviderConfig(
-            id: "ollama",
-            name: "Ollama",
-            baseUrl: "http://localhost:11434",
-            models: ["glm-4.7-flash"],
-            apiType: "openai-completions",
-            icon: "O",
-            apiKeyUrl: "https://docs.ollama.com/integrations/claude-code",
-            canDelete: true
-        ),
+
+        // —— OpenAI 协议 ——
         ProviderConfig(
             id: "siliconflow",
             name: "SiliconFlow",
-            baseUrl: "https://api.siliconflow.com/",
+            baseUrl: "https://api.siliconflow.cn/v1",
             models: ["MiniMaxAI/MiniMax-M2.1", "zai-org/GLM-4.7"],
+            defaultModel: "zai-org/GLM-4.7",
             apiType: "openai-completions",
             icon: "S",
-            apiKeyUrl: "https://cloud.siliconflow.com/me/account/ak",
+            apiKeyUrl: "https://cloud.siliconflow.cn/me/account/ak",
             canDelete: true
         ),
         ProviderConfig(
             id: "kimi",
             name: "Kimi (Moonshot)",
             baseUrl: "https://api.moonshot.cn/v1",
-            models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+            models: ["kimi-k2.6", "moonshot-v1-32k", "moonshot-v1-128k"],
+            defaultModel: "kimi-k2.6",
             apiType: "openai-completions",
             icon: "K",
             apiKeyUrl: "https://platform.moonshot.cn/console/api-keys",
+            canDelete: true
+        ),
+        ProviderConfig(
+            id: "qwen",
+            name: "通义千问",
+            baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            models: ["qwen3.6-plus", "qwen-plus", "qwen-turbo"],
+            defaultModel: "qwen3.6-plus",
+            apiType: "openai-completions",
+            icon: "Q",
+            apiKeyUrl: "https://bailian.console.aliyun.com/?apiKey=1",
             canDelete: true
         ),
     ]

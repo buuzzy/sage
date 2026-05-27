@@ -425,14 +425,6 @@ struct ProviderDetailView: View {
         }
     }
 
-    /// 归一化 Base URL：去掉尾部斜杠和可能已存在的 /v1 后缀，再统一拼接标准路径
-    private func normalizeBaseUrl(_ raw: String) -> String {
-        var url = raw
-        while url.hasSuffix("/") { url = String(url.dropLast()) }
-        if url.hasSuffix("/v1") { url = String(url.dropLast(3)) }
-        return url
-    }
-
     private func testConnection() {
         testStatus = .testing
         Task {
@@ -440,10 +432,16 @@ struct ProviderDetailView: View {
                 let rawBaseUrl = baseUrl.isEmpty ? (provider.baseUrl ?? "") : baseUrl
                 let isAnthropic = selectedApiType == "anthropic-messages"
 
-                // 归一化后统一拼接完整 API 版本路径，兼容所有 provider
-                let normalized = normalizeBaseUrl(rawBaseUrl)
-                let endpoint = isAnthropic ? "/v1/messages" : "/v1/chat/completions"
-                let url = URL(string: "\(normalized)\(endpoint)")!
+                // baseUrl 已遵循后端 buildEndpointUrl 约定（包含版本路径），
+                // 这里只需直接拼端点 suffix。/v1 自动插入由后端在真实聊天时处理。
+                let suffix = isAnthropic ? "/messages" : "/chat/completions"
+                let trimmed = rawBaseUrl.hasSuffix("/") ? String(rawBaseUrl.dropLast()) : rawBaseUrl
+                guard let url = URL(string: trimmed + suffix), !trimmed.isEmpty else {
+                    testStatus = .failure("Base URL 为空或格式错误")
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    testStatus = .idle
+                    return
+                }
 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
@@ -451,7 +449,6 @@ struct ProviderDetailView: View {
                 request.timeoutInterval = 15
 
                 if isAnthropic {
-                    // Anthropic 协议用 x-api-key header
                     request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
                     request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
                 } else {
@@ -464,7 +461,8 @@ struct ProviderDetailView: View {
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
                     testStatus = .success
                 } else {
-                    testStatus = .failure("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    testStatus = .failure("HTTP \(code)（请求 URL：\(url.absoluteString)）")
                 }
             } catch {
                 testStatus = .failure(error.localizedDescription)
