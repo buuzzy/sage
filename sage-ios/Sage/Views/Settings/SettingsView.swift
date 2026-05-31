@@ -963,6 +963,8 @@ struct CloudAddProviderView: View {
                 )
                 settingsService.save()
             }
+            // 同步云端状态标志
+            settingsService.hasCloudProvider = true
 
             dismiss()
         } catch {

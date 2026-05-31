@@ -17,6 +17,8 @@ class SettingsService: ObservableObject {
     static let shared = SettingsService()
 
     @Published var currentSettings: AppSettings
+    /// 云端是否有可用 provider（由 CloudProviderStore.refresh 后同步设置）
+    @Published var hasCloudProvider: Bool = false
 
     private let defaults = UserDefaults.standard
     private let settingsKey = "sage_settings_v4"
@@ -65,6 +67,9 @@ class SettingsService: ObservableObject {
     }
 
     var isModelConfigured: Bool {
+        // 云端模式：只要有可用 provider 就算已配置
+        if hasCloudProvider { return true }
+        // 本地模式：检查 modelConfig.apiKey
         guard let config = currentSettings.modelConfig else { return false }
         guard let key = config.apiKey, !key.isEmpty else { return false }
         return true

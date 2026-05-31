@@ -14,8 +14,40 @@ import { generateTitle, runChat } from '@/shared/services/chat';
 import { appendEvent, getEvents, getTaskStatus, initTaskBuffer, markTaskComplete } from '@/shared/task-events';
 import type { AgentRequest } from '@/shared/types/agent';
 import { matchSlashCommand, executeSlashCommand } from '@/core/channel/slash-commands';
+import { getDefaultProvider } from '@/shared/provider/user-store';
 
 const agent = new Hono();
+
+/**
+ * 云端模式下，前端不传 apiKey，后端自动从 user_providers 拉取默认 provider 的配置。
+ */
+async function resolveModelConfig(
+  modelConfig?: { apiKey?: string; baseUrl?: string; model?: string; apiType?: string },
+  userId?: string
+): Promise<{ apiKey?: string; baseUrl?: string; model?: string; apiType?: 'anthropic-messages' | 'openai-completions' | undefined } | undefined> {
+  // 如果前端已传 apiKey，直接用
+  if (modelConfig?.apiKey) return modelConfig as any;
+
+  // 如果有 userId，尝试从云端 user_providers 拉取
+  if (userId) {
+    try {
+      const provider = await getDefaultProvider(userId);
+      if (provider && provider.api_key) {
+        return {
+          apiKey: provider.api_key,
+          baseUrl: provider.base_url + provider.endpoint_path,
+          model: modelConfig?.model || provider.default_model || undefined,
+          apiType: provider.api_type as 'anthropic-messages' | 'openai-completions',
+        };
+      }
+    } catch (err) {
+      console.warn('[AgentAPI] Failed to resolve cloud provider:', err);
+    }
+  }
+
+  // fallback: 返回原始 modelConfig（可能无 apiKey）
+  return modelConfig as any;
+}
 
 /**
  * Create SSE stream with event buffering.
@@ -101,8 +133,9 @@ agent.post('/chat', async (c) => {
   }
 
   const abortController = new AbortController();
+  const resolvedConfig = await resolveModelConfig(body.modelConfig, body.userId);
   const readable = createSSEStream(
-    runChat(body.prompt, body.modelConfig, body.language, body.conversation, abortController)
+    runChat(body.prompt, resolvedConfig, body.language, body.conversation, abortController)
   );
 
   return new Response(readable, { headers: SSE_HEADERS });
@@ -129,11 +162,12 @@ agent.post('/plan', async (c) => {
   }
 
   const session = createSession('plan');
+  const resolvedConfig = await resolveModelConfig(body.modelConfig, body.userId);
   const readable = createSSEStream(
     runPlanningPhase(
       body.prompt,
       session,
-      body.modelConfig,
+      resolvedConfig,
       body.language,
       body.userId,
       body.accessToken
@@ -192,6 +226,7 @@ agent.post('/execute', async (c) => {
   }
 
   const session = createSession('execute');
+  const resolvedConfig = await resolveModelConfig(body.modelConfig, body.userId);
   const readable = createSSEStream(
     runExecutionPhase(
       body.planId,
@@ -199,7 +234,7 @@ agent.post('/execute', async (c) => {
       body.prompt || '',
       body.workDir,
       body.taskId,
-      body.modelConfig,
+      resolvedConfig,
       body.sandboxConfig,
       body.skillsConfig,
       body.mcpConfig,
@@ -339,6 +374,7 @@ agent.post('/', async (c) => {
 
   const session = createSession();
   const taskId = body.taskId || session.id;
+  const resolvedConfig = await resolveModelConfig(body.modelConfig, body.userId);
   const readable = createSSEStream(
     runAgent(
       prompt,
@@ -346,7 +382,7 @@ agent.post('/', async (c) => {
       body.conversation,
       body.workDir,
       body.taskId,
-      body.modelConfig,
+      resolvedConfig,
       body.sandboxConfig,
       body.images,
       body.skillsConfig,

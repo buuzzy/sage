@@ -26,6 +26,11 @@ struct SageApp: App {
                         .environmentObject(authService)
                         .environmentObject(settingsService)
                         .environmentObject(cloudProviderStore)
+                        .task {
+                            // 启动时拉取云端 provider，确保 isModelConfigured 正确
+                            await cloudProviderStore.refresh()
+                            settingsService.hasCloudProvider = !cloudProviderStore.providers.isEmpty
+                        }
                 } else {
                     LoginView()
                         .environmentObject(authService)
