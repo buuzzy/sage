@@ -4,6 +4,7 @@ import SwiftUI
 struct SageApp: App {
     @StateObject private var authService = AuthService.shared
     @StateObject private var settingsService = SettingsService.shared
+    @StateObject private var cloudProviderStore = CloudProviderStore.shared
     @StateObject private var chatVM = ChatViewModel()
     @AppStorage("sage_theme") private var theme: String = "system"
     @Environment(\.scenePhase) private var scenePhase
@@ -24,6 +25,7 @@ struct SageApp: App {
                     MainView(chatVM: chatVM)
                         .environmentObject(authService)
                         .environmentObject(settingsService)
+                        .environmentObject(cloudProviderStore)
                 } else {
                     LoginView()
                         .environmentObject(authService)

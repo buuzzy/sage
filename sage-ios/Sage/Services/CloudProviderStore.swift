@@ -1,5 +1,4 @@
 import Foundation
-import Supabase
 
 /// 云端 Provider 管理（Phase 4 — 完全云端化）
 ///
@@ -19,32 +18,26 @@ class CloudProviderStore: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    private let baseURL: String
+    private let baseURL = "https://sage-production-28e1.up.railway.app"
 
-    private init() {
-        self.baseURL = APIClient.shared.baseURL
-    }
+    private init() {}
 
     // MARK: - Auth Helper
 
     private func authHeaders() async throws -> [String: String] {
-        guard let session = try? await SupabaseConfig.shared.client.auth.session else {
+        guard let token = await AuthService.shared.getAccessToken() else {
             throw CloudProviderError.notAuthenticated
         }
         return [
             "Content-Type": "application/json",
-            "Authorization": "Bearer \(session.accessToken)"
+            "Authorization": "Bearer \(token)"
         ]
     }
 
     var isAuthenticated: Bool {
         get async {
-            do {
-                _ = try await SupabaseConfig.shared.client.auth.session
-                return true
-            } catch {
-                return false
-            }
+            let token = await AuthService.shared.getAccessToken()
+            return token != nil
         }
     }
 
@@ -154,7 +147,7 @@ class CloudProviderStore: ObservableObject {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            return TestResult(success: false, error: "Server error")
+            return TestResult(success: false, status: nil, error: "Server error", warning: nil)
         }
 
         return try JSONDecoder().decode(TestResult.self, from: data)
