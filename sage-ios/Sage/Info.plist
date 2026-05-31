@@ -37,7 +37,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>19</string>
+	<string>20</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Sage 需要使用相机拍摄你想要分析的图表、研报或票据。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
