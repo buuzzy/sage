@@ -22,6 +22,8 @@
 | `src-api/src/shared/memory/CLAUDE.md` | 四层记忆系统 + 双模式鉴权 |
 | `src-api/src/shared/context/CLAUDE.md` | 上下文组装 + compaction 规则 |
 | `src-tauri/CLAUDE.md` | Rust 桌面壳 + sidecar 生命周期 + 不可修改项 |
+| `docs/BUILD.md` | 桌面端 + iOS 端打包发布完整流程 |
+| `docs/RELEASE.md` | 桌面端签名、公证、updater、CI 细节 |
 
 ---
 
@@ -61,6 +63,8 @@ sage/                          ← pnpm workspace root
 ```
 
 ## 构建与部署
+
+> **打包发布完整流程**（桌面端 + iOS 端）见 `docs/BUILD.md`。桌面端签名/公证/updater 细节见 `docs/RELEASE.md`。
 
 ```bash
 # 开发模式
