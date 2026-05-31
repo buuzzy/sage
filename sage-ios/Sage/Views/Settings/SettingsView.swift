@@ -773,15 +773,16 @@ struct CloudAddProviderView: View {
 
     var body: some View {
         Form {
-            // 品牌选择
-            Section("选择品牌") {
-                Picker("品牌", selection: $selectedKind) {
+            // 供应商选择
+            Section("模型供应商") {
+                Picker("供应商", selection: $selectedKind) {
                     ForEach(ProviderTemplate.allBuiltins, id: \.kind) { tmpl in
                         Text(tmpl.name).tag(tmpl.kind)
                     }
                     Text("自定义").tag("custom")
                 }
                 .pickerStyle(.menu)
+                .tint(.primary)
             }
             .listRowBackground(sageListRowBackground)
 
@@ -843,10 +844,14 @@ struct CloudAddProviderView: View {
                             Text(tmpl.apiType == "anthropic-messages" ? "Anthropic" : "OpenAI 兼容")
                                 .foregroundColor(.secondary)
                         }
-                        LabeledContent("模型") {
-                            Text(tmpl.models.joined(separator: ", "))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
+                        LabeledContent("可用模型") {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                ForEach(tmpl.models, id: \.self) { model in
+                                    Text(model)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.primary)
+                                }
+                            }
                         }
                     }
                     .listRowBackground(sageListRowBackground)
@@ -854,7 +859,7 @@ struct CloudAddProviderView: View {
             }
 
             // API Key
-            Section("API Key") {
+            Section {
                 HStack {
                     if showKey {
                         TextField("sk-...", text: $apiKey)
@@ -870,17 +875,19 @@ struct CloudAddProviderView: View {
                             .frame(width: 44, height: 44)
                     }
                 }
-
+            } header: {
+                Text("API Key")
+            } footer: {
                 if let tmpl = selectedTemplate {
                     Link(destination: URL(string: tmpl.apiKeyUrl)!) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "key")
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 11))
+                            Text("前往 \(tmpl.name) 官网获取 API Key")
                                 .font(.system(size: 12))
-                            Text("获取 API Key")
-                                .font(.system(size: 13))
                         }
-                        .foregroundColor(.blue)
                     }
+                    .padding(.top, 4)
                 }
             }
             .listRowBackground(sageListRowBackground)
@@ -919,8 +926,9 @@ struct CloudAddProviderView: View {
             }
         }
         .sageSettingsPage()
-        .navigationTitle("添加供应商")
+        .navigationTitle("添加模型")
         .navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private func saveProvider() async {
