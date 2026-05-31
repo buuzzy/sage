@@ -1,6 +1,6 @@
 # Sage 发布流程
 
-本文档描述 Sage 桌面端（macOS Apple Silicon / Intel）从「写完代码」到「用户拿到新版本」的完整流程。iOS 客户端是独立的 SwiftUI 工程（见 `sage-ios/CLAUDE.md`），通过 TestFlight / App Store 分发，不走本文描述的 Tauri updater 通道。
+本文档描述 Sage 桌面端（macOS Apple Silicon / Intel）和 iOS 端的完整打包发布流程。桌面端通过 Tauri updater + GitHub Release 分发，iOS 端通过 TestFlight / App Store 分发。
 
 ---
 
@@ -468,3 +468,102 @@ pnpm tauri:build:mac-arm
 | `src-tauri/tauri.conf.json` | Tauri 配置（含 updater pubkey + endpoints） |
 | `configs/env/.env.tauri-signing` | 本地签名密钥（gitignore） |
 | `configs/env/.env.production` | 本地 Supabase 生产配置（gitignore） |
+
+---
+
+## 11. iOS 端发布（TestFlight / App Store）
+
+iOS 客户端是独立的 SwiftUI 工程（`sage-ios/`），通过 Xcode Archive → App Store Connect → TestFlight 分发，不走 Tauri updater 通道。
+
+### 11.1 版本号管理
+
+iOS 版本号在两处，**必须同步**：
+
+| 位置 | 字段 | 说明 |
+|------|------|------|
+| `sage-ios/Sage.xcodeproj/project.pbxproj` | `CURRENT_PROJECT_VERSION` | Build number（每次上传递增） |
+| `sage-ios/Sage/Info.plist` | `CFBundleVersion` | **同上，必须与 pbxproj 一致** |
+| `sage-ios/Sage.xcodeproj/project.pbxproj` | `MARKETING_VERSION` | 用户可见版本号（如 1.0.0） |
+| `sage-ios/Sage/Info.plist` | `CFBundleShortVersionString` | **同上** |
+
+⚠️ **关键教训**：`Info.plist` 里的值会覆盖 `project.pbxproj` 的 build settings。两处必须同步修改，否则 Archive 出来的包仍是旧版本号。
+
+### 11.2 递增 Build Number
+
+每次上传 TestFlight 前必须递增 build number：
+
+```bash
+cd sage-ios
+
+# 用 PlistBuddy 修改 Info.plist
+NEW_BUILD=20  # 改成目标数字
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" Sage/Info.plist
+
+# 同步 pbxproj
+sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*/CURRENT_PROJECT_VERSION = $NEW_BUILD/g" Sage.xcodeproj/project.pbxproj
+
+# 验证
+/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Sage/Info.plist
+grep "CURRENT_PROJECT_VERSION" Sage.xcodeproj/project.pbxproj
+```
+
+### 11.3 前置条件
+
+- Xcode 已登录 Apple Developer 账号
+- `sage-ios/Sage/Config/Secrets.xcconfig` 已填入 `SUPABASE_URL` 和 `SUPABASE_ANON_KEY`
+- Signing & Capabilities 配置正确（Team: YIYANG CAI (QB576QUT2S), Bundle ID: com.sage.app）
+
+### 11.4 打包上传流程
+
+```bash
+# 1. 确保代码最新
+cd "/Users/nakocai/Documents/Projects/项目/Sage/sage"
+git pull origin main
+
+# 2. 递增 build number（见 11.2）
+
+# 3. 提交版本号变更
+git add -A
+git commit -m "chore(ios): bump build number to <N>"
+git push origin main
+
+# 4. 在 Xcode 中 Archive
+#    - 打开 sage-ios/Sage.xcodeproj
+#    - 选择 target device 为 "Any iOS Device (arm64)"
+#    - Product → Archive
+
+# 5. Archive 完成后 Organizer 自动弹出
+#    - 选择最新的 archive（确认版本号正确！）
+#    - 点击 "Distribute App"
+#    - 选择 "App Store Connect" → "Upload"
+#    - 等待上传完成
+
+# 6. 等待 Apple 处理（通常 5-30 分钟）
+#    - App Store Connect → TestFlight 会出现新 build
+#    - 首次提交需要填写出口合规信息（选"否"即可）
+```
+
+### 11.5 常见错误
+
+| 错误 | 原因 | 解决 |
+|------|------|------|
+| `Redundant Binary Upload (90189)` | Build number 未递增，或 Info.plist 未同步 | 递增 Info.plist + pbxproj 的 build number，重新 Archive |
+| Archive 后版本号仍是旧的 | Info.plist 覆盖了 pbxproj | 确保两处同步修改 |
+| `No signing certificate` | 证书过期或未安装 | Xcode → Settings → Accounts → 下载证书 |
+| `Missing Compliance` | 出口合规未填 | App Store Connect → TestFlight → 点击 build → 填写 |
+| 上传成功但 TestFlight 无新版 | Apple 处理中 | 等 5-30 分钟；检查邮箱是否有 Apple 拒绝通知 |
+
+### 11.6 TestFlight 分发
+
+上传成功后：
+1. 打开 [App Store Connect](https://appstoreconnect.apple.com)
+2. 我的 App → Sage → TestFlight
+3. 新 build 出现后，添加到测试员组
+4. 测试员会收到 TestFlight 推送通知
+
+### 11.7 注意事项
+
+- iOS 和桌面端版本号**独立管理**：iOS 用纯数字递增的 build number，桌面端用 semver
+- TestFlight 每次上传 build number **必须严格递增**：不能回退，不能重复
+- 同一个 `MARKETING_VERSION`（如 1.0.0）下可以上传多个 build（19, 20, 21...）
+- 改完代码后必须**重新 Archive**，不能复用旧的 archive 包
