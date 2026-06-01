@@ -345,6 +345,7 @@ Sage 后端已经有四层连续记忆能力（详见 `src-api/src/shared/memory
 |-----|------|----------|
 | `IWENCAI_API_KEY` | 11 个 iwencai 技能 | `~/.sage/.env` → Tauri sidecar 注入 |
 | `WESTOCK_API_KEY` | 4 个 westock 技能 | 同上 |
+| `SILICONFLOW_API_KEY` | iOS 对讲机语音转文字（SenseVoice ASR，`/mobile/transcribe`） | Railway env only |
 | `MIMO_API_KEY` | Phase 3 persona 蒸馏 LLM 的 API Key（当前用 DeepSeek） | Railway env only |
 | `MIMO_BASE_URL` | 蒸馏 LLM 入口（当前 `https://api.deepseek.com`） | Railway env only |
 | `MIMO_MODEL` | 蒸馏模型（当前 `deepseek-v4-flash`） | Railway env only |

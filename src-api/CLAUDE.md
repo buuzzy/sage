@@ -35,6 +35,7 @@ index.ts (Hono server 入口)
 | /mobile/actions | mobile.ts | GET | iOS 行动中心产品状态（按 userId 隔离，需 JWT） |
 | /mobile/notes | mobile.ts | POST | 创建想法卡并生成行动项（落 Supabase，需 JWT） |
 | /mobile/notes/:id/confirm | mobile.ts | POST | 确认想法卡（按 userId 隔离，需 JWT） |
+| /mobile/transcribe | mobile.ts | POST | 对讲机语音转文字（multipart 音频 → SenseVoice，需 JWT） |
 | /broker/accounts | broker.ts | GET | Broker 账户列表（当前 mock 富途模拟盘） |
 | /broker/positions | broker.ts | GET | Broker 持仓列表（当前 mock 富途模拟盘） |
 | /broker/positions/:code/kline | broker.ts | GET | 持仓 Kline 数据（富途语义 mock） |
@@ -86,5 +87,7 @@ pnpm build:binary:mac-intel     # Intel macOS 二进制
 - iOS 投资对讲机主界面消费 `/mobile/*` 产品 API；不要让 iOS 直接拼接底层 Agent / Skills / Cron / Persona 接口
 - `/mobile/notes` / `/mobile/actions` 已落 Supabase（`idea_notes` / `mobile_actions` 表），按 `user_id` RLS 隔离：iOS 调用必须带用户 Supabase JWT（不是共享 `SAGE_API_TOKEN`）。`localOnlyMiddleware` 校验 JWT 后把 `userId` 注入 `c.get('userId')`，路由用 `createUserScopedSupabase(jwt)` 走 RLS
 - 系统默认行动卡（如富途连接提示）在 `mobile-actions.ts` 代码层生成，不入库，保证新用户也可见；只有动态条目（想法确认、定时任务结果）才落表
+- `/mobile/transcribe`：iOS push-to-talk 录音（m4a multipart）→ `shared/services/transcribe.ts` 调 SiliconFlow `FunAudioLLM/SenseVoiceSmall` → 返回 `{ text }`。Key 走 Railway env `SILICONFLOW_API_KEY`，绝不下发客户端；需用户 JWT 防止共享 token 滥用 ASR 配额
+- `createIdeaNote` 收到真实 transcript 时不再伪造 symbol/intent（留空，前端隐藏标签 + 后续 Agent 意图抽取补齐）；纯 mock 路径（无 transcript）才用演示默认值（比亚迪/加仓）
 - Cron 执行成功后除写 `sessions`/`messages` 外，还通过 `appendCronAction()`（service-role）插一条 `mobile_actions`，让定时结果出现在 iOS「行动」Tab
 - `/mobile/dashboard` 与 `/broker/*` 当前是富途 OpenAPI 语义全局 mock（无 userId）；后续接富途模拟盘时优先替换 `shared/broker` adapter，并补 userId/account 维度，不改 iOS contract

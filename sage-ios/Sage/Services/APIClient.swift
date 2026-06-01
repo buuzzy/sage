@@ -146,6 +146,39 @@ actor APIClient {
         return try decoder.decode(MobileActionsResponse.self, from: data).actions
     }
 
+    /// 上传 push-to-talk 录音到后端转写（SenseVoice）。需用户 JWT；key 留服务端。
+    func transcribe(audioURL: URL) async throws -> String {
+        let token = try await userToken()
+        let audioData = try Data(contentsOf: audioURL)
+        let boundary = "Boundary-\(UUID().uuidString)"
+
+        let url = URL(string: "\(baseURL)/mobile/transcribe")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 60
+
+        var body = Data()
+        func appendString(_ string: String) { body.append(string.data(using: .utf8)!) }
+        appendString("--\(boundary)\r\n")
+        appendString("Content-Disposition: form-data; name=\"file\"; filename=\"\(audioURL.lastPathComponent)\"\r\n")
+        appendString("Content-Type: audio/m4a\r\n\r\n")
+        body.append(audioData)
+        appendString("\r\n--\(boundary)--\r\n")
+        request.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        struct TranscribeResponse: Codable {
+            let ok: Bool
+            let text: String?
+        }
+        return try decoder.decode(TranscribeResponse.self, from: data).text ?? ""
+    }
+
     func createIdeaNote(transcript: String? = nil, symbol: String? = nil, intent: String? = nil) async throws -> CreateIdeaNoteResponse {
         let token = try await userToken()
         let body = CreateIdeaNoteRequest(transcript: transcript, symbol: symbol, intent: intent)

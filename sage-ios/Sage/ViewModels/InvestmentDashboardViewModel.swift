@@ -7,6 +7,7 @@ final class InvestmentDashboardViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var presentedIdea: IdeaNoteCardData?
     @Published var actions: [InvestmentActionItem] = []
+    @Published var isTranscribing = false
 
     func loadDashboard() async {
         isLoading = true
@@ -21,14 +22,26 @@ final class InvestmentDashboardViewModel: ObservableObject {
         isLoading = false
     }
 
-    func recordMockIdea() async {
+    /// push-to-talk 闭环：录音 URL → 后端转写 → 真实 transcript 生成想法卡。
+    func submitVoiceIdea(audioURL: URL) async {
+        isTranscribing = true
+        defer {
+            isTranscribing = false
+            try? FileManager.default.removeItem(at: audioURL)
+        }
         do {
-            let result = try await APIClient.shared.createIdeaNote()
+            let text = try await APIClient.shared.transcribe(audioURL: audioURL)
+            let transcript = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !transcript.isEmpty else {
+                errorMessage = "没听清，请再说一次。"
+                return
+            }
+            let result = try await APIClient.shared.createIdeaNote(transcript: transcript)
             presentedIdea = result.note
             actions = try await APIClient.shared.getMobileActions()
         } catch {
             errorMessage = error.localizedDescription
-            reportMobileError("ios_idea_create_failed", error)
+            reportMobileError("ios_voice_idea_failed", error)
         }
     }
 

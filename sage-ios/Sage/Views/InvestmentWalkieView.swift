@@ -34,6 +34,7 @@ struct InvestmentWalkieView: View {
 
 private struct AssetDashboardView: View {
     @ObservedObject var viewModel: InvestmentDashboardViewModel
+    @StateObject private var recorder = VoiceRecorder()
     let openActions: () -> Void
 
     var body: some View {
@@ -68,9 +69,13 @@ private struct AssetDashboardView: View {
                     await viewModel.loadDashboard()
                 }
 
-                WalkieButton(title: viewModel.dashboard?.walkiePrompt ?? "记录一个想法") {
-                    Task { await viewModel.recordMockIdea() }
-                }
+                WalkieButton(
+                    title: viewModel.dashboard?.walkiePrompt ?? "按住说话",
+                    isRecording: recorder.isRecording,
+                    isBusy: viewModel.isTranscribing,
+                    onPressStart: { Task { await startRecording() } },
+                    onPressEnd: { Task { await stopAndSubmit() } }
+                )
                     .padding(.bottom, 18)
             }
             .navigationBarHidden(true)
@@ -97,6 +102,19 @@ private struct AssetDashboardView: View {
                 .foregroundColor(.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func startRecording() async {
+        do {
+            try await recorder.start()
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func stopAndSubmit() async {
+        guard let url = recorder.stop() else { return }
+        await viewModel.submitVoiceIdea(audioURL: url)
     }
 }
 
@@ -399,24 +417,50 @@ private struct AvatarProfileView: View {
     }
 }
 
+/// 对讲机按钮：按住录音、松开发送。转写中显示进度，禁止重复触发。
 private struct WalkieButton: View {
     let title: String
-    let action: () -> Void
+    let isRecording: Bool
+    let isBusy: Bool
+    let onPressStart: () -> Void
+    let onPressEnd: () -> Void
+
+    @State private var pressing = false
 
     var body: some View {
         VStack(spacing: 6) {
-            Button(action: action) {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.white)
+            ZStack {
+                Circle()
+                    .fill(SageTheme.ColorToken.brand)
                     .frame(width: 64, height: 64)
-                    .background(SageTheme.ColorToken.brand)
-                    .clipShape(Circle())
+                    .scaleEffect(isRecording ? 1.12 : 1.0)
                     .shadow(color: SageTheme.ColorToken.brand.opacity(0.35), radius: 18, x: 0, y: 8)
-            }
-            .buttonStyle(.plain)
 
-            Text(title)
+                if isBusy {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: isRecording ? "waveform" : "mic.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            }
+            .animation(.easeInOut(duration: 0.15), value: isRecording)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !pressing, !isBusy else { return }
+                        pressing = true
+                        onPressStart()
+                    }
+                    .onEnded { _ in
+                        guard pressing else { return }
+                        pressing = false
+                        onPressEnd()
+                    }
+            )
+
+            Text(isRecording ? "松开发送" : (isBusy ? "正在整理…" : title))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(SageTheme.ColorToken.mutedText)
         }
@@ -442,8 +486,12 @@ private struct IdeaNoteSheet: View {
                 .lineSpacing(4)
 
             HStack(spacing: 8) {
-                TagPill(text: idea.symbol, tone: .success)
-                TagPill(text: idea.intent, tone: .brand)
+                if !idea.symbol.isEmpty {
+                    TagPill(text: idea.symbol, tone: .success)
+                }
+                if !idea.intent.isEmpty {
+                    TagPill(text: idea.intent, tone: .brand)
+                }
                 TagPill(text: idea.status, tone: .warning)
             }
 

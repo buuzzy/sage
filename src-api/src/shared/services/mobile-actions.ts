@@ -130,9 +130,13 @@ export async function createIdeaNote(
 ): Promise<{ note: IdeaNote; action: MobileActionItem }> {
   const now = new Date().toISOString();
   const noteId = `idea-${Date.now()}`;
+  // 有真实语音转写时不伪造标的/意图（避免「说宁德时代、卡片显示比亚迪」），
+  // 留空让前端隐藏标签 + 后续 Agent 意图抽取补齐；纯 mock 按钮路径才用演示默认值。
+  const hasTranscript = !!input.transcript?.trim();
   const transcript = input.transcript?.trim() || DEFAULT_IDEA_TRANSCRIPT;
-  const symbol = input.symbol?.trim() || '比亚迪';
-  const intent = input.intent?.trim() || '加仓';
+  const symbol = input.symbol?.trim() || (hasTranscript ? '' : '比亚迪');
+  const intent = input.intent?.trim() || (hasTranscript ? '' : '加仓');
+  const subject = [symbol, intent].filter(Boolean).join('');
 
   const { data: noteData, error: noteErr } = await db
     .from('idea_notes')
@@ -159,7 +163,7 @@ export async function createIdeaNote(
       id: actionId,
       user_id: userId,
       kind: 'idea_confirmation',
-      title: `确认${symbol}${intent}想法`,
+      title: subject ? `确认${subject}想法` : '确认语音想法',
       subtitle: '已整理为想法卡，等待你确认是否生成交易计划',
       status: '待确认',
       priority: 0,

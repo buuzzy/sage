@@ -12,6 +12,7 @@
 		15EB865398B182EF9E0EF19C /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63EC817532C0FBF8D15BEC0 /* LoginView.swift */; };
 		20C39E0D5760FFDD2F9070AA /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8ED8000B2E965ABA3EA381C /* AuthService.swift */; };
 		2FFFC92D23DB92EB1A6BBA94 /* CronResultPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547DBDFD30DB3D54E8FD2AA6 /* CronResultPoller.swift */; };
+		1A2B3C4D5E6F70819A0B1C2D /* VoiceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F70819A0B1C2D3E /* VoiceRecorder.swift */; };
 		399C2457DA6C6A38DB4F898F /* AdvancedSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261B235D4430C68D81CE4F68 /* AdvancedSettingsViews.swift */; };
 		39BA40819DCB8F5E2575E919 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */; };
 		9A6F3591D07601311B43F6F8 /* CloudProviderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D1C829540BF459B7B1847AE /* CloudProviderStore.swift */; };
@@ -37,6 +38,7 @@
 		261B235D4430C68D81CE4F68 /* AdvancedSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsViews.swift; sourceTree = "<group>"; };
 		3BFEAA4D7A4620B67805156C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		547DBDFD30DB3D54E8FD2AA6 /* CronResultPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronResultPoller.swift; sourceTree = "<group>"; };
+		2B3C4D5E6F70819A0B1C2D3E /* VoiceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRecorder.swift; sourceTree = "<group>"; };
 		7B0C90D5F1B8A8ED120B2300 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		7C35001255FB02FDC730F882 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 				9D1C829540BF459B7B1847AE /* CloudProviderStore.swift */,
 				D27B7EE01C66AB3AAA4A980A /* CloudSyncService.swift */,
 				547DBDFD30DB3D54E8FD2AA6 /* CronResultPoller.swift */,
+				2B3C4D5E6F70819A0B1C2D3E /* VoiceRecorder.swift */,
 				BB04C176A72F85CDFA7206FE /* ErrorReportService.swift */,
 				ADCEEA60168B7DC21805DB87 /* NotificationService.swift */,
 				7FBE90C7F72EC06B4D5344F0 /* SettingsService.swift */,
@@ -281,6 +284,7 @@
 				20C39E0D5760FFDD2F9070AA /* AuthService.swift in Sources */,
 				D3D15A9DB3DECA05759D7C0A /* CloudSyncService.swift in Sources */,
 				2FFFC92D23DB92EB1A6BBA94 /* CronResultPoller.swift in Sources */,
+				1A2B3C4D5E6F70819A0B1C2D /* VoiceRecorder.swift in Sources */,
 				9FB1F91041C8C7508911927F /* ErrorReportService.swift in Sources */,
 				AA0000010000000000000001 /* InvestmentDashboardModels.swift in Sources */,
 				AA0000020000000000000002 /* InvestmentDashboardViewModel.swift in Sources */,
