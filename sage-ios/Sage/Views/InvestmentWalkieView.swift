@@ -81,10 +81,8 @@ private struct AssetDashboardView: View {
             .navigationBarHidden(true)
             .sheet(item: $viewModel.presentedIdea) { idea in
                 IdeaNoteSheet(idea: idea) {
-                    Task {
-                        await viewModel.confirmPresentedIdea()
-                        openActions()
-                    }
+                    viewModel.presentedIdea = nil
+                    openActions()
                 }
                 .presentationDetents([.height(300)])
                 .presentationDragIndicator(.visible)
@@ -318,20 +316,18 @@ private struct ActionCenterView: View {
             List {
                 Section {
                     ForEach(viewModel.actions.sorted { $0.priority < $1.priority }) { action in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(action.title)
-                                    .font(.system(size: 16, weight: .semibold))
-                                Spacer()
-                                Text(action.status)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(SageTheme.ColorToken.brand)
+                        if let noteId = pendingIdeaNoteId(action) {
+                            NavigationLink {
+                                OrderConfirmationFlowView(noteId: noteId) {
+                                    Task { await viewModel.reloadActions() }
+                                }
+                            } label: {
+                                ActionRow(action: action, actionable: true)
                             }
-                            Text(action.subtitle)
-                                .font(.system(size: 13))
-                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .buttonStyle(.plain)
+                        } else {
+                            ActionRow(action: action, actionable: false)
                         }
-                        .padding(.vertical, 6)
                     }
                 } header: {
                     Text("优先处理")
@@ -340,6 +336,40 @@ private struct ActionCenterView: View {
             .sageSettingsPage()
             .navigationTitle("行动")
         }
+    }
+
+    /// 仅「待确认」的想法卡可点入两步确认流程。
+    private func pendingIdeaNoteId(_ action: InvestmentActionItem) -> String? {
+        guard action.kind == "idea_confirmation", action.status == "待确认" else { return nil }
+        return action.noteId
+    }
+}
+
+private struct ActionRow: View {
+    let action: InvestmentActionItem
+    let actionable: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(action.title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                Spacer()
+                Text(action.status)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(SageTheme.ColorToken.brand)
+                if actionable {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                }
+            }
+            Text(action.subtitle)
+                .font(.system(size: 13))
+                .foregroundColor(SageTheme.ColorToken.mutedText)
+        }
+        .padding(.vertical, 6)
     }
 }
 

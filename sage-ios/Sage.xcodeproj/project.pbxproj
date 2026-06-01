@@ -19,6 +19,7 @@
 		AA0000010000000000000001 /* InvestmentDashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000110000000000000001 /* InvestmentDashboardModels.swift */; };
 		AA0000020000000000000002 /* InvestmentDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000120000000000000002 /* InvestmentDashboardViewModel.swift */; };
 		AA0000030000000000000003 /* InvestmentWalkieView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000130000000000000003 /* InvestmentWalkieView.swift */; };
+		AA0000030000000000000004 /* OrderConfirmationFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000130000000000000004 /* OrderConfirmationFlowView.swift */; };
 		914380C41EFD2E4B3F24C9B4 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB69E085D2785A94448F0943 /* Message.swift */; };
 		9B1AC6465453D6D8028A0E14 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 85A7B46EBBC2C8D7771BA494 /* MarkdownUI */; };
 		9FB1F91041C8C7508911927F /* ErrorReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB04C176A72F85CDFA7206FE /* ErrorReportService.swift */; };
@@ -46,6 +47,7 @@
 		AA0000110000000000000001 /* InvestmentDashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvestmentDashboardModels.swift; sourceTree = "<group>"; };
 		AA0000120000000000000002 /* InvestmentDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvestmentDashboardViewModel.swift; sourceTree = "<group>"; };
 		AA0000130000000000000003 /* InvestmentWalkieView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvestmentWalkieView.swift; sourceTree = "<group>"; };
+		AA0000130000000000000004 /* OrderConfirmationFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderConfirmationFlowView.swift; sourceTree = "<group>"; };
 		A63EC817532C0FBF8D15BEC0 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		AC9D9158AD9E421A25E6EB47 /* SageTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SageTheme.swift; sourceTree = "<group>"; };
 		ADCEEA60168B7DC21805DB87 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -161,6 +163,7 @@
 			children = (
 				7B0C90D5F1B8A8ED120B2300 /* MainView.swift */,
 				AA0000130000000000000003 /* InvestmentWalkieView.swift */,
+				AA0000130000000000000004 /* OrderConfirmationFlowView.swift */,
 				A2934D6A37D8F1D3EC8C08B3 /* Auth */,
 				DD9D70ECFDE3B02D7D8C760A /* Chat */,
 				5561A40BE5924C9EB32DC551 /* Settings */,
@@ -289,6 +292,7 @@
 				AA0000010000000000000001 /* InvestmentDashboardModels.swift in Sources */,
 				AA0000020000000000000002 /* InvestmentDashboardViewModel.swift in Sources */,
 				AA0000030000000000000003 /* InvestmentWalkieView.swift in Sources */,
+				AA0000030000000000000004 /* OrderConfirmationFlowView.swift in Sources */,
 				15EB865398B182EF9E0EF19C /* LoginView.swift in Sources */,
 				073859AD5046F6C96AE4D00E /* MainView.swift in Sources */,
 				914380C41EFD2E4B3F24C9B4 /* Message.swift in Sources */,

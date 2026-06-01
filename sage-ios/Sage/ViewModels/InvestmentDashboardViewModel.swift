@@ -45,16 +45,14 @@ final class InvestmentDashboardViewModel: ObservableObject {
         }
     }
 
-    func confirmPresentedIdea() async {
-        guard let noteId = presentedIdea?.id else { return }
+    /// 刷新行动列表（两步确认流程完成后回调）。
+    func reloadActions() async {
         do {
-            try await APIClient.shared.confirmIdeaNote(noteId: noteId)
             actions = try await APIClient.shared.getMobileActions()
         } catch {
             errorMessage = error.localizedDescription
-            reportMobileError("ios_idea_confirm_failed", error)
+            reportMobileError("ios_actions_reload_failed", error)
         }
-        presentedIdea = nil
     }
 }
 

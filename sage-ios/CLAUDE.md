@@ -50,7 +50,9 @@ sage-ios/
 - Tab 固定为：资产 / 行动 / 分身。
 - 资产首页通过 `APIClient.getMobileDashboard()` 读取 `/mobile/dashboard`。
 - 底部对讲机按钮为 **push-to-talk**：按住 → `VoiceRecorder`(AVFoundation 录 16kHz mono m4a) → 松手 → `APIClient.transcribe()` multipart 上传 `/mobile/transcribe`(SenseVoice) → 真实 transcript 生成想法卡。麦克风权限走 Info.plist `NSMicrophoneUsageDescription`。
-- 语音想法卡只带真实 transcript，symbol/intent 暂为空（后端不伪造，前端隐藏空标签）；意图抽取是下一阶段。
+- 语音想法卡的 symbol/intent 由后端 Qwen 自动抽取；抽不出时留空，前端隐藏空标签（不伪造）。
+- 「行动」Tab 的待确认想法卡可点入 `OrderConfirmationFlowView` 两步确认：Step1 确认投资逻辑（`confirmIdeaNote`）→ Step2 拉取并调整订单草稿（`/mobile/notes/:id/order-draft`）→ 提交模拟盘（`/mobile/orders`）→ Step3 回执。完成后回调 `viewModel.reloadActions()` 刷新列表。
+- 想法卡预览弹窗（资产页）只负责导航到行动 Tab，不再就地确认；确认动作统一收敛到两步流程。
 - 持仓详情以 Kline 为核心，已接 `/broker/positions/:code/kline` 的富途语义 mock 数据。
 - 对讲机按钮 → `/mobile/notes` → 想法卡 → `/mobile/actions` → 行动 Tab 已有产品状态闭环（已落 Supabase，按 userId 隔离）。
 - 想法卡 / 行动中心调用（`getMobileActions` / `createIdeaNote` / `confirmIdeaNote`）必须带用户 Supabase JWT（`APIClient.userToken()` 取自 `AuthService`），不能用共享 token。

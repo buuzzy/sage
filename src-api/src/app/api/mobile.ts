@@ -5,10 +5,15 @@ import { createUserScopedSupabase } from '@/shared/supabase/client';
 import {
   confirmIdeaNote,
   createIdeaNote,
+  getIdeaNote,
   listMobileActions,
+  recordOrderResult,
 } from '@/shared/services/mobile-actions';
 import { getMobileDashboard } from '@/shared/services/mobile-dashboard';
 import { transcribeAudio, TranscriptionError } from '@/shared/services/transcribe';
+import { buildOrderDraft } from '@/shared/services/order-draft';
+import { getBrokerAdapter } from '@/shared/broker';
+import type { OrderType, TradeSide } from '@/shared/broker';
 
 export const mobileRoutes = new Hono();
 
@@ -87,4 +92,83 @@ mobileRoutes.post('/notes/:id/confirm', async (c) => {
     return c.json({ ok: false, error: 'note not found' }, 404);
   }
   return c.json({ ok: true, ...result });
+});
+
+/**
+ * 两步确认 Step2：按想法卡（标的+意图）生成模拟盘订单草稿（富途语义）。
+ * 返回 note + draft，iOS 据此渲染可调整的下单表单。
+ */
+mobileRoutes.get('/notes/:id/order-draft', async (c) => {
+  const ctx = userContext(c);
+  if (!ctx) return c.json({ ok: false, error: 'User authentication required' }, 401);
+
+  const db = createUserScopedSupabase(ctx.accessToken);
+  const note = await getIdeaNote(db, ctx.userId, c.req.param('id'));
+  if (!note) return c.json({ ok: false, error: 'note not found' }, 404);
+
+  const draft = await buildOrderDraft({ symbol: note.symbol, intent: note.intent });
+  return c.json({ ok: true, note, draft });
+});
+
+const TRADE_SIDES = new Set<TradeSide>(['BUY', 'SELL']);
+const ORDER_TYPES = new Set<OrderType>(['NORMAL', 'MARKET', 'ABSOLUTE_LIMIT']);
+
+/**
+ * 两步确认 Step3：把（可能被用户调整过的）草稿提交到富途模拟盘，
+ * 记录成交行动卡并把对应想法卡标记「已下单」。
+ */
+mobileRoutes.post('/orders', async (c) => {
+  const ctx = userContext(c);
+  if (!ctx) return c.json({ ok: false, error: 'User authentication required' }, 401);
+
+  type OrderBody = Partial<{
+    noteId: string;
+    accountId: string;
+    code: string;
+    name: string;
+    side: TradeSide;
+    orderType: OrderType;
+    price: number;
+    quantity: number;
+  }>;
+  const body = await c.req.json<OrderBody>().catch((): OrderBody => ({}));
+
+  if (!body.accountId || !body.code) {
+    return c.json({ ok: false, error: 'accountId and code are required' }, 400);
+  }
+  if (!body.side || !TRADE_SIDES.has(body.side)) {
+    return c.json({ ok: false, error: 'side must be BUY or SELL' }, 400);
+  }
+  if (!body.orderType || !ORDER_TYPES.has(body.orderType)) {
+    return c.json({ ok: false, error: 'orderType is invalid' }, 400);
+  }
+  if (!Number.isFinite(body.price) || Number(body.price) <= 0) {
+    return c.json({ ok: false, error: 'price must be greater than 0' }, 400);
+  }
+  if (!Number.isFinite(body.quantity) || Number(body.quantity) <= 0) {
+    return c.json({ ok: false, error: 'quantity must be greater than 0' }, 400);
+  }
+
+  const order = await getBrokerAdapter().submitSimulatedOrder({
+    accountId: body.accountId,
+    code: body.code,
+    side: body.side,
+    orderType: body.orderType,
+    price: Number(body.price),
+    quantity: Number(body.quantity),
+    remark: body.noteId ? `note:${body.noteId}` : undefined,
+  });
+
+  const db = createUserScopedSupabase(ctx.accessToken);
+  const action = await recordOrderResult(db, ctx.userId, {
+    orderId: order.id,
+    noteId: body.noteId,
+    name: body.name?.trim() || body.code,
+    side: order.side,
+    quantity: order.quantity,
+    price: order.price,
+    status: order.status,
+  });
+
+  return c.json({ ok: true, order, action }, 201);
 });

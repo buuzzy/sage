@@ -194,6 +194,80 @@ export async function createIdeaNote(
 }
 
 /**
+ * 读取单条想法卡（按 userId 隔离），用于订单草稿/确认流程加载上下文。
+ */
+export async function getIdeaNote(
+  db: SupabaseClient,
+  userId: string,
+  noteId: string
+): Promise<IdeaNote | null> {
+  const { data, error } = await db
+    .from('idea_notes')
+    .select('*')
+    .eq('id', noteId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load idea note: ${error.message}`);
+  }
+  return data ? toIdeaNote(data as IdeaNoteRow) : null;
+}
+
+/**
+ * 记录模拟盘下单结果：新增一条成交行动卡，并把对应想法卡的确认条目降权标记「已下单」。
+ */
+export async function recordOrderResult(
+  db: SupabaseClient,
+  userId: string,
+  input: {
+    orderId: string;
+    noteId?: string;
+    name: string;
+    side: 'BUY' | 'SELL';
+    quantity: number;
+    price: number;
+    status: string;
+  }
+): Promise<MobileActionItem> {
+  const now = new Date().toISOString();
+  const sideText = input.side === 'BUY' ? '买入' : '卖出';
+  const statusText = input.status === 'FILLED' ? '已成交' : input.status === 'REJECTED' ? '已拒绝' : '已提交';
+  const id = `action-order-${input.orderId}`;
+
+  const { data, error } = await db
+    .from('mobile_actions')
+    .insert({
+      id,
+      user_id: userId,
+      kind: 'order_confirmation',
+      title: `模拟盘 · ${input.name} ${sideText} ${input.quantity} 股`,
+      subtitle: `委托价 ${input.price} · ${statusText}`,
+      status: statusText,
+      priority: 2,
+      note_id: input.noteId ?? null,
+      created_at: now,
+    })
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to record order result: ${error?.message ?? 'no row'}`);
+  }
+
+  if (input.noteId) {
+    await db
+      .from('mobile_actions')
+      .update({ status: '已下单', priority: 11 })
+      .eq('note_id', input.noteId)
+      .eq('kind', 'idea_confirmation')
+      .eq('user_id', userId);
+  }
+
+  return toActionItem(data as MobileActionRow);
+}
+
+/**
  * 确认想法卡：想法状态置「已确认」，对应行动条目降权并标记完成。
  */
 export async function confirmIdeaNote(

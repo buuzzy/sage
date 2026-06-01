@@ -192,6 +192,20 @@ actor APIClient {
         _ = try await postJSON(endpoint: "/mobile/notes/\(noteId)/confirm", body: EmptyBody(), bearerToken: token)
     }
 
+    /// 两步确认 Step2：拉取想法卡对应的模拟盘订单草稿。
+    func getOrderDraft(noteId: String) async throws -> OrderDraftResponse {
+        let token = try await userToken()
+        let data = try await getJSON(endpoint: "/mobile/notes/\(noteId)/order-draft", bearerToken: token)
+        return try decoder.decode(OrderDraftResponse.self, from: data)
+    }
+
+    /// 两步确认 Step3：把（可能调整过的）草稿提交到富途模拟盘。
+    func submitOrder(_ body: SubmitOrderRequest) async throws -> SubmitOrderResponse {
+        let token = try await userToken()
+        let data = try await postJSON(endpoint: "/mobile/orders", body: body, bearerToken: token)
+        return try decoder.decode(SubmitOrderResponse.self, from: data)
+    }
+
     /// 取当前用户的 Supabase access token；未登录时抛出 401。
     private func userToken() async throws -> String {
         guard let token = await AuthService.shared.getAccessToken() else {

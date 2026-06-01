@@ -109,6 +109,57 @@ struct IdeaNoteCardData: Decodable, Identifiable {
     let createdAt: String?
 }
 
+// MARK: - 两步确认：订单草稿 / 模拟盘下单
+
+struct OrderDraft: Decodable {
+    let accountId: String
+    let code: String
+    let name: String
+    let market: String
+    let currency: String
+    let side: String
+    let orderType: String
+    let price: Double
+    let quantity: Int
+    let lotSize: Int
+    let environment: String
+    let rationale: String
+}
+
+struct OrderDraftResponse: Decodable {
+    let ok: Bool
+    let note: IdeaNoteCardData
+    let draft: OrderDraft
+}
+
+struct SubmitOrderRequest: Encodable {
+    let noteId: String?
+    let accountId: String
+    let code: String
+    let name: String
+    let side: String
+    let orderType: String
+    let price: Double
+    let quantity: Int
+}
+
+struct MobileOrder: Decodable {
+    let id: String
+    let code: String
+    let side: String
+    let orderType: String
+    let price: Double
+    let quantity: Int
+    let status: String
+    let dealtAvgPrice: Double?
+}
+
+struct SubmitOrderResponse: Decodable {
+    let ok: Bool
+    let order: MobileOrder
+    let action: InvestmentActionItem
+}
+
 // MARK: - Persona Snapshot（分身 Tab）
 
 /// 从 `/persona/memory` 的 Phase 3 嵌套 profile 中提炼出「身份摘要优先」所需的字段。
