@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { extractIdeaIntent } from '@/shared/services/idea-intent';
+
 export type MobileActionKind =
   | 'idea_confirmation'
   | 'plan_confirmation'
@@ -134,8 +136,16 @@ export async function createIdeaNote(
   // 留空让前端隐藏标签 + 后续 Agent 意图抽取补齐；纯 mock 按钮路径才用演示默认值。
   const hasTranscript = !!input.transcript?.trim();
   const transcript = input.transcript?.trim() || DEFAULT_IDEA_TRANSCRIPT;
-  const symbol = input.symbol?.trim() || (hasTranscript ? '' : '比亚迪');
-  const intent = input.intent?.trim() || (hasTranscript ? '' : '加仓');
+  let symbol = input.symbol?.trim() || (hasTranscript ? '' : '比亚迪');
+  let intent = input.intent?.trim() || (hasTranscript ? '' : '加仓');
+
+  // 语音想法且未显式带标的/意图时，用 LLM 从转写文本里抽取（best-effort，失败保持留空）。
+  if (hasTranscript && !symbol && !intent) {
+    const extracted = await extractIdeaIntent(transcript);
+    symbol = extracted.symbol;
+    intent = extracted.intent;
+  }
+
   const subject = [symbol, intent].filter(Boolean).join('');
 
   const { data: noteData, error: noteErr } = await db

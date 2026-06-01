@@ -88,6 +88,6 @@ pnpm build:binary:mac-intel     # Intel macOS 二进制
 - `/mobile/notes` / `/mobile/actions` 已落 Supabase（`idea_notes` / `mobile_actions` 表），按 `user_id` RLS 隔离：iOS 调用必须带用户 Supabase JWT（不是共享 `SAGE_API_TOKEN`）。`localOnlyMiddleware` 校验 JWT 后把 `userId` 注入 `c.get('userId')`，路由用 `createUserScopedSupabase(jwt)` 走 RLS
 - 系统默认行动卡（如富途连接提示）在 `mobile-actions.ts` 代码层生成，不入库，保证新用户也可见；只有动态条目（想法确认、定时任务结果）才落表
 - `/mobile/transcribe`：iOS push-to-talk 录音（m4a multipart）→ `shared/services/transcribe.ts` 调 SiliconFlow `FunAudioLLM/SenseVoiceSmall` → 返回 `{ text }`。Key 走 Railway env `SILICONFLOW_API_KEY`，绝不下发客户端；需用户 JWT 防止共享 token 滥用 ASR 配额
-- `createIdeaNote` 收到真实 transcript 时不再伪造 symbol/intent（留空，前端隐藏标签 + 后续 Agent 意图抽取补齐）；纯 mock 路径（无 transcript）才用演示默认值（比亚迪/加仓）
+- `createIdeaNote` 收到真实 transcript 且未显式带 symbol/intent 时，调用 `shared/services/idea-intent.ts`（SiliconFlow Qwen，复用 `SILICONFLOW_API_KEY`）从转写文本抽取标的+操作意图；best-effort，失败留空不阻塞，前端隐藏空标签。纯 mock 路径（无 transcript）才用演示默认值（比亚迪/加仓）
 - Cron 执行成功后除写 `sessions`/`messages` 外，还通过 `appendCronAction()`（service-role）插一条 `mobile_actions`，让定时结果出现在 iOS「行动」Tab
 - `/mobile/dashboard` 与 `/broker/*` 当前是富途 OpenAPI 语义全局 mock（无 userId）；后续接富途模拟盘时优先替换 `shared/broker` adapter，并补 userId/account 维度，不改 iOS contract
