@@ -206,6 +206,29 @@ actor APIClient {
         return try decoder.decode(SubmitOrderResponse.self, from: data)
     }
 
+    /// 想法卡详情（含任务类型 / 条件 / 监控状态 / 当前行情价），监控详情页使用。
+    func getNoteDetail(noteId: String) async throws -> NoteDetailResponse {
+        let token = try await userToken()
+        let data = try await getJSON(endpoint: "/mobile/notes/\(noteId)", bearerToken: token)
+        return try decoder.decode(NoteDetailResponse.self, from: data)
+    }
+
+    /// 分析任务：惰性生成 / 读取缓存的结构化分析观点。
+    func analyzeNote(noteId: String) async throws -> AnalyzeNoteResponse {
+        struct EmptyBody: Codable {}
+        let token = try await userToken()
+        let data = try await postJSON(endpoint: "/mobile/notes/\(noteId)/analyze", body: EmptyBody(), bearerToken: token)
+        return try decoder.decode(AnalyzeNoteResponse.self, from: data)
+    }
+
+    /// 手动模拟触发条件单（demo）：监控卡 → 待确认下单卡。
+    func triggerWatch(noteId: String) async throws -> TriggerWatchResponse {
+        struct EmptyBody: Codable {}
+        let token = try await userToken()
+        let data = try await postJSON(endpoint: "/mobile/notes/\(noteId)/trigger", body: EmptyBody(), bearerToken: token)
+        return try decoder.decode(TriggerWatchResponse.self, from: data)
+    }
+
     /// 取当前用户的 Supabase access token；未登录时抛出 401。
     private func userToken() async throws -> String {
         guard let token = await AuthService.shared.getAccessToken() else {

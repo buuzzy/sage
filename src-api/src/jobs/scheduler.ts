@@ -21,6 +21,7 @@
 import cron from 'node-cron';
 
 import { distillAllUsers } from './distill-persona.js';
+import { sweepPriceWatches } from '@/shared/services/price-watch';
 
 let registered = false;
 
@@ -46,10 +47,30 @@ export function registerBackgroundJobs(): void {
     return;
   }
 
+  // ── 条件单监控：每分钟扫描「监控中」的条件想法，命中行情阈值则转为待确认下单卡。
+  //    只依赖 service-role（不需要 LLM key），所以独立于 persona 蒸馏注册。
+  cron.schedule('* * * * *', async () => {
+    try {
+      const summary = await sweepPriceWatches();
+      if (summary.triggered > 0) {
+        console.log(
+          `[scheduler] price-watch: ${summary.triggered} triggered of ${summary.checked} active`
+        );
+      }
+    } catch (e) {
+      console.error(
+        '[scheduler] price-watch sweep failed:',
+        e instanceof Error ? e.message : String(e)
+      );
+    }
+  });
+  console.log('[scheduler] price-watch monitor registered: * * * * *');
+
   if (!process.env.MIMO_API_KEY) {
     console.warn(
-      '[scheduler] SAGE_ENABLE_BACKGROUND_JOBS=true but MIMO_API_KEY missing — skipping registration'
+      '[scheduler] MIMO_API_KEY missing — persona-distill skipped (price-watch monitor still active)'
     );
+    registered = true;
     return;
   }
 

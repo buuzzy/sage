@@ -357,6 +357,231 @@ struct OrderConfirmationFlowView: View {
     }
 }
 
+// MARK: - 分析任务详情（analysis_task）
+
+/// 分析类想法详情：惰性生成 Sage 结合持仓的结构化判断；建议下单时可一键进入两步确认。
+struct AnalysisDetailView: View {
+    let noteId: String
+
+    @State private var note: IdeaNoteCardData?
+    @State private var analysis: IdeaAnalysisData?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if isLoading {
+                    ProgressView("Sage 正在结合你的持仓分析…")
+                        .frame(maxWidth: .infinity, minHeight: 260)
+                } else if let analysis {
+                    if let note {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(note.transcript)
+                                .font(.system(size: 17, weight: .semibold))
+                                .lineSpacing(4)
+                            HStack(spacing: 8) {
+                                if !note.symbol.isEmpty { FlowTag(text: note.symbol, tone: .green) }
+                                if !note.intent.isEmpty { FlowTag(text: note.intent, tone: .brand) }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(18)
+                        .sageGlassControl(cornerRadius: 22)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Sage 的判断")
+                            .font(.system(size: 13))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                        Text(analysis.conclusion)
+                            .font(.system(size: 18, weight: .semibold))
+                            .lineSpacing(4)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(18)
+                    .background(SageTheme.ColorToken.brandSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+                    if !analysis.points.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(Array(analysis.points.enumerated()), id: \.offset) { _, point in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 6))
+                                        .foregroundColor(SageTheme.ColorToken.brand)
+                                        .padding(.top, 7)
+                                    Text(point)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.primary)
+                                        .lineSpacing(3)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(18)
+                        .sageSoftCard(cornerRadius: 18)
+                    }
+
+                    orderLink(prominent: analysis.suggestOrder)
+                } else {
+                    VStack(spacing: 12) {
+                        Text(errorMessage ?? "分析暂不可用")
+                            .font(.system(size: 14))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .multilineTextAlignment(.center)
+                        Button("重试") { Task { await load() } }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 240)
+                }
+            }
+            .padding(20)
+        }
+        .background(SageBackground().ignoresSafeArea())
+        .navigationTitle("Sage 分析")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+    }
+
+    @ViewBuilder
+    private func orderLink(prominent: Bool) -> some View {
+        NavigationLink {
+            OrderConfirmationFlowView(noteId: noteId) {}
+        } label: {
+            Text(prominent ? "据此生成订单草稿" : "仍要据此下单")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(prominent ? .white : SageTheme.ColorToken.brand)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .background(prominent ? AnyShapeStyle(SageTheme.ColorToken.brand) : AnyShapeStyle(SageTheme.ColorToken.brandSoft))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let response = try await APIClient.shared.analyzeNote(noteId: noteId)
+            note = response.note
+            analysis = response.analysis
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - 条件监控详情（price_watch）
+
+/// 条件单详情：展示「现价 vs 目标价」与监控状态；触发后进入两步确认。
+struct WatchDetailView: View {
+    let noteId: String
+
+    @State private var note: IdeaNoteCardData?
+    @State private var quote: Double?
+    @State private var isLoading = true
+    @State private var isWorking = false
+    @State private var errorMessage: String?
+    @State private var goToOrder = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if isLoading {
+                    ProgressView("加载监控…")
+                        .frame(maxWidth: .infinity, minHeight: 240)
+                } else if let note {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(note.transcript)
+                            .font(.system(size: 17, weight: .semibold))
+                            .lineSpacing(4)
+                        HStack(spacing: 8) {
+                            if !note.symbol.isEmpty { FlowTag(text: note.symbol, tone: .green) }
+                            if !note.intent.isEmpty { FlowTag(text: note.intent, tone: .brand) }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(18)
+                    .sageGlassControl(cornerRadius: 22)
+
+                    VStack(spacing: 14) {
+                        if let condition = note.condition {
+                            DetailRow(label: "触发条件", value: "\(note.symbol) \(condition.text)")
+                        }
+                        if let quote {
+                            DetailRow(label: "当前价", value: formatPrice(quote))
+                        }
+                        DetailRow(label: "状态", value: isTriggered ? "已触发" : "监控中")
+                    }
+                    .padding(18)
+                    .sageSoftCard(cornerRadius: 18)
+
+                    if isTriggered {
+                        PrimaryButton(title: "去确认下单", isLoading: false) { goToOrder = true }
+                    } else {
+                        PrimaryButton(title: "模拟触发（演示）", isLoading: isWorking) {
+                            Task { await trigger() }
+                        }
+                        Text("达到目标价时 Sage 会自动提醒你；这里可手动模拟触发以演示后续流程。")
+                            .font(.system(size: 12))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    VStack(spacing: 12) {
+                        Text(errorMessage ?? "监控暂不可用")
+                            .font(.system(size: 14))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                        Button("重试") { Task { await load() } }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 240)
+                }
+            }
+            .padding(20)
+        }
+        .background(SageBackground().ignoresSafeArea())
+        .navigationTitle("价格监控")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $goToOrder) {
+            OrderConfirmationFlowView(noteId: noteId) {}
+        }
+        .task { await load() }
+    }
+
+    private var isTriggered: Bool { note?.watchStatus == "triggered" }
+
+    private func formatPrice(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let response = try await APIClient.shared.getNoteDetail(noteId: noteId)
+            note = response.note
+            quote = response.quote
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func trigger() async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let response = try await APIClient.shared.triggerWatch(noteId: noteId)
+            note = response.note
+            goToOrder = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
 // MARK: - 复用小组件
 
 private struct StepBadge: View {

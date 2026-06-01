@@ -33,8 +33,11 @@ index.ts (Hono server 入口)
 | /health | health.ts | GET | 健康检查 |
 | /mobile/dashboard | mobile.ts | GET | iOS 投资对讲机资产首页产品 API |
 | /mobile/actions | mobile.ts | GET | iOS 行动中心产品状态（按 userId 隔离，需 JWT） |
-| /mobile/notes | mobile.ts | POST | 创建想法卡并生成行动项（落 Supabase，需 JWT） |
+| /mobile/notes | mobile.ts | POST | 创建想法卡：分类任务类型并生成对应行动项（落 Supabase，需 JWT） |
+| /mobile/notes/:id | mobile.ts | GET | 想法卡详情（任务类型/条件/监控状态/分析缓存 + 条件单现价，需 JWT） |
 | /mobile/notes/:id/confirm | mobile.ts | POST | 确认想法卡（按 userId 隔离，需 JWT） |
+| /mobile/notes/:id/analyze | mobile.ts | POST | 分析任务：惰性生成并缓存 Sage 结构化判断（需 JWT） |
+| /mobile/notes/:id/trigger | mobile.ts | POST | 手动模拟触发条件单 → 转待确认下单卡（demo 用，需 JWT） |
 | /mobile/transcribe | mobile.ts | POST | 对讲机语音转文字（multipart 音频 → SenseVoice，需 JWT） |
 | /mobile/notes/:id/order-draft | mobile.ts | GET | 两步确认 Step2：按想法卡生成模拟盘订单草稿（需 JWT） |
 | /mobile/orders | mobile.ts | POST | 两步确认 Step3：提交模拟盘订单 + 记成交行动卡（需 JWT） |
@@ -90,7 +93,12 @@ pnpm build:binary:mac-intel     # Intel macOS 二进制
 - `/mobile/notes` / `/mobile/actions` 已落 Supabase（`idea_notes` / `mobile_actions` 表），按 `user_id` RLS 隔离：iOS 调用必须带用户 Supabase JWT（不是共享 `SAGE_API_TOKEN`）。`localOnlyMiddleware` 校验 JWT 后把 `userId` 注入 `c.get('userId')`，路由用 `createUserScopedSupabase(jwt)` 走 RLS
 - 系统默认行动卡（如富途连接提示）在 `mobile-actions.ts` 代码层生成，不入库，保证新用户也可见；只有动态条目（想法确认、定时任务结果）才落表
 - `/mobile/transcribe`：iOS push-to-talk 录音（m4a multipart）→ `shared/services/transcribe.ts` 调 SiliconFlow `FunAudioLLM/SenseVoiceSmall` → 返回 `{ text }`。Key 走 Railway env `SILICONFLOW_API_KEY`，绝不下发客户端；需用户 JWT 防止共享 token 滥用 ASR 配额
-- 两步确认下单：`order-draft.ts`（标的字典 + 持仓匹配 + 意图→方向，生成富途语义订单草稿）→ `GET /mobile/notes/:id/order-draft`；`POST /mobile/orders` 经 `getBrokerAdapter().submitSimulatedOrder` 提交，再 `recordOrderResult` 写成交行动卡并把想法卡标「已下单」。当前 broker 为 mock，接富途模拟盘只替换 adapter
-- `createIdeaNote` 收到真实 transcript 且未显式带 symbol/intent 时，调用 `shared/services/idea-intent.ts`（SiliconFlow Qwen，复用 `SILICONFLOW_API_KEY`）从转写文本抽取标的+操作意图；best-effort，失败留空不阻塞，前端隐藏空标签。纯 mock 路径（无 transcript）才用演示默认值（比亚迪/加仓）
+- 两步确认下单：`order-draft.ts`（经 `broker.resolveInstrument` 解析标的身份 + 持仓匹配 + `broker.getQuote` 取价 + 意图→方向，生成富途语义订单草稿）→ `GET /mobile/notes/:id/order-draft`；`POST /mobile/orders` 经 `getBrokerAdapter().submitSimulatedOrder` 提交，再 `recordOrderResult` 写成交行动卡并把想法卡标「已下单」。当前 broker 为 mock，接富途模拟盘只替换 adapter
+- **想法不等于「立刻下单」**：`createIdeaNote` 先调 `idea-intent.ts` 的 `classifyIdea`（SiliconFlow Qwen + 确定性正则兜底，复用 `SILICONFLOW_API_KEY`）把 transcript 分成三类任务，写 `idea_notes.task_type` 并生成对应 kind 的行动卡：
+  - `order`（「现在买 100 股」）→ `idea_confirmation` 卡 → 两步确认下单
+  - `analysis`（「宁德时代要不要止盈」）→ `analysis_task` 卡 → `POST /notes/:id/analyze` 惰性调 `idea-analysis.ts`（LLM 结合**真实持仓上下文**：成本/现价/浮盈）出结构化判断并缓存 `idea_notes.analysis`；建议下单时可一键进入两步确认
+  - `conditional`（「比亚迪回调到 230 加仓」）→ 解析 `condition{op,price}` 存表，`price_watch` 卡（监控中）；Railway 后台 `price-watch.ts` 的 `sweepPriceWatches` 每分钟扫描活跃监控、`broker.getQuote` 比对阈值，命中调 `triggerWatch` 转「待确认」下单卡。`POST /notes/:id/trigger` 供 demo 手动模拟触发
+- 标的身份 + 实时报价统一下沉到 `shared/broker` adapter（`resolveInstrument` / `getQuote`），`order-draft` / `idea-analysis` / `price-watch` 共用，避免标的字典散落多处。接富途后只换 adapter
+- 条件单监控 cron 在 `jobs/scheduler.ts` 注册，只依赖 `SAGE_ENABLE_BACKGROUND_JOBS` + service-role（不需 `MIMO_API_KEY`），独立于 persona 蒸馏
 - Cron 执行成功后除写 `sessions`/`messages` 外，还通过 `appendCronAction()`（service-role）插一条 `mobile_actions`，让定时结果出现在 iOS「行动」Tab
 - `/mobile/dashboard` 与 `/broker/*` 当前是富途 OpenAPI 语义全局 mock（无 userId）；后续接富途模拟盘时优先替换 `shared/broker` adapter，并补 userId/account 维度，不改 iOS contract

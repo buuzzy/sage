@@ -308,20 +308,36 @@ private struct KlineCard: View {
     }
 }
 
+/// 行动卡点击后进入的流程目的地。用 fullScreenCover 模态呈现，避免切 Tab 时
+/// 导航栈残留上一张卡（旧实现用 NavigationLink push，切回行动 Tab 会停在旧流程页）。
+private enum ActionRoute: Identifiable {
+    case order(String)
+    case analysis(String)
+    case watch(String)
+
+    var id: String {
+        switch self {
+        case .order(let id): return "order-\(id)"
+        case .analysis(let id): return "analysis-\(id)"
+        case .watch(let id): return "watch-\(id)"
+        }
+    }
+}
+
 private struct ActionCenterView: View {
     @ObservedObject var viewModel: InvestmentDashboardViewModel
+    @State private var route: ActionRoute?
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(viewModel.actions.sorted { $0.priority < $1.priority }) { action in
-                        if let noteId = pendingIdeaNoteId(action) {
-                            NavigationLink {
-                                OrderConfirmationFlowView(noteId: noteId) {
-                                    Task { await viewModel.reloadActions() }
-                                }
-                            } label: {
+                    // 顺序信任后端（priority 升序 + createdAt 降序，最新在前）；
+                    // 不在客户端重排，避免丢掉次级排序导致新卡片落在中间。
+                    ForEach(viewModel.actions) { action in
+                        let target = route(for: action)
+                        if let target {
+                            Button { route = target } label: {
                                 ActionRow(action: action, actionable: true)
                             }
                             .buttonStyle(.plain)
@@ -336,12 +352,39 @@ private struct ActionCenterView: View {
             .sageSettingsPage()
             .navigationTitle("行动")
         }
+        .fullScreenCover(item: $route, onDismiss: { Task { await viewModel.reloadActions() } }) { route in
+            NavigationStack {
+                destination(for: route)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("关闭") { self.route = nil }
+                        }
+                    }
+            }
+        }
     }
 
-    /// 仅「待确认」的想法卡可点入两步确认流程。
-    private func pendingIdeaNoteId(_ action: InvestmentActionItem) -> String? {
-        guard action.kind == "idea_confirmation", action.status == "待确认" else { return nil }
-        return action.noteId
+    /// 按 kind + 状态决定可点入的流程：分析 → 分析详情；条件单 → 监控详情；待确认下单 → 两步确认。
+    private func route(for action: InvestmentActionItem) -> ActionRoute? {
+        guard let noteId = action.noteId else { return nil }
+        switch action.kind {
+        case "analysis_task": return .analysis(noteId)
+        case "price_watch": return .watch(noteId)
+        case "idea_confirmation": return action.status == "待确认" ? .order(noteId) : nil
+        default: return nil
+        }
+    }
+
+    @ViewBuilder
+    private func destination(for route: ActionRoute) -> some View {
+        switch route {
+        case .order(let noteId):
+            OrderConfirmationFlowView(noteId: noteId) { Task { await viewModel.reloadActions() } }
+        case .analysis(let noteId):
+            AnalysisDetailView(noteId: noteId)
+        case .watch(let noteId):
+            WatchDetailView(noteId: noteId)
+        }
     }
 }
 
@@ -378,6 +421,7 @@ private struct AvatarProfileView: View {
     @EnvironmentObject var settingsService: SettingsService
     @StateObject private var viewModel = AvatarProfileViewModel()
     @State private var showSettings = false
+    @AppStorage("sage_theme") private var theme: String = "system"
 
     var body: some View {
         NavigationStack {
@@ -404,6 +448,18 @@ private struct AvatarProfileView: View {
                 }
 
                 Section("配置") {
+                    // 外观：单击循环切换 跟随系统 → 浅色 → 深色（隐藏复杂项，符合极简）。
+                    Button { cycleTheme() } label: {
+                        HStack {
+                            Label("外观", systemImage: themeIcon)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(themeLabel)
+                                .font(.system(size: 14))
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                        }
+                    }
+
                     Button { showSettings = true } label: {
                         Label("设置", systemImage: "gearshape")
                             .foregroundColor(.primary)
@@ -412,6 +468,15 @@ private struct AvatarProfileView: View {
             }
             .sageSettingsPage()
             .navigationTitle("分身")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { cycleTheme() } label: {
+                        Image(systemName: themeIcon)
+                            .foregroundColor(SageTheme.ColorToken.brand)
+                    }
+                    .accessibilityLabel("切换外观（当前\(themeLabel)）")
+                }
+            }
         }
         .task { await viewModel.load() }
         .sheet(isPresented: $showSettings) {
@@ -419,6 +484,31 @@ private struct AvatarProfileView: View {
                 .environmentObject(authService)
                 .environmentObject(settingsService)
                 .sageSheetBackground()
+        }
+    }
+
+    private var themeLabel: String {
+        switch theme {
+        case "light": return "浅色"
+        case "dark": return "深色"
+        default: return "跟随系统"
+        }
+    }
+
+    private var themeIcon: String {
+        switch theme {
+        case "light": return "sun.max"
+        case "dark": return "moon.stars"
+        default: return "circle.lefthalf.filled"
+        }
+    }
+
+    /// 循环：跟随系统 → 浅色 → 深色 → 跟随系统。SageApp 监听 @AppStorage 即时应用到 UIKit 层。
+    private func cycleTheme() {
+        switch theme {
+        case "system": theme = "light"
+        case "light": theme = "dark"
+        default: theme = "system"
         }
     }
 
@@ -522,8 +612,16 @@ private struct IdeaNoteSheet: View {
                 if !idea.intent.isEmpty {
                     TagPill(text: idea.intent, tone: .brand)
                 }
+                if let condition = idea.condition {
+                    TagPill(text: condition.text, tone: .warning)
+                }
                 TagPill(text: idea.status, tone: .warning)
             }
+
+            Text(taskHint)
+                .font(.system(size: 13))
+                .foregroundColor(SageTheme.ColorToken.mutedText)
+                .lineSpacing(3)
 
             Spacer()
 
@@ -539,6 +637,15 @@ private struct IdeaNoteSheet: View {
             .buttonStyle(.plain)
         }
         .padding(22)
+    }
+
+    /// 按任务类型给出「Sage 接下来会做什么」的一句话提示。
+    private var taskHint: String {
+        switch idea.taskType {
+        case "analysis": return "Sage 会结合你的持仓给出判断，去行动中心查看分析。"
+        case "conditional": return "已为你设好价格监控，触发时会提醒你确认下单。"
+        default: return "已整理为想法，去行动中心确认是否下单。"
+        }
     }
 }
 

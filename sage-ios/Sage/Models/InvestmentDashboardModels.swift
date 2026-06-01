@@ -107,6 +107,48 @@ struct IdeaNoteCardData: Decodable, Identifiable {
     let intent: String
     let status: String
     let createdAt: String?
+    let taskType: String?
+    let condition: IdeaConditionData?
+    let watchStatus: String?
+    let analysis: IdeaAnalysisData?
+}
+
+struct IdeaConditionData: Decodable {
+    let op: String
+    let price: Double
+
+    /// 「跌到 230」/「涨到 260」可读描述。
+    var text: String {
+        let verb = op == "lte" ? "跌到" : "涨到"
+        let priceText = price == price.rounded() ? String(Int(price)) : String(format: "%.2f", price)
+        return "\(verb) \(priceText)"
+    }
+}
+
+struct IdeaAnalysisData: Decodable {
+    let conclusion: String
+    let points: [String]
+    let suggestOrder: Bool
+    let suggestedSide: String?
+}
+
+// MARK: - 分析 / 条件监控详情响应
+
+struct NoteDetailResponse: Decodable {
+    let ok: Bool
+    let note: IdeaNoteCardData
+    let quote: Double?
+}
+
+struct AnalyzeNoteResponse: Decodable {
+    let ok: Bool
+    let note: IdeaNoteCardData
+    let analysis: IdeaAnalysisData
+}
+
+struct TriggerWatchResponse: Decodable {
+    let ok: Bool
+    let note: IdeaNoteCardData
 }
 
 // MARK: - 两步确认：订单草稿 / 模拟盘下单

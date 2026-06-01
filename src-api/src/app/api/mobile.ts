@@ -8,10 +8,13 @@ import {
   getIdeaNote,
   listMobileActions,
   recordOrderResult,
+  saveIdeaAnalysis,
+  triggerWatch,
 } from '@/shared/services/mobile-actions';
 import { getMobileDashboard } from '@/shared/services/mobile-dashboard';
 import { transcribeAudio, TranscriptionError } from '@/shared/services/transcribe';
 import { buildOrderDraft } from '@/shared/services/order-draft';
+import { analyzeIdea } from '@/shared/services/idea-analysis';
 import { getBrokerAdapter } from '@/shared/broker';
 import type { OrderType, TradeSide } from '@/shared/broker';
 
@@ -92,6 +95,67 @@ mobileRoutes.post('/notes/:id/confirm', async (c) => {
     return c.json({ ok: false, error: 'note not found' }, 404);
   }
   return c.json({ ok: true, ...result });
+});
+
+/**
+ * 想法卡详情：返回完整 note（含任务类型 / 条件 / 监控状态 / 已缓存的分析）。
+ * 条件单额外附带当前行情价，供监控详情页展示「现价 vs 目标价」。
+ */
+mobileRoutes.get('/notes/:id', async (c) => {
+  const ctx = userContext(c);
+  if (!ctx) return c.json({ ok: false, error: 'User authentication required' }, 401);
+
+  const db = createUserScopedSupabase(ctx.accessToken);
+  const note = await getIdeaNote(db, ctx.userId, c.req.param('id'));
+  if (!note) return c.json({ ok: false, error: 'note not found' }, 404);
+
+  let quote: number | null = null;
+  if (note.taskType === 'conditional' && note.symbol) {
+    const adapter = getBrokerAdapter();
+    const resolved = await adapter.resolveInstrument(note.symbol);
+    quote = resolved ? await adapter.getQuote(resolved.code) : null;
+  }
+
+  return c.json({ ok: true, note, quote });
+});
+
+/**
+ * 分析任务：惰性生成（首次打开分析卡时调用），结合持仓上下文给出结构化判断并缓存。
+ * 已缓存则直接返回，避免重复消耗 LLM。
+ */
+mobileRoutes.post('/notes/:id/analyze', async (c) => {
+  const ctx = userContext(c);
+  if (!ctx) return c.json({ ok: false, error: 'User authentication required' }, 401);
+
+  const db = createUserScopedSupabase(ctx.accessToken);
+  const note = await getIdeaNote(db, ctx.userId, c.req.param('id'));
+  if (!note) return c.json({ ok: false, error: 'note not found' }, 404);
+
+  if (note.analysis) {
+    return c.json({ ok: true, note, analysis: note.analysis });
+  }
+
+  const analysis = await analyzeIdea({
+    symbol: note.symbol,
+    intent: note.intent,
+    transcript: note.transcript,
+  });
+  await saveIdeaAnalysis(db, ctx.userId, note.id, analysis);
+  return c.json({ ok: true, note: { ...note, analysis }, analysis });
+});
+
+/**
+ * 手动模拟触发条件单（demo 用）：把监控卡立即转为待确认下单卡。
+ * 真实自动触发由 Railway 后台 sweep（price-watch monitor）按行情完成。
+ */
+mobileRoutes.post('/notes/:id/trigger', async (c) => {
+  const ctx = userContext(c);
+  if (!ctx) return c.json({ ok: false, error: 'User authentication required' }, 401);
+
+  const db = createUserScopedSupabase(ctx.accessToken);
+  const note = await triggerWatch(db, ctx.userId, c.req.param('id'));
+  if (!note) return c.json({ ok: false, error: 'note not found or not a conditional watch' }, 404);
+  return c.json({ ok: true, note });
 });
 
 /**

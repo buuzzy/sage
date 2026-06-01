@@ -1,8 +1,10 @@
 import type {
   BrokerAccount,
   BrokerAdapter,
+  BrokerMarket,
   BrokerPosition,
   KlinePoint,
+  ResolvedInstrument,
   SimulatedOrder,
   SubmitSimulatedOrderInput,
 } from './types';
@@ -78,6 +80,45 @@ const mockPositions: BrokerPosition[] = [
   },
 ];
 
+/**
+ * 标的池：覆盖 demo 高频口述名。持仓里已有的标的不重复列入（resolveInstrument
+ * 会先查持仓，命中后用真实成本/最新价）。价格为 mock 快照，接富途后由实时报价替换。
+ */
+const INSTRUMENT_UNIVERSE: ResolvedInstrument[] = [
+  { code: 'CN.300750', name: '宁德时代', market: 'CN', currency: 'CNY', lastPrice: 245.6, lotSize: 100 },
+  { code: 'CN.002594', name: '比亚迪', market: 'CN', currency: 'CNY', lastPrice: 248.3, lotSize: 100 },
+  { code: 'CN.600519', name: '贵州茅台', market: 'CN', currency: 'CNY', lastPrice: 1486.0, lotSize: 100 },
+  { code: 'CN.600036', name: '招商银行', market: 'CN', currency: 'CNY', lastPrice: 38.7, lotSize: 100 },
+  { code: 'CN.601012', name: '隆基绿能', market: 'CN', currency: 'CNY', lastPrice: 15.4, lotSize: 100 },
+  { code: 'HK.09988', name: '阿里巴巴', market: 'HK', currency: 'HKD', lastPrice: 82.4, lotSize: 100 },
+  { code: 'HK.01810', name: '小米集团', market: 'HK', currency: 'HKD', lastPrice: 18.6, lotSize: 100 },
+  { code: 'US.AAPL', name: '苹果', market: 'US', currency: 'USD', lastPrice: 226.1, lotSize: 1 },
+  { code: 'US.TSLA', name: '特斯拉', market: 'US', currency: 'USD', lastPrice: 251.4, lotSize: 1 },
+];
+
+function lotSizeForMarket(market: BrokerMarket): number {
+  return market === 'US' ? 1 : 100;
+}
+
+/** 名称模糊匹配：双向 includes，兼容「腾讯」↔「腾讯控股」「美团」↔「美团-W」。 */
+function nameMatches(symbol: string, candidate: string): boolean {
+  const a = symbol.trim();
+  const b = candidate.trim();
+  if (!a || !b) return false;
+  return a.includes(b) || b.includes(a);
+}
+
+function positionToInstrument(position: BrokerPosition): ResolvedInstrument {
+  return {
+    code: position.code,
+    name: position.name,
+    market: position.market,
+    currency: position.currency,
+    lastPrice: position.lastPrice,
+    lotSize: lotSizeForMarket(position.market),
+  };
+}
+
 export class MockBrokerAdapter implements BrokerAdapter {
   async listAccounts(): Promise<BrokerAccount[]> {
     return [{ ...mockAccount, updatedAt: nowIso() }];
@@ -85,6 +126,24 @@ export class MockBrokerAdapter implements BrokerAdapter {
 
   async listPositions(accountId = mockAccount.id): Promise<BrokerPosition[]> {
     return mockPositions.filter((position) => position.accountId === accountId);
+  }
+
+  async getQuote(code: string): Promise<number | null> {
+    const held = mockPositions.find((position) => position.code === code);
+    if (held) return held.lastPrice;
+    const known = INSTRUMENT_UNIVERSE.find((item) => item.code === code);
+    return known ? known.lastPrice : null;
+  }
+
+  async resolveInstrument(symbol: string): Promise<ResolvedInstrument | null> {
+    const query = symbol.trim();
+    if (!query) return null;
+
+    const held = mockPositions.find((position) => nameMatches(query, position.name));
+    if (held) return positionToInstrument(held);
+
+    const known = INSTRUMENT_UNIVERSE.find((item) => nameMatches(query, item.name));
+    return known ? { ...known } : null;
   }
 
   async getKline(code: string, options?: { period?: string; count?: number }): Promise<KlinePoint[]> {

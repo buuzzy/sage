@@ -50,9 +50,13 @@ sage-ios/
 - Tab 固定为：资产 / 行动 / 分身。
 - 资产首页通过 `APIClient.getMobileDashboard()` 读取 `/mobile/dashboard`。
 - 底部对讲机按钮为 **push-to-talk**：按住 → `VoiceRecorder`(AVFoundation 录 16kHz mono m4a) → 松手 → `APIClient.transcribe()` multipart 上传 `/mobile/transcribe`(SenseVoice) → 真实 transcript 生成想法卡。麦克风权限走 Info.plist `NSMicrophoneUsageDescription`。
-- 语音想法卡的 symbol/intent 由后端 Qwen 自动抽取；抽不出时留空，前端隐藏空标签（不伪造）。
-- 「行动」Tab 的待确认想法卡可点入 `OrderConfirmationFlowView` 两步确认：Step1 确认投资逻辑（`confirmIdeaNote`）→ Step2 拉取并调整订单草稿（`/mobile/notes/:id/order-draft`）→ 提交模拟盘（`/mobile/orders`）→ Step3 回执。完成后回调 `viewModel.reloadActions()` 刷新列表。
-- 想法卡预览弹窗（资产页）只负责导航到行动 Tab，不再就地确认；确认动作统一收敛到两步流程。
+- 语音想法卡的 symbol/intent + 任务类型由后端分类器自动判断；抽不出时留空，前端隐藏空标签（不伪造）。
+- **想法分三类，「行动」Tab 按 kind 分流**（`ActionCenterView.route(for:)`）：
+  - `idea_confirmation`（待确认）→ `OrderConfirmationFlowView` 两步确认下单（Step1 确认逻辑 `confirmIdeaNote` → Step2 调整草稿 `/order-draft` → 提交 `/orders` → Step3 回执）
+  - `analysis_task` → `AnalysisDetailView`（`POST /notes/:id/analyze` 拉 Sage 结合持仓的结构化判断；建议下单时可一键进入两步确认）
+  - `price_watch` → `WatchDetailView`（展示现价 vs 目标价 + 监控状态；「模拟触发」`POST /notes/:id/trigger` 或后台自动触发后进入两步确认）
+- **行动卡流程用 `fullScreenCover` 模态呈现**（不是 NavigationLink push）：避免在流程中切到资产 Tab、再切回行动时残留上一张卡的旧流程页。`onDismiss` 统一 `reloadActions()`。
+- 想法卡预览弹窗（资产页）按任务类型给出「Sage 接下来做什么」提示，只负责导航到行动 Tab，不就地确认。
 - 持仓详情以 Kline 为核心，已接 `/broker/positions/:code/kline` 的富途语义 mock 数据。
 - 对讲机按钮 → `/mobile/notes` → 想法卡 → `/mobile/actions` → 行动 Tab 已有产品状态闭环（已落 Supabase，按 userId 隔离）。
 - 想法卡 / 行动中心调用（`getMobileActions` / `createIdeaNote` / `confirmIdeaNote`）必须带用户 Supabase JWT（`APIClient.userToken()` 取自 `AuthService`），不能用共享 token。
@@ -66,6 +70,7 @@ sage-ios/
 - 旧聊天 UI（消息行、输入框、工具组、artifact、sidebar）已删除；不要恢复会话列表/聊天输入框作为主入口。
 - `ChatViewModel` 已删除；旧本地会话读写统一走 `LegacySessionStore`。不要为了恢复聊天主界面而重建 ViewModel。
 - 设置入口收敛到分身 Tab（`AvatarProfileView` 的「配置 → 设置」打开 `SettingsView`）；不要在主壳重新加全局设置 sheet。
+- 分身 Tab 提供日夜快速切换：「配置 → 外观」单击循环（跟随系统→浅色→深色）+ 导航栏右上角一键图标，均写 `@AppStorage("sage_theme")`，由 `SageApp.applyTheme` 即时应用到 UIKit 层。复杂配置仍收在 `SettingsView`。
 - `ErrorReportService` 已接线：投资对讲机 ViewModel 的产品级失败（dashboard/想法卡/画像加载）经 `reportMobileError()` 异步写 Supabase `error_logs`。
 - `CLAUDE.md` 是当前结构说明书；每次移动主入口、数据流或模块职责后必须同步更新。
 

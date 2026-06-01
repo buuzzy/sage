@@ -332,6 +332,8 @@ Sage 后端已经有四层连续记忆能力（详见 `src-api/src/shared/memory
 - **App 从 ~40MB 膨胀到 700MB**：`tauri.conf.json` 的 `resources` 或 `externalBin` 被意外添加了大目录/文件。发布前必须检查 `externalBin` 只有 `sage-api`，`resources` 只有 `resources/`。
 - **Apple 公证 500 不影响构建产物**：Tauri 构建 + codesign 已完成，只是公证步骤失败。等 Apple 服务恢复后手动补公证即可，不需要重新构建。
 - **提交前必须 `git diff` 检查 `tauri.conf.json`**：避免将其他分支/实验性改动（externalBin、resources）意外带入 release commit。
+- **列表排序要有单一来源**：行动中心 feed 后端已按 `priority 升序 + createdAt 降序` 排好，iOS 端却又 `.sorted { $0.priority < $1.priority }` 只按优先级重排，丢掉了「最新在前」次级键，且 Swift sort 不稳定 → 新卡片落在中间。修复＝客户端不重排、直接信任后端顺序。任何「服务端已排序又在客户端重排」都要警惕。
+- **投资想法 ≠ 永远是下单**：语音想法先经 `classifyIdea` 分成 order / analysis / conditional 三类，分别走下单确认 / 分析观点 / 价格监控。不要把所有想法都直接塞进下单草稿（早期实现的错误）。
 
 ## 待办事项
 
@@ -345,7 +347,7 @@ Sage 后端已经有四层连续记忆能力（详见 `src-api/src/shared/memory
 |-----|------|----------|
 | `IWENCAI_API_KEY` | 11 个 iwencai 技能 | `~/.sage/.env` → Tauri sidecar 注入 |
 | `WESTOCK_API_KEY` | 4 个 westock 技能 | 同上 |
-| `SILICONFLOW_API_KEY` | iOS 对讲机语音转文字（SenseVoice ASR，`/mobile/transcribe`）+ 想法意图抽取（Qwen，`idea-intent.ts`） | Railway env only |
+| `SILICONFLOW_API_KEY` | iOS 对讲机：语音转文字（SenseVoice ASR，`/mobile/transcribe`）+ 想法分类（Qwen，`idea-intent.ts` 分下单/分析/条件单）+ 分析任务（`idea-analysis.ts` 结合持仓出判断） | Railway env only |
 | `MIMO_API_KEY` | Phase 3 persona 蒸馏 LLM 的 API Key（当前用 DeepSeek） | Railway env only |
 | `MIMO_BASE_URL` | 蒸馏 LLM 入口（当前 `https://api.deepseek.com`） | Railway env only |
 | `MIMO_MODEL` | 蒸馏模型（当前 `deepseek-v4-flash`） | Railway env only |

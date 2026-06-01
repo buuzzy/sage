@@ -20,6 +20,7 @@ export type {
   BrokerPosition,
   KlinePoint,
   OrderType,
+  ResolvedInstrument,
   SimulatedOrder,
   SubmitSimulatedOrderInput,
   TradeSide,

@@ -1,7 +1,25 @@
 # Sage — TODO & Feature Roadmap
 
 > 本文件是项目唯一权威 TODO。只保留真实待解决项、明确产品规划和暂不做事项；已完成内容通过 git commit / release 记录追溯。
-> 最后更新：2026-05-19（v1.5.0，项目架构优化完成，进入 iOS Phase 1）
+> 最后更新：2026-06-01（iOS 投资对讲机：想法三类分流 + 两步下单 + 条件单监控落地，进入 D–H 验收与富途接入）
+
+---
+
+## P1 — iOS 投资对讲机（进行中，老板演示主线）
+
+> 完整状态与交接见 `docs/INVESTMENT_WALKIE_STATUS.md`；验收清单见桌面 `投资对讲机_验收清单.md`。
+
+**已完成（git 追溯）**：资产/行动/分身三 Tab、push-to-talk 语音(SenseVoice ASR)、想法分类（order/analysis/conditional）、分析任务（LLM 结合持仓）、条件单监控 + 后台 sweep cron、两步确认下单（富途语义 mock）、行动卡排序修复、日夜主题快速切换、按 user_id RLS 隔离落库。
+
+**待完成**：
+
+- **富途真实接入**：开户后用真实富途 OpenAPI 替换 `src-api/src/shared/broker` 的 mock adapter（`listAccounts/listPositions/getKline/getQuote/resolveInstrument/submitSimulatedOrder`），契约不变；先模拟盘后实盘。
+- **条件单真实自动触发**：当前 mock 行情稳定，靠手动「模拟触发」演示；接富途实时行情后 `sweepPriceWatches` 即真实生效。需评估轮询频率 / 推送方式。
+- **条件单触发推送（APNs）**：当前触发只更新行动卡，靠 iOS 前台轮询；要做真正的「行情到价提醒」需接 APNs 远程推送。
+- **D–H 验收**：标的解析准确性、方向/数量推断、分身/主题、资产/K线、鉴权隔离（详见验收清单）。
+- **分析深度增强**：分析任务目前仅基于持仓上下文 + LLM；可接 iwencai 技能 / 实时行情让结论更硬。
+- **看板自定义**：资产首页模块可编辑/重排（高级用户），与 AI 默认编排并存（老板原始需求，尚未做）。
+- **情绪干预**：AI 在情绪化交易（追高/割肉）时介入提醒（产品哲学要求，尚未做）。
 
 ---
 

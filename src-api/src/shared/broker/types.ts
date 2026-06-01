@@ -76,9 +76,26 @@ export interface SimulatedOrder {
   remark?: string;
 }
 
+/**
+ * 标的解析结果：把口述名称（「比亚迪」）映射到可交易/可报价的合约身份。
+ * 价格只是当前快照，真实下单 / 监控时应再通过 getQuote 取最新价。
+ */
+export interface ResolvedInstrument {
+  code: string;
+  name: string;
+  market: BrokerMarket;
+  currency: string;
+  lastPrice: number;
+  lotSize: number;
+}
+
 export interface BrokerAdapter {
   listAccounts(): Promise<BrokerAccount[]>;
   listPositions(accountId?: string): Promise<BrokerPosition[]>;
   getKline(code: string, options?: { period?: string; count?: number }): Promise<KlinePoint[]>;
   submitSimulatedOrder(input: SubmitSimulatedOrderInput): Promise<SimulatedOrder>;
+  /** 取某合约当前价（富途实时报价语义）。未知合约返回 null。 */
+  getQuote(code: string): Promise<number | null>;
+  /** 把口述名称解析成合约身份（命中持仓优先，其次标的池）。无法识别返回 null。 */
+  resolveInstrument(symbol: string): Promise<ResolvedInstrument | null>;
 }
