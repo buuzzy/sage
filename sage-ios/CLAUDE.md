@@ -62,43 +62,25 @@ sage-ios/
 - 旧 Chat 目录只允许保留被新主线复用的通用组件（当前为 `NativeKLineChartView.swift`）。
 - 旧聊天 UI（消息行、输入框、工具组、artifact、sidebar）已删除；不要恢复会话列表/聊天输入框作为主入口。
 - `ChatViewModel` 已删除；旧本地会话读写统一走 `LegacySessionStore`。不要为了恢复聊天主界面而重建 ViewModel。
+- 设置入口收敛到分身 Tab（`AvatarProfileView` 的「配置 → 设置」打开 `SettingsView`）；不要在主壳重新加全局设置 sheet。
+- `ErrorReportService` 已接线：投资对讲机 ViewModel 的产品级失败（dashboard/想法卡/画像加载）经 `reportMobileError()` 异步写 Supabase `error_logs`。
 - `CLAUDE.md` 是当前结构说明书；每次移动主入口、数据流或模块职责后必须同步更新。
 
-### Legacy DisplayGroup 消息分组（对标桌面端 TaskMessageGroup）
+### 预留代码（Agent 流式层 / CloudSync 同步）—— 勿当冗余删除
 
-```swift
-enum DisplayGroup: Identifiable {
-    case userMessage(id: UUID, content: String)
-    case taskGroup(id: UUID, title: String, tools: [ToolCallItem], isComplete: Bool)
-    case assistantText(id: UUID, content: String, isStreaming: Bool)
-    case plan(id: UUID, data: PlanData)
-    case error(id: UUID, message: String)
-}
-```
+以下代码当前**没有调用方**，但为「对讲机语音 → Agent」路线图预留，不要当死代码清掉：
 
-状态机逻辑：
-- 收到 `text` → 追加到当前 assistantText
-- 收到 `tool_use` → 如果有 pendingText，创建 TaskGroup（标题=pendingText）
-- 收到 `tool_result` → 更新 TaskGroup 中对应工具状态
-- 收到下一个 `text` → 关闭当前 TaskGroup，开始新 assistantText
+- `APIClient` 的 `streamAgent / streamPlan / streamExecute / generateTitle / stopSession / respondToPermission / getTaskEvents / getTaskStatus` 及 SSE 解析实现
+- 配套模型 `SSEEvent / SSEEventType / PlanData / PlanStep / PermissionRequestData / AgentRequest / ConversationMessage / ImageAttachment / Sandbox|Skills|MCPConfig / AnyCodable`
+- `CloudSyncService` 的 `syncSession / syncMessage / restoreSessions`（`clearAllConversationData` 仍被登出清理使用）
 
-### SSE 事件类型
+复用它们前，先确认数据流（SSE 事件 → 新产品 UI 卡片），不要直接套回旧聊天分组逻辑。
 
-| type | iOS 处理 |
-|------|---------|
-| text / direct_answer | 追加到 assistantText |
-| tool_use | 创建或追加到 TaskGroup |
-| tool_result | 更新工具完成状态 |
-| plan | 显示 PlanApprovalRow |
-| permission_request | 弹出系统 Alert |
-| session | 保存 backendSessionId |
-| error | 显示 ErrorRow |
-| done / result | 流结束 |
+### API 鉴权（双轨）
 
-### API 鉴权
-
-所有请求带 `Authorization: Bearer <SAGE_API_TOKEN>`。
-后端 `localOnlyMiddleware` 在云端模式下验证此 token（或 Supabase JWT）。
+- 共享 `SAGE_API_TOKEN`（exact-match）：`/agent` `/cron` `/skills` `/mobile/dashboard` `/broker/*` 等无用户态接口
+- 用户 Supabase JWT（`APIClient.userToken()` 取自 `AuthService`）：`/mobile/actions` `/mobile/notes*` `/persona/memory` 等按 user_id 隔离的接口
+- 后端 `localOnlyMiddleware` 云端模式先验 `SAGE_API_TOKEN`，再 fallback 校验 JWT 并注入 `userId`
 
 ## 构建命令
 
@@ -115,7 +97,7 @@ xcodebuild -scheme Sage -destination 'generic/platform=iOS Simulator' build
 
 ## 不变量
 
-- SAGE_API_TOKEN 不推送到公开仓库（临时硬编码用于开发）
+- SAGE_API_TOKEN / SUPABASE_* 不入源码：统一放 `Config/Secrets.xcconfig`（.gitignore）→ Info.plist substitution → `APIClient.loadAPIToken()` / `SupabaseConfig` 运行时读 Bundle。禁止再 hardcode
 - Bundle ID: ai.sage.app, Team: YIYANG CAI
 - 最低部署目标: iOS 16.0
 - 所有网络请求通过 APIClient actor（线程安全）

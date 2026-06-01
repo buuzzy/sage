@@ -16,6 +16,7 @@ final class InvestmentDashboardViewModel: ObservableObject {
             actions = try await APIClient.shared.getMobileActions()
         } catch {
             errorMessage = error.localizedDescription
+            reportMobileError("ios_dashboard_load_failed", error)
         }
         isLoading = false
     }
@@ -27,6 +28,7 @@ final class InvestmentDashboardViewModel: ObservableObject {
             actions = try await APIClient.shared.getMobileActions()
         } catch {
             errorMessage = error.localizedDescription
+            reportMobileError("ios_idea_create_failed", error)
         }
     }
 
@@ -37,9 +39,15 @@ final class InvestmentDashboardViewModel: ObservableObject {
             actions = try await APIClient.shared.getMobileActions()
         } catch {
             errorMessage = error.localizedDescription
+            reportMobileError("ios_idea_confirm_failed", error)
         }
         presentedIdea = nil
     }
+}
+
+/// 把用户可见的产品级失败异步上报到 Supabase `error_logs`（fire-and-forget，不阻塞 UI）。
+private func reportMobileError(_ type: String, _ error: Error) {
+    Task { await ErrorReportService.shared.submit(errorType: type, message: error.localizedDescription) }
 }
 
 /// 分身 Tab：拉取真实蒸馏画像（/persona/memory），未蒸馏时回退引导文案。
@@ -66,6 +74,7 @@ final class AvatarProfileViewModel: ObservableObject {
             snapshot = PersonaSnapshot.parse(from: data)
         } catch {
             snapshot = nil
+            reportMobileError("ios_persona_load_failed", error)
         }
     }
 }

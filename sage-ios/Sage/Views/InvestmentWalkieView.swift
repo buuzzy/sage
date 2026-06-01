@@ -326,7 +326,10 @@ private struct ActionCenterView: View {
 }
 
 private struct AvatarProfileView: View {
+    @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var settingsService: SettingsService
     @StateObject private var viewModel = AvatarProfileViewModel()
+    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
@@ -353,14 +356,22 @@ private struct AvatarProfileView: View {
                 }
 
                 Section("配置") {
-                    Label("富途模拟盘连接", systemImage: "link")
-                    Label("首页模块编辑", systemImage: "slider.horizontal.3")
+                    Button { showSettings = true } label: {
+                        Label("设置", systemImage: "gearshape")
+                            .foregroundColor(.primary)
+                    }
                 }
             }
             .sageSettingsPage()
             .navigationTitle("分身")
         }
         .task { await viewModel.load() }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environmentObject(authService)
+                .environmentObject(settingsService)
+                .sageSheetBackground()
+        }
     }
 
     private var identitySection: some View {
