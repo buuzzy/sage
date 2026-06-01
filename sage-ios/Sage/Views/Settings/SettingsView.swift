@@ -188,10 +188,10 @@ struct SettingsView: View {
         Task {
             // 1) 本地 UserDefaults：messages 全部 + sessions 列表
             let defaults = UserDefaults.standard
-            for session in ChatViewModel.loadAllSessionsFromStorage() {
-                defaults.removeObject(forKey: "sage_messages_\(session.id)")
+            for session in LegacySessionStore.loadAllSessions() {
+                defaults.removeObject(forKey: LegacySessionStore.messagesKey(for: session.id))
             }
-            ChatViewModel.saveAllSessionsToStorage([])
+            LegacySessionStore.saveAllSessions([])
 
             // 2) Supabase 云端三表（messages → tasks → sessions，按 FK 依赖）
             var cloudOk = true

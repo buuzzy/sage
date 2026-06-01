@@ -9,9 +9,24 @@ actor APIClient {
     static let shared = APIClient()
 
     private let baseURL = "https://sage-production-28e1.up.railway.app"
-    private let apiToken = "b2cbe89f938ee822f4a7efa45315346429fa1c34f9534e08f558e649cc46f3ed"
+    /// Railway 后端共享 Bearer token。来自 Secrets.xcconfig 的 SAGE_API_TOKEN，
+    /// 经 Info.plist substitution 注入，禁止在源码 hardcode（参考 SupabaseConfig）。
+    private let apiToken = APIClient.loadAPIToken()
 
     private let decoder = JSONDecoder()
+
+    private static func loadAPIToken() -> String {
+        guard let token = Bundle.main.object(forInfoDictionaryKey: "SAGE_API_TOKEN") as? String,
+              !token.isEmpty,
+              token != "your-sage-api-token-here" else {
+            fatalError(
+                "[APIClient] 缺失或未填入的 SAGE_API_TOKEN。\n" +
+                "请检查 sage-ios/Sage/Config/Secrets.xcconfig 是否存在并填入正确值\n" +
+                "（参考 Secrets.xcconfig.example）"
+            )
+        }
+        return token
+    }
 
     // MARK: - Agent Endpoints
 
@@ -116,6 +131,59 @@ actor APIClient {
     /// 获取当前用户画像。这里使用 Supabase JWT，让后端按 RLS 返回当前用户数据。
     func getPersona(accessToken: String) async throws -> Data {
         return try await getJSON(endpoint: "/persona/memory", bearerToken: accessToken)
+    }
+
+    /// 获取 iOS 投资对讲机资产首页。
+    func getMobileDashboard() async throws -> MobileDashboard {
+        let data = try await getJSON(endpoint: "/mobile/dashboard")
+        return try decoder.decode(MobileDashboardResponse.self, from: data).dashboard
+    }
+
+    /// 行动 / 想法卡接口按 user_id 隔离持久化，必须带用户 Supabase JWT（而非共享 token）。
+    func getMobileActions() async throws -> [InvestmentActionItem] {
+        let token = try await userToken()
+        let data = try await getJSON(endpoint: "/mobile/actions", bearerToken: token)
+        return try decoder.decode(MobileActionsResponse.self, from: data).actions
+    }
+
+    func createIdeaNote(transcript: String? = nil, symbol: String? = nil, intent: String? = nil) async throws -> CreateIdeaNoteResponse {
+        let token = try await userToken()
+        let body = CreateIdeaNoteRequest(transcript: transcript, symbol: symbol, intent: intent)
+        let data = try await postJSON(endpoint: "/mobile/notes", body: body, bearerToken: token)
+        return try decoder.decode(CreateIdeaNoteResponse.self, from: data)
+    }
+
+    func confirmIdeaNote(noteId: String) async throws {
+        struct EmptyBody: Codable {}
+        let token = try await userToken()
+        _ = try await postJSON(endpoint: "/mobile/notes/\(noteId)/confirm", body: EmptyBody(), bearerToken: token)
+    }
+
+    /// 取当前用户的 Supabase access token；未登录时抛出 401。
+    private func userToken() async throws -> String {
+        guard let token = await AuthService.shared.getAccessToken() else {
+            throw APIError.httpError(statusCode: 401)
+        }
+        return token
+    }
+
+    /// 获取持仓 K 线。后端当前是富途语义 mock，后续替换 adapter 后接口不变。
+    func getPositionKline(code: String, name: String, count: Int = 60) async throws -> KLineChartData {
+        let encodedCode = code.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? code
+        let data = try await getJSON(endpoint: "/broker/positions/\(encodedCode)/kline?period=day&count=\(count)")
+        let response = try decoder.decode(BrokerKlineResponse.self, from: data)
+        let points = response.kline.map {
+            KLineDataPoint(
+                time: $0.time,
+                open: $0.open,
+                close: $0.close,
+                high: $0.high,
+                low: $0.low,
+                vol: $0.volume,
+                turnover: nil
+            )
+        }
+        return KLineChartData(code: response.code, name: name, ktype: response.period, data: points)
     }
 
     // MARK: - SSE Stream Implementation (with retry + background task support)
@@ -247,16 +315,16 @@ actor APIClient {
         }
     }
 
-    private func postJSON<T: Encodable>(endpoint: String, body: T) async throws -> Data {
+    private func postJSON<T: Encodable>(endpoint: String, body: T, bearerToken: String? = nil) async throws -> Data {
         let url = URL(string: "\(baseURL)\(endpoint)")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(bearerToken ?? apiToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw APIError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
         }
         return data

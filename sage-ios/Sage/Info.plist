@@ -44,6 +44,8 @@
 	<string>Sage 需要在你导出对话或图表时把图片保存到相册。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Sage 需要访问相册以读取你想要分析的图片素材。</string>
+	<key>SAGE_API_TOKEN</key>
+	<string>$(SAGE_API_TOKEN)</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_URL</key>

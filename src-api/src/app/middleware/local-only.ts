@@ -27,6 +27,13 @@ import type { Context, Next } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { createClient } from '@supabase/supabase-js';
 
+declare module 'hono' {
+  interface ContextVariableMap {
+    /** Supabase user id, set by localOnlyMiddleware after JWT validation. */
+    userId?: string;
+  }
+}
+
 const API_TOKEN = process.env.SAGE_API_TOKEN;
 
 // Supabase client for JWT verification (only needed in cloud mode)
@@ -77,7 +84,8 @@ export async function localOnlyMiddleware(c: Context, next: Next): Promise<Respo
       try {
         const { data, error } = await supabaseAdmin.auth.getUser(token);
         if (!error && data.user) {
-          // Valid Supabase user — allow request
+          // Valid Supabase user — expose id to downstream routes (user-scoped APIs)
+          c.set('userId', data.user.id);
           await next();
           return;
         }

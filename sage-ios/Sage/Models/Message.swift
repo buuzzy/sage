@@ -116,6 +116,69 @@ struct ImageAttachment: Codable {
     let mediaType: String
 }
 
+/// Legacy session metadata kept for Settings/Cron migration compatibility.
+struct SessionItem: Identifiable, Codable {
+    let id: String
+    var title: String
+    var lastMessage: String
+    var createdAt: Date
+
+    init(id: String, title: String, lastMessage: String = "", createdAt: Date) {
+        self.id = id
+        self.title = title
+        self.lastMessage = lastMessage
+        self.createdAt = createdAt
+    }
+}
+
+/// 旧版本地会话存储（UserDefaults）。投资对讲机已无会话档案 UI，这里只为
+/// 「登出清理本地缓存」和「定时任务结果落库前的兼容」保留最小读写能力。
+enum LegacySessionStore {
+    private static let sessionsKey = "sage_sessions_v1"
+    private static let messagesKeyPrefix = "sage_messages_"
+
+    private struct StorableSession: Codable {
+        let id: String
+        let title: String
+        let lastMessage: String?
+        let createdAt: Double
+    }
+
+    static func loadAllSessions() -> [SessionItem] {
+        guard let data = UserDefaults.standard.data(forKey: sessionsKey),
+              let items = try? JSONDecoder().decode([StorableSession].self, from: data) else {
+            return []
+        }
+        return items.map {
+            SessionItem(
+                id: $0.id,
+                title: $0.title,
+                lastMessage: $0.lastMessage ?? "",
+                createdAt: Date(timeIntervalSince1970: $0.createdAt)
+            )
+        }
+    }
+
+    static func saveAllSessions(_ sessions: [SessionItem]) {
+        let storable = sessions.map {
+            StorableSession(
+                id: $0.id,
+                title: $0.title,
+                lastMessage: $0.lastMessage,
+                createdAt: $0.createdAt.timeIntervalSince1970
+            )
+        }
+        if let data = try? JSONEncoder().encode(storable) {
+            UserDefaults.standard.set(data, forKey: sessionsKey)
+        }
+    }
+
+    /// 登出时清理某会话的本地消息缓存。
+    static func messagesKey(for sessionId: String) -> String {
+        messagesKeyPrefix + sessionId
+    }
+}
+
 /// 通用 JSON 值包装（处理 input 等 any 类型字段）
 struct AnyCodable: Codable {
     let value: Any

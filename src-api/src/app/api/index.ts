@@ -1,5 +1,6 @@
 export { default as agentRoutes } from './agent.js';
 export { default as healthRoutes } from './health.js';
+export { brokerRoutes } from './broker.js';
 export { sandboxRoutes } from './sandbox.js';
 export { previewRoutes } from './preview.js';
 export { providersRoutes } from './providers.js';
@@ -14,5 +15,6 @@ export { feishuRoutes } from './feishu.js';
 export { skillsRoutes } from './skills.js';
 export { cronRoutes } from './cron.js';
 export { internalDistillRoutes } from './internal-distill.js';
+export { mobileRoutes } from './mobile.js';
 export { updaterRoutes } from './updater.js';
 export { userProvidersRoutes } from './user-providers.js';

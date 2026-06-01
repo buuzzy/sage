@@ -237,10 +237,15 @@ PostToolUse hook 确定性拦截 API 响应 → summary 替换 + artifact 生成
 ## iOS 当前状态
 
 - ✅ `sage-ios/` SwiftUI 原生客户端是唯一 iOS 工程
-- ✅ Supabase Swift 登录、Railway API 调用、SSE 对话流可用
-- ✅ 主界面、设置页、会话列表和基础聊天流程已迁移到原生 UI
+- ✅ iOS 主线已从“桌面聊天复刻”转为“投资对讲机”：`资产 / 行动 / 分身` 三 Tab
+- ✅ 资产首页通过 `/mobile/dashboard` 消费后端产品 API；Broker 层当前使用富途 OpenAPI 语义 mock 数据
+- ✅ 持仓详情通过 `/broker/positions/:code/kline` 读取 mock Kline，后续替换为富途模拟盘 adapter
+- ✅ 对讲机按钮通过 `/mobile/notes` 创建想法卡，行动中心通过 `/mobile/actions` 读取产品状态；二者已落 Supabase（`idea_notes` / `mobile_actions`）按 user_id 隔离，iOS 调用带用户 JWT
+- ✅ 分身 Tab 读 `/persona/memory` 真实蒸馏画像（身份摘要优先，空画像回退引导文案），不再硬编码假画像
+- ✅ Cron 完成后除写 sessions/messages 外，额外写 `mobile_actions`，定时结果出现在行动 Tab；iOS `CronResultPoller` 仅发推送，不再写本地会话存储
+- ✅ 旧聊天 UI / 会话侧栏 / `ChatViewModel` 已全部移出 iOS target 并删除；旧本地会话读写收敛到 `LegacySessionStore`
 - ⚠️ Capacitor `ios/` 遗留工程已移除；不要再运行 `npx cap sync/open ios`
-- **下一步**: 继续补齐原生 iOS 的 Skills / MCP / Cron / Persona 管理与金融 artifact 展示
+- **下一步**: 打通对讲机语音转录 → 想法卡 → 行动中心 → 计划/订单/复盘闭环；接富途模拟盘 adapter 替换 mock
 
 ## CI/CD
 
@@ -369,6 +374,8 @@ Railway 部署需在环境变量中单独配置。
 | `persona_memory` | Phase 3 蒸馏出的用户画像（profile + recent_threads） |
 | `user_behavior` | 用户行为日志（task_id 为 TEXT） |
 | `tasks` | 任务元数据（含 `provider_usage` JSON 字段） |
+| `idea_notes` | iOS 投资对讲机想法卡（id 为 TEXT，按 user_id RLS 隔离） |
+| `mobile_actions` | iOS 行动中心条目（想法确认 / 定时结果等，按 user_id RLS 隔离） |
 
 ## 敏感凭证保险库
 

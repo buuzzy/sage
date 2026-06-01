@@ -5,7 +5,6 @@ struct SageApp: App {
     @StateObject private var authService = AuthService.shared
     @StateObject private var settingsService = SettingsService.shared
     @StateObject private var cloudProviderStore = CloudProviderStore.shared
-    @StateObject private var chatVM = ChatViewModel()
     @AppStorage("sage_theme") private var theme: String = "system"
     @Environment(\.scenePhase) private var scenePhase
 
@@ -22,7 +21,7 @@ struct SageApp: App {
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                 } else if authService.isAuthenticated {
-                    MainView(chatVM: chatVM)
+                    MainView()
                         .environmentObject(authService)
                         .environmentObject(settingsService)
                         .environmentObject(cloudProviderStore)
@@ -46,10 +45,7 @@ struct SageApp: App {
             }
             .onChange(of: scenePhase) { newPhase in
                 switch newPhase {
-                case .background:
-                    chatVM.willEnterBackground()
                 case .active:
-                    chatVM.resumeFromBackground()
                     NotificationService.shared.clearBadge()
                     // Check for new cron job results from Supabase
                     Task { await CronResultPoller.shared.checkForNewResults() }

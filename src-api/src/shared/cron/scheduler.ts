@@ -238,6 +238,19 @@ async function writeCronResultToSupabase(job: CronJob, output: string): Promise<
     console.warn(`[Cron] Supabase agent message insert failed:`, msgErr2.message);
   }
 
+  // 4. Surface the result in the iOS 投资对讲机「行动」Tab as an action card.
+  //    Uses the same service-role client with an explicit user_id.
+  try {
+    const { appendCronAction } = await import('@/shared/services/mobile-actions');
+    await appendCronAction(supabase, job.userId, {
+      jobName: job.name,
+      preview: output,
+      sessionId,
+    });
+  } catch (err) {
+    console.warn(`[Cron] mobile action insert failed:`, err instanceof Error ? err.message : err);
+  }
+
   console.log(`[Cron] Wrote result to Supabase: session=${sessionId} for user=${job.userId}`);
 }
 

@@ -1,8 +1,13 @@
 import Foundation
 
-/// 轮询 Supabase 检测新的 Cron 执行结果会话
-/// 后端 cron 执行成功后会将结果写入 Supabase sessions + messages 表。
-/// 本服务在 App 进入前台时检查是否有新结果，并触发本地通知 + 会话列表刷新。
+/// 轮询 Supabase 检测新的 Cron 执行结果，进前台时触发本地推送。
+///
+/// 后端 cron 执行成功后会：
+///   1. 写入 Supabase sessions + messages（事实源）
+///   2. 写入 mobile_actions 一条行动卡（在「行动」Tab 展示）
+///
+/// 本服务只负责「有新结果时弹本地通知」。结果的 UI 落地由 /mobile/actions 承载，
+/// 不再往本地 UserDefaults 写会话/消息（投资对讲机已无会话档案 UI）。
 class CronResultPoller {
     static let shared = CronResultPoller()
 
@@ -15,9 +20,8 @@ class CronResultPoller {
 
     private init() {}
 
-    /// 检查 Supabase 中是否有新的 cron 结果会话，有则插入本地 + 发通知
+    /// 检查是否有新的 cron 结果会话，有则发本地通知。
     func checkForNewResults() async {
-        // AuthService 和 ChatViewModel 是 @MainActor 隔离的，需要在 MainActor 上访问
         let userId = await MainActor.run { AuthService.shared.userId }
         let token = await AuthService.shared.getAccessToken()
         guard let userId, let token else { return }
@@ -26,7 +30,6 @@ class CronResultPoller {
         let baseUrl = SupabaseConfig.url.absoluteString
         let anonKey = SupabaseConfig.anonKey
 
-        // Query: sessions where title starts with [定时] and created_at > lastCheckAt
         let encodedPrefix = "[定时]".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "[定时]"
         let urlString = "\(baseUrl)/rest/v1/sessions?user_id=eq.\(userId)&title=like.\(encodedPrefix)*&created_at=gt.\(since)&order=created_at.desc&limit=10"
         guard let url = URL(string: urlString) else { return }
@@ -38,36 +41,12 @@ class CronResultPoller {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return }
-
             guard let sessions = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
             if sessions.isEmpty { return }
-
-            // Insert new sessions into local storage (MainActor-isolated)
-            var allSessions = await MainActor.run { ChatViewModel.loadAllSessionsFromStorage() }
-            var newCount = 0
 
             for dict in sessions {
                 guard let id = dict["id"] as? String,
                       let title = dict["title"] as? String else { continue }
-
-                // Skip if already exists locally
-                if allSessions.contains(where: { $0.id == id }) { continue }
-
-                let createdAt: Date
-                if let dateStr = dict["created_at"] as? String {
-                    createdAt = ISO8601DateFormatter().date(from: dateStr) ?? Date()
-                } else {
-                    createdAt = Date()
-                }
-
-                let newSession = SessionItem(id: id, title: title, createdAt: createdAt)
-                allSessions.insert(newSession, at: 0)
-                newCount += 1
-
-                // Fetch messages for this session and store locally
-                await fetchAndStoreMessages(sessionId: id, userId: userId, token: token, baseUrl: baseUrl, anonKey: anonKey)
-
-                // Send local notification with sessionId for tap-to-navigate
                 let preview = dict["preview"] as? String
                 NotificationService.shared.sendCronJobNotification(
                     jobName: title.replacingOccurrences(of: "[定时] ", with: ""),
@@ -76,76 +55,10 @@ class CronResultPoller {
                 )
             }
 
-            if newCount > 0 {
-                await MainActor.run { ChatViewModel.saveAllSessionsToStorage(allSessions) }
-                // Post notification so UI reloads session list
-                await MainActor.run {
-                    NotificationCenter.default.post(name: .cronSessionsUpdated, object: nil)
-                }
-                print("[CronPoller] Found \(newCount) new cron result session(s)")
-            }
-
-            // Update checkpoint
+            print("[CronPoller] Found \(sessions.count) new cron result session(s)")
             lastCheckAt = Date()
         } catch {
             print("[CronPoller] Check failed: \(error.localizedDescription)")
         }
     }
-
-    // MARK: - Fetch messages and store in UserDefaults (same format as ChatViewModel)
-
-    /// Matches ChatViewModel's private StorableMessage layout for Codable compatibility
-    private struct CronStorableMessage: Codable {
-        let type: String
-        let content: String?
-        let title: String?
-        let toolsJson: String?
-    }
-
-    private func fetchAndStoreMessages(sessionId: String, userId: String, token: String, baseUrl: String, anonKey: String) async {
-        // Query messages for this session's task_id
-        let msgUrlString = "\(baseUrl)/rest/v1/messages?task_id=eq.\(sessionId)&user_id=eq.\(userId)&order=created_at.asc"
-        guard let msgUrl = URL(string: msgUrlString) else { return }
-
-        var request = URLRequest(url: msgUrl)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(anonKey, forHTTPHeaderField: "apikey")
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return }
-            guard let messages = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-            if messages.isEmpty { return }
-
-            // Convert to StorableMessage format
-            var storable: [CronStorableMessage] = []
-            for msg in messages {
-                let type = msg["type"] as? String ?? ""
-                let content = msg["content"] as? String ?? ""
-                // Map Supabase types to ChatViewModel storage types
-                let storageType: String
-                switch type {
-                case "user": storageType = "user"
-                case "text", "assistant": storageType = "assistant_text"
-                default: continue
-                }
-                storable.append(CronStorableMessage(type: storageType, content: content, title: nil, toolsJson: nil))
-            }
-
-            // Encode with JSONEncoder (matches ChatViewModel's JSONDecoder expectation)
-            if let jsonData = try? JSONEncoder().encode(storable) {
-                let key = "sage_messages_\(sessionId)"
-                UserDefaults.standard.set(jsonData, forKey: key)
-                print("[CronPoller] Stored \(storable.count) messages for session \(sessionId)")
-            }
-        } catch {
-            print("[CronPoller] Failed to fetch messages for \(sessionId): \(error.localizedDescription)")
-        }
-    }
-}
-
-// MARK: - Notification name for UI refresh
-
-extension Notification.Name {
-    static let cronSessionsUpdated = Notification.Name("sage_cron_sessions_updated")
 }

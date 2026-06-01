@@ -5,6 +5,7 @@ import { logger } from 'hono/logger';
 
 import {
   agentRoutes,
+  brokerRoutes,
   channelRoutes,
   completionsRoutes,
   cronRoutes,
@@ -12,6 +13,7 @@ import {
   filesRoutes,
   healthRoutes,
   internalDistillRoutes,
+  mobileRoutes,
   mcpRoutes,
   mcpMemoryRoutes,
   personaRoutes,
@@ -52,6 +54,8 @@ app.use('/mcp/*', localOnlyMiddleware);
 app.use('/mcp-memory/*', localOnlyMiddleware);
 app.use('/persona/*', localOnlyMiddleware);
 app.use('/skills/*', localOnlyMiddleware);
+app.use('/mobile/*', localOnlyMiddleware);
+app.use('/broker/*', localOnlyMiddleware);
 
 // ── Management routes (local-only: config, cron — no external access) ─
 // These routes expose sensitive configuration and internal state.
@@ -62,6 +66,8 @@ app.use('/cron/*', localOnlyMiddleware);
 
 // Routes
 app.route('/health', healthRoutes);
+app.route('/mobile', mobileRoutes);
+app.route('/broker', brokerRoutes);
 app.route('/agent', agentRoutes);
 app.route('/sandbox', sandboxRoutes);
 app.route('/preview', previewRoutes);
@@ -130,6 +136,8 @@ app.get('/', (c) => {
     version: '0.1.1',
     endpoints: {
       health: '/health',
+      mobileDashboard: '/mobile/dashboard',
+      broker: '/broker',
       agent: '/agent',
       sandbox: '/sandbox',
       preview: '/preview',
