@@ -315,6 +315,8 @@
 			baseConfigurationReference = B79DFB16952208376ADC2D9F /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				APS_ENVIRONMENT = production;
+				CODE_SIGN_ENTITLEMENTS = Sage/Sage.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = QB576QUT2S;
@@ -399,6 +401,8 @@
 			baseConfigurationReference = B79DFB16952208376ADC2D9F /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				APS_ENVIRONMENT = development;
+				CODE_SIGN_ENTITLEMENTS = Sage/Sage.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = QB576QUT2S;

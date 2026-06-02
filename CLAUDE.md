@@ -237,15 +237,16 @@ PostToolUse hook 确定性拦截 API 响应 → summary 替换 + artifact 生成
 ## iOS 当前状态
 
 - ✅ `sage-ios/` SwiftUI 原生客户端是唯一 iOS 工程
-- ✅ iOS 主线已从“桌面聊天复刻”转为“投资对讲机”：`资产 / 行动 / 分身` 三 Tab
-- ✅ 资产首页通过 `/mobile/dashboard` 消费后端产品 API；Broker 层当前使用富途 OpenAPI 语义 mock 数据
-- ✅ 持仓详情通过 `/broker/positions/:code/kline` 读取 mock Kline，后续替换为富途模拟盘 adapter
+- ✅ iOS 主线已从“桌面聊天复刻”转为“投资对讲机”：主界面为 `资产 / 行动` 横向分页，分身归档到设置
+- ✅ 资产首页通过 `/mobile/dashboard` 消费后端产品 API；账户/持仓数量仍是富途语义 mock，但价格、涨跌幅、K线、资讯优先来自 westock
+- ✅ 资产页已接入：顶部资产/行动切换、灵动岛区域蒙层、资产隐藏/显示、币种展示切换、一日资产趋势、持仓资讯卡、OKX/Futu 风格持仓列表、前台 5 分钟自动刷新
+- ✅ 持仓详情通过 `/broker/positions/:code/kline` 读取 westock Kline（失败返回行情不可用），后续替换为富途模拟盘 adapter
 - ✅ 对讲机按钮通过 `/mobile/notes` 创建想法卡，行动中心通过 `/mobile/actions` 读取产品状态；二者已落 Supabase（`idea_notes` / `mobile_actions`）按 user_id 隔离，iOS 调用带用户 JWT
-- ✅ 分身 Tab 读 `/persona/memory` 真实蒸馏画像（身份摘要优先，空画像回退引导文案），不再硬编码假画像
+- ✅ 分身页读 `/persona/memory` 真实蒸馏画像（身份摘要优先，空画像回退引导文案），不再硬编码假画像
 - ✅ Cron 完成后除写 sessions/messages 外，额外写 `mobile_actions`，定时结果出现在行动 Tab；iOS `CronResultPoller` 仅发推送，不再写本地会话存储
 - ✅ 旧聊天 UI / 会话侧栏 / `ChatViewModel` 已全部移出 iOS target 并删除；旧本地会话读写收敛到 `LegacySessionStore`
 - ⚠️ Capacitor `ios/` 遗留工程已移除；不要再运行 `npx cap sync/open ios`
-- **下一步**: 打通对讲机语音转录 → 想法卡 → 行动中心 → 计划/订单/复盘闭环；接富途模拟盘 adapter 替换 mock
+- **下一步**: 继续 D–H 验收；接富途模拟盘 adapter 替换账户/交易 mock；补港美股跨市场消歧与更稳定 ASR
 
 ## CI/CD
 
@@ -334,6 +335,11 @@ Sage 后端已经有四层连续记忆能力（详见 `src-api/src/shared/memory
 - **提交前必须 `git diff` 检查 `tauri.conf.json`**：避免将其他分支/实验性改动（externalBin、resources）意外带入 release commit。
 - **列表排序要有单一来源**：行动中心 feed 后端已按 `priority 升序 + createdAt 降序` 排好，iOS 端却又 `.sorted { $0.priority < $1.priority }` 只按优先级重排，丢掉了「最新在前」次级键，且 Swift sort 不稳定 → 新卡片落在中间。修复＝客户端不重排、直接信任后端顺序。任何「服务端已排序又在客户端重排」都要警惕。
 - **投资想法 ≠ 永远是下单**：语音想法先经 `classifyIdea` 分成 order / analysis / conditional 三类，分别走下单确认 / 分析观点 / 价格监控。不要把所有想法都直接塞进下单草稿（早期实现的错误）。
+- **资讯接口返回结构不是 `data.news`**：westock 资讯接口 `http://ifzq.gtimg.cn/appstock/news/info/search` 实测返回 `data.data[]`，`type=2/3` 是资讯，`type=1` 是研报，`type=0` 是公告。解析错会导致“今日要点”全部显示无资讯。
+- **行情快照不一定返回涨跌字段**：`stock_quote_snapshot` 可能只返回 `ClosePrice/LastestTradedPrice/PrevClosePrice`，必须用最新价和昨收计算 `change/changePercent`，否则持仓涨跌幅会全是 0。
+- **iOS 灵动岛区域不能靠普通 padding 修**：主壳需要 `ignoresSafeArea(.top)` 把背景/蒙层画到屏幕顶端，按钮再用 `safeAreaInsets.top` 单独下移；否则会在灵动岛下方形成“空白带”。
+- **隐藏资产不要替换布局文本**：SwiftUI 会重新测量 `••••`，可能撑高/撑宽卡片。正确做法是真实数字始终参与布局但隐藏时 `opacity(0)`，遮罩点作为 overlay 覆盖且不参与布局。
+- **iOS 逐轮验收必须真机安装**：用户明确要求后续每次验收都要 CLI 构建并安装/启动真机；若改动包含后端契约或数据源，还必须先 Railway 部署并验证线上响应。
 
 ## 待办事项
 
@@ -346,13 +352,17 @@ Sage 后端已经有四层连续记忆能力（详见 `src-api/src/shared/memory
 | Key | 用途 | 加载方式 |
 |-----|------|----------|
 | `IWENCAI_API_KEY` | 11 个 iwencai 技能 | `~/.sage/.env` → Tauri sidecar 注入 |
-| `WESTOCK_API_KEY` | 4 个 westock 技能 | 同上 |
-| `SILICONFLOW_API_KEY` | iOS 对讲机：语音转文字（SenseVoice ASR，`/mobile/transcribe`）+ 想法分类（Qwen，`idea-intent.ts` 分下单/分析/条件单）+ 分析任务（`idea-analysis.ts` 结合持仓出判断） | Railway env only |
+| `WESTOCK_API_KEY` | 4 个 westock 技能 + iOS 投资对讲机行情/K线优先数据源（失败回落 broker mock） | 同上 / Railway env |
+| `SILICONFLOW_API_KEY` | iOS 对讲机：语音转文字（SenseVoice ASR，`/mobile/transcribe`） | Railway env only |
+| `DEEPSEEK_API_KEY` | iOS 对讲机：想法分类（DeepSeek V4 Flash，`idea-intent.ts` 分下单/分析/条件单）+ 分析任务（`idea-analysis.ts` 结合持仓出判断） | Railway env only |
+| `DEEPSEEK_BASE_URL` | DeepSeek OpenAI-compatible 入口，默认 `https://api.deepseek.com` | 可选 |
 | `MIMO_API_KEY` | Phase 3 persona 蒸馏 LLM 的 API Key（当前用 DeepSeek） | Railway env only |
 | `MIMO_BASE_URL` | 蒸馏 LLM 入口（当前 `https://api.deepseek.com`） | Railway env only |
 | `MIMO_MODEL` | 蒸馏模型（当前 `deepseek-v4-flash`） | Railway env only |
 | `SAGE_ENABLE_BACKGROUND_JOBS` | 设 `true` 才注册 cron。本地桌面端不设（避免双跑） | Railway env only |
 | `SAGE_API_TOKEN` | 云端 Bearer 鉴权（设了走 token check，未设走 loopback IP 白名单） | Railway env only |
+| `SAGE_ENABLE_APNS_PUSH` | 正式 APNs 远程推送开关；一期模拟触发默认走 iOS 本地通知，后续拿到真实 APNs Auth Key 后再设 `true` | Railway env only |
+| `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_BUNDLE_ID` / `APNS_PRIVATE_KEY` | iOS 条件单正式 APNs 远程推送凭据；必须是 Apple Developer 中启用 APNs 的 Auth Key，不要复用 App Store Connect / 公证 key | Railway env only |
 | `SAGE_UPDATER_MANIFEST_JSON` | Tauri updater manifest（Railway `/updater/latest.json` 优先返回；缺失时用代码内置兜底） | Railway env only |
 | `SAGE_UPDATER_DARWIN_AARCH64_URL` / `..._SIGNATURE` / `..._X86_64_URL` / `..._SIGNATURE` | updater manifest 分项 env fallback | Railway env only |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` | 云端数据 + RLS user-scoped 客户端 | Railway env (service role 仅云端) |

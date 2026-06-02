@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct SageApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var authService = AuthService.shared
     @StateObject private var settingsService = SettingsService.shared
     @StateObject private var cloudProviderStore = CloudProviderStore.shared
@@ -29,6 +30,7 @@ struct SageApp: App {
                             // 启动时拉取云端 provider，确保 isModelConfigured 正确
                             await cloudProviderStore.refresh()
                             settingsService.hasCloudProvider = !cloudProviderStore.providers.isEmpty
+                            await NotificationService.shared.syncDeviceTokenIfPossible()
                         }
                 } else {
                     LoginView()

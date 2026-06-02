@@ -1,13 +1,21 @@
 import Foundation
 
+struct VoiceTranscriptPreview: Identifiable {
+    let id = UUID()
+    let transcript: String
+}
+
 @MainActor
 final class InvestmentDashboardViewModel: ObservableObject {
     @Published var dashboard: MobileDashboard?
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var presentedIdea: IdeaNoteCardData?
+    @Published var pendingVoicePreview: VoiceTranscriptPreview?
+    @Published var focusedActionId: String?
     @Published var actions: [InvestmentActionItem] = []
     @Published var isTranscribing = false
+    @Published var isCreatingIdea = false
 
     func loadDashboard() async {
         isLoading = true
@@ -22,7 +30,7 @@ final class InvestmentDashboardViewModel: ObservableObject {
         isLoading = false
     }
 
-    /// push-to-talk 闭环：录音 URL → 后端转写 → 真实 transcript 生成想法卡。
+    /// push-to-talk 闭环第一段：录音 URL → 后端转写 → 展示可确认/取消的 transcript 预览。
     func submitVoiceIdea(audioURL: URL) async {
         isTranscribing = true
         defer {
@@ -36,13 +44,37 @@ final class InvestmentDashboardViewModel: ObservableObject {
                 errorMessage = "没听清，请再说一次。"
                 return
             }
-            let result = try await APIClient.shared.createIdeaNote(transcript: transcript)
-            presentedIdea = result.note
-            actions = try await APIClient.shared.getMobileActions()
+            pendingVoicePreview = VoiceTranscriptPreview(transcript: transcript)
         } catch {
             errorMessage = error.localizedDescription
             reportMobileError("ios_voice_idea_failed", error)
         }
+    }
+
+    /// 用户确认转写内容后才创建想法卡和行动卡；取消则直接丢弃，不落库。
+    func confirmVoiceIdea(transcript: String) async {
+        let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            errorMessage = "内容为空，无法提交。"
+            return
+        }
+
+        isCreatingIdea = true
+        defer { isCreatingIdea = false }
+        do {
+            let result = try await APIClient.shared.createIdeaNote(transcript: cleaned)
+            pendingVoicePreview = nil
+            presentedIdea = result.note
+            focusedActionId = result.action.id
+            actions = try await APIClient.shared.getMobileActions()
+        } catch {
+            errorMessage = error.localizedDescription
+            reportMobileError("ios_voice_idea_create_failed", error)
+        }
+    }
+
+    func cancelVoiceIdea() {
+        pendingVoicePreview = nil
     }
 
     /// 刷新行动列表（两步确认流程完成后回调）。

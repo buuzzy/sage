@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { classifyIdea } from '@/shared/services/idea-intent';
 import type { IdeaCondition, IdeaTaskType } from '@/shared/services/idea-intent';
 import type { IdeaAnalysis } from '@/shared/services/idea-analysis';
+import { sendPriceWatchTriggeredPush } from '@/shared/services/apns';
 
 export type MobileActionKind =
   | 'idea_confirmation'
@@ -16,15 +17,40 @@ export type MobileActionKind =
 
 export type WatchStatus = 'watching' | 'triggered' | 'cancelled';
 
+export type MobileActionStatusCode =
+  | 'pending_review'
+  | 'awaiting_confirmation'
+  | 'active'
+  | 'pending_fill'
+  | 'partially_filled'
+  | 'filled'
+  | 'completed'
+  | 'cancelled'
+  | 'failed'
+  | 'expired';
+
+export type MobileActionGroupKey =
+  | 'exception'
+  | 'pending'
+  | 'confirmation'
+  | 'active'
+  | 'completed';
+
 export interface MobileActionItem {
   id: string;
   kind: MobileActionKind;
   title: string;
   subtitle: string;
   status: string;
+  statusCode: MobileActionStatusCode;
+  groupKey: MobileActionGroupKey;
+  groupTitle: string;
+  groupOrder: number;
   priority: number;
   createdAt: string;
   noteId?: string;
+  completedAt?: string;
+  archivedAt?: string;
 }
 
 export interface IdeaNote {
@@ -46,9 +72,13 @@ interface MobileActionRow {
   title: string;
   subtitle: string | null;
   status: string | null;
+  status_code?: string | null;
+  group_key?: string | null;
   priority: number | null;
   note_id: string | null;
   created_at: string;
+  completed_at?: string | null;
+  archived_at?: string | null;
 }
 
 interface IdeaNoteRow {
@@ -80,22 +110,147 @@ function systemActions(): MobileActionItem[] {
       title: '富途模拟盘数据已接入 mock',
       subtitle: '开户完成后将替换为真实模拟盘 adapter，接口保持不变',
       status: '准备中',
+      statusCode: 'active',
+      groupKey: 'active',
+      groupTitle: '进行中',
+      groupOrder: 3,
       priority: 9,
       createdAt: new Date(0).toISOString(),
     },
   ];
 }
 
+const GROUP_META: Record<MobileActionGroupKey, { title: string; order: number }> = {
+  exception: { title: '异常', order: 0 },
+  pending: { title: '待处理', order: 1 },
+  confirmation: { title: '等你确认', order: 2 },
+  active: { title: '进行中', order: 3 },
+  completed: { title: '已完成', order: 9 },
+};
+
+function normalizeStatusCode(value: unknown): MobileActionStatusCode | null {
+  if (
+    value === 'pending_review' ||
+    value === 'awaiting_confirmation' ||
+    value === 'active' ||
+    value === 'pending_fill' ||
+    value === 'partially_filled' ||
+    value === 'filled' ||
+    value === 'completed' ||
+    value === 'cancelled' ||
+    value === 'failed' ||
+    value === 'expired'
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function normalizeGroupKey(value: unknown): MobileActionGroupKey | null {
+  if (value === 'exception' || value === 'pending' || value === 'confirmation' || value === 'active' || value === 'completed') {
+    return value;
+  }
+  return null;
+}
+
+function groupForStatus(statusCode: MobileActionStatusCode): MobileActionGroupKey {
+  switch (statusCode) {
+    case 'failed':
+      return 'exception';
+    case 'pending_review':
+      return 'pending';
+    case 'awaiting_confirmation':
+      return 'confirmation';
+    case 'active':
+    case 'pending_fill':
+    case 'partially_filled':
+      return 'active';
+    case 'filled':
+    case 'completed':
+    case 'cancelled':
+    case 'expired':
+      return 'completed';
+  }
+}
+
+function labelForStatus(statusCode: MobileActionStatusCode): string {
+  switch (statusCode) {
+    case 'pending_review':
+      return '待处理';
+    case 'awaiting_confirmation':
+      return '待确认';
+    case 'active':
+      return '进行中';
+    case 'pending_fill':
+      return '待成交';
+    case 'partially_filled':
+      return '部分成交';
+    case 'filled':
+      return '已成交';
+    case 'completed':
+      return '已完成';
+    case 'cancelled':
+      return '已取消';
+    case 'failed':
+      return '失败';
+    case 'expired':
+      return '已过期';
+  }
+}
+
+function inferStatusCode(row: MobileActionRow): MobileActionStatusCode {
+  const normalized = normalizeStatusCode(row.status_code);
+  if (normalized) return normalized;
+
+  const status = row.status ?? '';
+  if (status.includes('拒绝') || status.includes('失败')) return 'failed';
+  if (status.includes('部分成交')) return 'partially_filled';
+  if (status.includes('待成交') || status.includes('已提交')) return 'pending_fill';
+  if (status.includes('已成交')) return 'filled';
+  if (status.includes('已下单') || status.includes('已确认') || status.includes('已分析')) return 'completed';
+  if (status.includes('监控中') || row.kind === 'system' || row.kind === 'review') return 'active';
+  if (status.includes('待确认')) return 'awaiting_confirmation';
+  if (status.includes('待查看')) return 'pending_review';
+  return 'pending_review';
+}
+
+function actionStateFor(statusCode: MobileActionStatusCode, groupKey?: MobileActionGroupKey): {
+  status: string;
+  statusCode: MobileActionStatusCode;
+  groupKey: MobileActionGroupKey;
+  groupTitle: string;
+  groupOrder: number;
+} {
+  const resolvedGroup = groupKey ?? groupForStatus(statusCode);
+  const meta = GROUP_META[resolvedGroup];
+  return {
+    status: labelForStatus(statusCode),
+    statusCode,
+    groupKey: resolvedGroup,
+    groupTitle: meta.title,
+    groupOrder: meta.order,
+  };
+}
+
 function toActionItem(row: MobileActionRow): MobileActionItem {
+  const statusCode = inferStatusCode(row);
+  const groupKey = normalizeGroupKey(row.group_key) ?? groupForStatus(statusCode);
+  const state = actionStateFor(statusCode, groupKey);
   return {
     id: row.id,
     kind: (row.kind as MobileActionKind) ?? 'system',
     title: row.title,
     subtitle: row.subtitle ?? '',
-    status: row.status ?? '',
+    status: row.status ?? state.status,
+    statusCode: state.statusCode,
+    groupKey: state.groupKey,
+    groupTitle: state.groupTitle,
+    groupOrder: state.groupOrder,
     priority: row.priority ?? 5,
     createdAt: row.created_at,
     noteId: row.note_id ?? undefined,
+    completedAt: row.completed_at ?? undefined,
+    archivedAt: row.archived_at ?? undefined,
   };
 }
 
@@ -133,6 +288,7 @@ function opText(op: IdeaCondition['op']): string {
 
 function sortActions(items: MobileActionItem[]): MobileActionItem[] {
   return [...items].sort((left, right) => {
+    if (left.groupOrder !== right.groupOrder) return left.groupOrder - right.groupOrder;
     if (left.priority !== right.priority) return left.priority - right.priority;
     return right.createdAt.localeCompare(left.createdAt);
   });
@@ -164,7 +320,7 @@ function actionCopyFor(input: {
   symbol: string;
   intent: string;
   condition?: IdeaCondition;
-}): { kind: MobileActionKind; title: string; subtitle: string; status: string; priority: number } {
+}): { kind: MobileActionKind; title: string; subtitle: string; statusCode: MobileActionStatusCode; priority: number } {
   const subject = [input.symbol, input.intent].filter(Boolean).join('');
   switch (input.taskType) {
     case 'analysis':
@@ -172,7 +328,7 @@ function actionCopyFor(input: {
         kind: 'analysis_task',
         title: input.symbol ? `分析「${input.symbol}」` : '分析这个想法',
         subtitle: '点击查看 Sage 结合你持仓给出的判断',
-        status: '待查看',
+        statusCode: 'pending_review',
         priority: 0,
       };
     case 'conditional': {
@@ -183,7 +339,7 @@ function actionCopyFor(input: {
         kind: 'price_watch',
         title: input.symbol ? `监控「${input.symbol}」` : '价格监控',
         subtitle: `${input.symbol || '该标的'} ${trigger} 时提醒你${verb}`,
-        status: '监控中',
+        statusCode: 'active',
         priority: 0,
       };
     }
@@ -193,7 +349,7 @@ function actionCopyFor(input: {
         kind: 'idea_confirmation',
         title: subject ? `确认${subject}想法` : '确认语音想法',
         subtitle: '已整理为想法卡，等待你确认是否生成交易计划',
-        status: '待确认',
+        statusCode: 'awaiting_confirmation',
         priority: 0,
       };
   }
@@ -245,6 +401,7 @@ export async function createIdeaNote(
   }
 
   const copy = actionCopyFor({ taskType, symbol, intent, condition });
+  const state = actionStateFor(copy.statusCode);
   const actionId = `action-${noteId}`;
   const { data: actionData, error: actionErr } = await db
     .from('mobile_actions')
@@ -254,7 +411,9 @@ export async function createIdeaNote(
       kind: copy.kind,
       title: copy.title,
       subtitle: copy.subtitle,
-      status: copy.status,
+      status: state.status,
+      status_code: state.statusCode,
+      group_key: state.groupKey,
       priority: copy.priority,
       note_id: noteId,
       created_at: now,
@@ -312,9 +471,15 @@ export async function saveIdeaAnalysis(
     throw new Error(`Failed to save idea analysis: ${error.message}`);
   }
 
+  const state = actionStateFor('awaiting_confirmation');
   await db
     .from('mobile_actions')
-    .update({ status: '已分析', priority: 6 })
+    .update({
+      status: state.status,
+      status_code: state.statusCode,
+      group_key: state.groupKey,
+      priority: 0,
+    })
     .eq('note_id', noteId)
     .eq('kind', 'analysis_task')
     .eq('user_id', userId);
@@ -344,20 +509,29 @@ export async function triggerWatch(
 
   const cond = note.condition;
   const trigger = cond ? `${opText(cond.op)} ${cond.price}` : '触发条件';
+  const state = actionStateFor('awaiting_confirmation');
   await db
     .from('mobile_actions')
     .update({
       kind: 'idea_confirmation',
       title: `${note.symbol || '标的'}已${trigger} · 确认${note.intent || '操作'}`,
       subtitle: '你设定的条件已触发，确认后进入下单',
-      status: '待确认',
+      status: state.status,
+      status_code: state.statusCode,
+      group_key: state.groupKey,
       priority: 0,
     })
     .eq('note_id', noteId)
     .eq('kind', 'price_watch')
     .eq('user_id', userId);
 
-  return await getIdeaNote(db, userId, noteId);
+  const triggeredNote = await getIdeaNote(db, userId, noteId);
+  if (triggeredNote) {
+    sendPriceWatchTriggeredPush(db, userId, triggeredNote).catch((err) =>
+      console.warn('[mobile-actions] price watch push failed:', err instanceof Error ? err.message : err)
+    );
+  }
+  return triggeredNote;
 }
 
 /**
@@ -379,6 +553,9 @@ export async function recordOrderResult(
   const now = new Date().toISOString();
   const sideText = input.side === 'BUY' ? '买入' : '卖出';
   const statusText = input.status === 'FILLED' ? '已成交' : input.status === 'REJECTED' ? '已拒绝' : '已提交';
+  const statusCode: MobileActionStatusCode =
+    input.status === 'FILLED' ? 'filled' : input.status === 'REJECTED' ? 'failed' : 'pending_fill';
+  const state = actionStateFor(statusCode);
   const id = `action-order-${input.orderId}`;
 
   const { data, error } = await db
@@ -389,10 +566,13 @@ export async function recordOrderResult(
       kind: 'order_confirmation',
       title: `模拟盘 · ${input.name} ${sideText} ${input.quantity} 股`,
       subtitle: `委托价 ${input.price} · ${statusText}`,
-      status: statusText,
+      status: state.status,
+      status_code: state.statusCode,
+      group_key: state.groupKey,
       priority: 2,
       note_id: input.noteId ?? null,
       created_at: now,
+      completed_at: statusCode === 'filled' ? now : null,
     })
     .select('*')
     .single();
@@ -402,9 +582,16 @@ export async function recordOrderResult(
   }
 
   if (input.noteId) {
+    const completed = actionStateFor(statusCode === 'failed' ? 'failed' : 'completed');
     await db
       .from('mobile_actions')
-      .update({ status: '已下单', priority: 11 })
+      .update({
+        status: completed.status,
+        status_code: completed.statusCode,
+        group_key: completed.groupKey,
+        priority: 11,
+        completed_at: statusCode === 'filled' ? now : null,
+      })
       .eq('note_id', input.noteId)
       .eq('kind', 'idea_confirmation')
       .eq('user_id', userId);
@@ -434,9 +621,15 @@ export async function confirmIdeaNote(
   }
   if (!noteData) return null;
 
+  const state = actionStateFor('active');
   const { data: actionData } = await db
     .from('mobile_actions')
-    .update({ status: '已确认', priority: 10 })
+    .update({
+      status: state.status,
+      status_code: state.statusCode,
+      group_key: state.groupKey,
+      priority: 4,
+    })
     .eq('note_id', noteId)
     .eq('user_id', userId)
     .select('*')
@@ -459,6 +652,7 @@ export async function appendCronAction(
 ): Promise<void> {
   const now = new Date().toISOString();
   const id = `action-cron-${input.sessionId ?? Date.now()}`;
+  const state = actionStateFor('active');
 
   const { error } = await db.from('mobile_actions').insert({
     id,
@@ -466,7 +660,9 @@ export async function appendCronAction(
     kind: 'review',
     title: input.jobName,
     subtitle: input.preview?.slice(0, 120) || '定时任务已生成新结果，点击查看',
-    status: '待查看',
+    status: state.status,
+    status_code: state.statusCode,
+    group_key: state.groupKey,
     priority: 1,
     created_at: now,
   });

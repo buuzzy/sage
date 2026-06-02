@@ -38,7 +38,9 @@ index.ts (Hono server 入口)
 | /mobile/notes/:id/confirm | mobile.ts | POST | 确认想法卡（按 userId 隔离，需 JWT） |
 | /mobile/notes/:id/analyze | mobile.ts | POST | 分析任务：惰性生成并缓存 Sage 结构化判断（需 JWT） |
 | /mobile/notes/:id/trigger | mobile.ts | POST | 手动模拟触发条件单 → 转待确认下单卡（demo 用，需 JWT） |
+| /mobile/device-token | mobile.ts | POST | iOS 上报 APNs device token（按 user_id 隔离，需 JWT） |
 | /mobile/transcribe | mobile.ts | POST | 对讲机语音转文字（multipart 音频 → SenseVoice，需 JWT） |
+| /mobile/notes/:id/order-analysis/stream | mobile.ts | GET | 两步确认 Step1：流式生成并缓存标的分析（行情/账户/研报/资讯，需 JWT） |
 | /mobile/notes/:id/order-draft | mobile.ts | GET | 两步确认 Step2：按想法卡生成模拟盘订单草稿（需 JWT） |
 | /mobile/orders | mobile.ts | POST | 两步确认 Step3：提交模拟盘订单 + 记成交行动卡（需 JWT） |
 | /broker/accounts | broker.ts | GET | Broker 账户列表（当前 mock 富途模拟盘） |
@@ -91,14 +93,19 @@ pnpm build:binary:mac-intel     # Intel macOS 二进制
 - 桌面端和 Railway 共用同一套代码，通过环境变量区分行为
 - iOS 投资对讲机主界面消费 `/mobile/*` 产品 API；不要让 iOS 直接拼接底层 Agent / Skills / Cron / Persona 接口
 - `/mobile/notes` / `/mobile/actions` 已落 Supabase（`idea_notes` / `mobile_actions` 表），按 `user_id` RLS 隔离：iOS 调用必须带用户 Supabase JWT（不是共享 `SAGE_API_TOKEN`）。`localOnlyMiddleware` 校验 JWT 后把 `userId` 注入 `c.get('userId')`，路由用 `createUserScopedSupabase(jwt)` 走 RLS
+- `mobile_actions` 使用稳定生命周期字段：`status_code`（pending_review / awaiting_confirmation / active / pending_fill / partially_filled / filled / completed / cancelled / failed / expired）+ `group_key`（exception / pending / confirmation / active / completed）。行动列表排序唯一来源是后端：`groupOrder ASC + priority ASC + createdAt DESC`；iOS 只按 group 分桶展示，不重排同组条目
 - 系统默认行动卡（如富途连接提示）在 `mobile-actions.ts` 代码层生成，不入库，保证新用户也可见；只有动态条目（想法确认、定时任务结果）才落表
 - `/mobile/transcribe`：iOS push-to-talk 录音（m4a multipart）→ `shared/services/transcribe.ts` 调 SiliconFlow `FunAudioLLM/SenseVoiceSmall` → 返回 `{ text }`。Key 走 Railway env `SILICONFLOW_API_KEY`，绝不下发客户端；需用户 JWT 防止共享 token 滥用 ASR 配额
-- 两步确认下单：`order-draft.ts`（经 `broker.resolveInstrument` 解析标的身份 + 持仓匹配 + `broker.getQuote` 取价 + 意图→方向，生成富途语义订单草稿）→ `GET /mobile/notes/:id/order-draft`；`POST /mobile/orders` 经 `getBrokerAdapter().submitSimulatedOrder` 提交，再 `recordOrderResult` 写成交行动卡并把想法卡标「已下单」。当前 broker 为 mock，接富途模拟盘只替换 adapter
-- **想法不等于「立刻下单」**：`createIdeaNote` 先调 `idea-intent.ts` 的 `classifyIdea`（SiliconFlow Qwen + 确定性正则兜底，复用 `SILICONFLOW_API_KEY`）把 transcript 分成三类任务，写 `idea_notes.task_type` 并生成对应 kind 的行动卡：
+- 两步确认下单：Step1 `order-analysis.ts` 通过 SSE 返回进度并缓存到 `idea_notes.analysis.orderAnalysis`（重复进入直接读缓存）；Step2 `order-draft.ts`（经 `broker.resolveInstrument` 解析标的身份 + 持仓匹配 + `broker.getQuote` 取价 + 意图→方向，生成富途语义订单草稿）→ `GET /mobile/notes/:id/order-draft`；Step3 `POST /mobile/orders` 经 `getBrokerAdapter().submitSimulatedOrder` 提交，再 `recordOrderResult` 写成交行动卡并把想法卡标「已下单」。当前 broker 为 mock，接富途模拟盘只替换 adapter
+- **想法不等于「立刻下单」**：`createIdeaNote` 先调 `idea-intent.ts` 的 `classifyIdea`（DeepSeek V4 Flash + 确定性正则兜底，使用 `DEEPSEEK_API_KEY`）把 transcript 分成三类任务，写 `idea_notes.task_type` 并生成对应 kind 的行动卡：
   - `order`（「现在买 100 股」）→ `idea_confirmation` 卡 → 两步确认下单
-  - `analysis`（「宁德时代要不要止盈」）→ `analysis_task` 卡 → `POST /notes/:id/analyze` 惰性调 `idea-analysis.ts`（LLM 结合**真实持仓上下文**：成本/现价/浮盈）出结构化判断并缓存 `idea_notes.analysis`；建议下单时可一键进入两步确认
+  - `analysis`（「宁德时代要不要止盈」）→ `analysis_task` 卡 → `POST /notes/:id/analyze` 惰性调 `idea-analysis.ts`（DeepSeek V4 Flash 结合**真实持仓上下文**：成本/现价/浮盈）出结构化判断并缓存 `idea_notes.analysis`；建议下单时可一键进入两步确认
   - `conditional`（「比亚迪回调到 230 加仓」）→ 解析 `condition{op,price}` 存表，`price_watch` 卡（监控中）；Railway 后台 `price-watch.ts` 的 `sweepPriceWatches` 每分钟扫描活跃监控、`broker.getQuote` 比对阈值，命中调 `triggerWatch` 转「待确认」下单卡。`POST /notes/:id/trigger` 供 demo 手动模拟触发
-- 标的身份 + 实时报价统一下沉到 `shared/broker` adapter（`resolveInstrument` / `getQuote`），`order-draft` / `idea-analysis` / `price-watch` 共用，避免标的字典散落多处。接富途后只换 adapter
+- 条件单模拟触发的一期通知走 iOS 本地通知；正式 APNs 远程推送链路保留在 `apns.ts`，默认关闭，只有 `SAGE_ENABLE_APNS_PUSH=true` 时 `triggerWatch()` 才向 `mobile_device_tokens` 中该 user 的 iOS 设备发 APNs。payload 必须包含 `noteId` + `action=confirm_order`，iOS 点击后打开对应确认下单页
+- 标的身份 + 实时报价统一下沉到 `shared/broker` adapter（`resolveInstrument` / `getQuote` / `getQuoteSnapshot`），`order-draft` / `idea-analysis` / `order-analysis` / `price-watch` 共用，避免标的字典散落多处。接富途后只换 adapter
 - 条件单监控 cron 在 `jobs/scheduler.ts` 注册，只依赖 `SAGE_ENABLE_BACKGROUND_JOBS` + service-role（不需 `MIMO_API_KEY`），独立于 persona 蒸馏
 - Cron 执行成功后除写 `sessions`/`messages` 外，还通过 `appendCronAction()`（service-role）插一条 `mobile_actions`，让定时结果出现在 iOS「行动」Tab
-- `/mobile/dashboard` 与 `/broker/*` 当前是富途 OpenAPI 语义全局 mock（无 userId）；后续接富途模拟盘时优先替换 `shared/broker` adapter，并补 userId/account 维度，不改 iOS contract
+- `/mobile/dashboard` 与 `/broker/*` 当前是富途 OpenAPI 语义全局 mock（无 userId），但行情/K线/标的搜索/资讯/研报优先通过 `shared/market/westock-client.ts` 读取 westock（`WESTOCK_API_KEY`），失败再回落 mock；后续接富途模拟盘时优先替换交易/账户 adapter，并补 userId/account 维度，不改 iOS contract
+- `westock-client.ts` 注意事项：资讯接口 `news/info/search` 的可用列表在 `data.data[]`，不是 `data.news[]`；`type=2/3` 为资讯，`type=1` 为研报，`type=0` 为公告。行情快照可能没有 `Change/ChangeRatio`，必须用 `ClosePrice/LastestTradedPrice - PrevClosePrice` 计算涨跌额和涨跌幅。
+- `mobile-dashboard.ts` 会用刷新后的持仓行情重算账户 `marketValue/totalAssets/dayPnl/dayPnlPercent`，确保资产卡和持仓列表同源；`todayPoints` 优先只返回有真实资讯的持仓卡，避免前端展示一排“暂无资讯”。
+- 对外用户文案不要暴露具体供应商名（如 westock/华泰），统一用“行情 skill / 资讯 skill / 研报 skill”等产品语义；日志和内部错误可保留技术细节。

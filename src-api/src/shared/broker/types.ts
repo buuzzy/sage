@@ -50,6 +50,15 @@ export interface KlinePoint {
   volume: number;
 }
 
+/** westock 实时快照：展示与模拟成交共用，不含 mock 兜底价。 */
+export interface QuoteSnapshot {
+  lastPrice: number;
+  change: number;
+  changePercent: number;
+  prevClose: number | null;
+  endDate: string | null;
+}
+
 export interface SubmitSimulatedOrderInput {
   accountId: string;
   code: string;
@@ -94,8 +103,10 @@ export interface BrokerAdapter {
   listPositions(accountId?: string): Promise<BrokerPosition[]>;
   getKline(code: string, options?: { period?: string; count?: number }): Promise<KlinePoint[]>;
   submitSimulatedOrder(input: SubmitSimulatedOrderInput): Promise<SimulatedOrder>;
-  /** 取某合约当前价（富途实时报价语义）。未知合约返回 null。 */
+  /** 取某合约当前价（westock 实时报价）。未知或不可用返回 null。 */
   getQuote(code: string): Promise<number | null>;
-  /** 把口述名称解析成合约身份（命中持仓优先，其次标的池）。无法识别返回 null。 */
+  /** 实时快照（涨跌额/幅、昨收、数据日期）。 */
+  getQuoteSnapshot(code: string): Promise<QuoteSnapshot | null>;
+  /** 把口述名称解析成合约身份（命中 mock 持仓优先，其次 westock 搜索）。无法识别返回 null。 */
   resolveInstrument(symbol: string): Promise<ResolvedInstrument | null>;
 }

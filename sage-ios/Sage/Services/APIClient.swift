@@ -186,6 +186,24 @@ actor APIClient {
         return try decoder.decode(CreateIdeaNoteResponse.self, from: data)
     }
 
+    func registerDeviceToken(_ deviceToken: String, environment: String) async throws {
+        struct DeviceTokenRequest: Codable {
+            let token: String
+            let platform: String
+            let environment: String
+            let appVersion: String?
+        }
+        let token = try await userToken()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let body = DeviceTokenRequest(
+            token: deviceToken,
+            platform: "ios",
+            environment: environment,
+            appVersion: version
+        )
+        _ = try await postJSON(endpoint: "/mobile/device-token", body: body, bearerToken: token)
+    }
+
     func confirmIdeaNote(noteId: String) async throws {
         struct EmptyBody: Codable {}
         let token = try await userToken()
@@ -197,6 +215,44 @@ actor APIClient {
         let token = try await userToken()
         let data = try await getJSON(endpoint: "/mobile/notes/\(noteId)/order-draft", bearerToken: token)
         return try decoder.decode(OrderDraftResponse.self, from: data)
+    }
+
+    /// 两步确认 Step1：流式读取标的分析进度与最终结果。
+    func streamOrderAnalysis(noteId: String) -> AsyncThrowingStream<OrderAnalysisStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let token = try await userToken()
+                    let url = URL(string: "\(baseURL)/mobile/notes/\(noteId)/order-analysis/stream")!
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "GET"
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    request.timeoutInterval = 180
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                        throw APIError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                    }
+
+                    for try await line in bytes.lines {
+                        if Task.isCancelled { break }
+                        guard line.hasPrefix("data: ") else { continue }
+                        let json = String(line.dropFirst(6))
+                        guard let data = json.data(using: .utf8) else { continue }
+                        let event = try decoder.decode(OrderAnalysisStreamEvent.self, from: data)
+                        continuation.yield(event)
+                        if event.type == "done" {
+                            continuation.finish()
+                            return
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     /// 两步确认 Step3：把（可能调整过的）草稿提交到富途模拟盘。

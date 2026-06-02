@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import { getBrokerAdapter } from '@/shared/broker';
+import { MarketDataUnavailableError } from '@/shared/broker/market-data-error';
 import type { OrderType, TradeSide } from '@/shared/broker';
 
 export const brokerRoutes = new Hono();
@@ -23,8 +24,15 @@ brokerRoutes.get('/positions/:code/kline', async (c) => {
   const code = decodeURIComponent(c.req.param('code'));
   const period = c.req.query('period') ?? 'day';
   const count = Number(c.req.query('count') ?? 60);
-  const kline = await getBrokerAdapter().getKline(code, { period, count });
-  return c.json({ ok: true, code, period, kline });
+  try {
+    const kline = await getBrokerAdapter().getKline(code, { period, count });
+    return c.json({ ok: true, code, period, kline });
+  } catch (error) {
+    if (error instanceof MarketDataUnavailableError) {
+      return c.json({ ok: false, error: error.message }, 503);
+    }
+    throw error;
+  }
 });
 
 brokerRoutes.post('/orders/simulated', async (c) => {
@@ -54,15 +62,21 @@ brokerRoutes.post('/orders/simulated', async (c) => {
     return c.json({ ok: false, error: 'quantity must be greater than 0' }, 400);
   }
 
-  const order = await getBrokerAdapter().submitSimulatedOrder({
-    accountId: body.accountId,
-    code: body.code,
-    side: body.side,
-    orderType: body.orderType,
-    price: Number(body.price),
-    quantity: Number(body.quantity),
-    remark: body.remark,
-  });
-
-  return c.json({ ok: true, order }, 201);
+  try {
+    const order = await getBrokerAdapter().submitSimulatedOrder({
+      accountId: body.accountId,
+      code: body.code,
+      side: body.side,
+      orderType: body.orderType,
+      price: Number(body.price),
+      quantity: Number(body.quantity),
+      remark: body.remark,
+    });
+    return c.json({ ok: true, order }, 201);
+  } catch (error) {
+    if (error instanceof MarketDataUnavailableError) {
+      return c.json({ ok: false, error: error.message }, 503);
+    }
+    throw error;
+  }
 });

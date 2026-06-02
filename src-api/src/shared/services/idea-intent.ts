@@ -6,12 +6,11 @@
  *   · analysis    分析/咨询意图（「宁德时代要不要止盈」「看看比亚迪怎么样」）
  *   · conditional 条件触发意图（「比亚迪回调到 230 我想加仓」）→ 解析出 condition
  *
- * 实现：Qwen 小模型做结构化分类（OpenAI 兼容 chat），并叠加确定性正则修复条件价；
+ * 实现：DeepSeek V4 Flash 做结构化分类（OpenAI 兼容 chat），并叠加确定性正则修复条件价；
  * best-effort 语义：无 key / 网络 / 解析失败时回退到纯规则启发式，绝不阻塞想法卡创建。
  */
 
-const SILICONFLOW_CHAT_URL = 'https://api.siliconflow.cn/v1/chat/completions';
-const INTENT_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
+import { callDeepSeekJson } from '@/shared/services/deepseek-json';
 
 const SYSTEM_PROMPT =
   '你从用户口述的投资想法里提取结构化信息，只返回 JSON：' +
@@ -37,10 +36,6 @@ export interface ClassifiedIdea {
   intent: string;
   taskType: IdeaTaskType;
   condition?: IdeaCondition;
-}
-
-interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string } }>;
 }
 
 const ANALYSIS_KEYWORDS = [
@@ -107,37 +102,13 @@ export async function classifyIdea(transcript: string): Promise<ClassifiedIdea> 
   if (!text) return { symbol: '', intent: '', taskType: 'analysis' };
 
   const regexCondition = extractConditionByRegex(text);
-  const apiKey = process.env.SILICONFLOW_API_KEY;
-
-  if (!apiKey) {
-    const fallback = heuristicClassify(text);
-    return regexCondition
-      ? { ...fallback, taskType: 'conditional', condition: regexCondition }
-      : fallback;
-  }
-
   try {
-    const res = await fetch(SILICONFLOW_CHAT_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: INTENT_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: text },
-        ],
-        temperature: 0,
-        max_tokens: 160,
-        response_format: { type: 'json_object' },
-      }),
+    const parsed = await callDeepSeekJson({
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt: text,
+      temperature: 0,
+      maxTokens: 160,
     });
-    if (!res.ok) throw new Error(`status ${res.status}`);
-
-    const data = (await res.json()) as ChatCompletionResponse;
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error('empty content');
-
-    const parsed = JSON.parse(content) as Record<string, unknown>;
     const symbol = typeof parsed.symbol === 'string' ? parsed.symbol.trim() : '';
     const intent = typeof parsed.intent === 'string' ? parsed.intent.trim() : '';
     let taskType = normalizeTaskType(parsed.taskType) ?? heuristicClassify(text).taskType;

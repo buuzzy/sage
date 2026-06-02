@@ -4,15 +4,13 @@
  * 关键：分析建立在用户**真实持仓上下文**（成本、现价、浮盈、可用数量）之上，而不是
  * 泛泛而谈——这才符合「有记忆的伙伴」。当前持仓为富途语义 mock，接真实账户后上下文自动变真。
  *
- * 用 SiliconFlow Qwen（与 ASR / 分类同 key）生成；失败时回退到基于数字的确定性结论，
+ * 用 DeepSeek V4 Flash 生成；失败时回退到基于数字的确定性结论，
  * 保证分析卡永远有可读内容。
  */
 
 import { getBrokerAdapter } from '@/shared/broker';
 import type { BrokerPosition } from '@/shared/broker';
-
-const SILICONFLOW_CHAT_URL = 'https://api.siliconflow.cn/v1/chat/completions';
-const ANALYSIS_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
+import { callDeepSeekJson } from '@/shared/services/deepseek-json';
 
 const SYSTEM_PROMPT =
   '你是用户的投资陪伴助手 Sage。基于给定的持仓上下文和用户的想法，给出克制、可执行的分析。' +
@@ -29,10 +27,6 @@ export interface IdeaAnalysis {
   suggestOrder: boolean;
   suggestedSide?: 'BUY' | 'SELL';
   generatedAt: string;
-}
-
-interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string } }>;
 }
 
 const SELL_INTENTS = ['减仓', '止盈', '止损', '卖出', '清仓'];
@@ -104,31 +98,13 @@ export async function analyzeIdea(input: {
     ? positions.find((p) => p.code === resolved.code) ?? null
     : null;
 
-  const apiKey = process.env.SILICONFLOW_API_KEY;
-  if (!apiKey) return fallbackAnalysis({ intent: input.intent, position });
-
   try {
-    const res = await fetch(SILICONFLOW_CHAT_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: ANALYSIS_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: buildContext({ ...input, position }) },
-        ],
-        temperature: 0.3,
-        max_tokens: 320,
-        response_format: { type: 'json_object' },
-      }),
+    const parsed = await callDeepSeekJson({
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt: buildContext({ ...input, position }),
+      temperature: 0.3,
+      maxTokens: 320,
     });
-    if (!res.ok) throw new Error(`status ${res.status}`);
-
-    const data = (await res.json()) as ChatCompletionResponse;
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error('empty content');
-
-    const parsed = JSON.parse(content) as Record<string, unknown>;
     const conclusion =
       typeof parsed.conclusion === 'string' && parsed.conclusion.trim()
         ? parsed.conclusion.trim()

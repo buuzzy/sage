@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showClearDataAlert = false
     @State private var clearDataState: ClearDataState = .idle
+    @AppStorage("sage_theme") private var theme: String = "system"
 
     enum ClearDataState: Equatable {
         case idle
@@ -40,6 +41,13 @@ struct SettingsView: View {
 
                 // 主设置列表 — 所有选项紧凑排列
                 Section {
+                    // 分身
+                    NavigationLink {
+                        AvatarProfileView(showsConfiguration: false)
+                    } label: {
+                        SageSettingsRow(icon: "person.crop.circle.badge.checkmark", title: "分身", tone: .neutral, showsChevron: false)
+                    }
+
                     // 模型
                     NavigationLink {
                         ModelSettingsView()
@@ -141,7 +149,7 @@ struct SettingsView: View {
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .semibold))
@@ -150,6 +158,18 @@ struct SettingsView: View {
                             .background(SageTheme.ColorToken.controlGlass)
                             .clipShape(Circle())
                     }
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { cycleTheme() } label: {
+                        Image(systemName: themeIcon)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(SageTheme.ColorToken.brand)
+                            .frame(width: 36, height: 36)
+                            .background(SageTheme.ColorToken.controlGlass)
+                            .clipShape(Circle())
+                    }
+                    .accessibilityLabel("切换外观（当前\(themeLabel)）")
                 }
             }
             .alert("清除数据", isPresented: $showClearDataAlert) {
@@ -179,6 +199,30 @@ struct SettingsView: View {
         let marketing = info["CFBundleShortVersionString"] as? String ?? "?"
         let build = info["CFBundleVersion"] as? String ?? "?"
         return "\(marketing) (\(build))"
+    }
+
+    private var themeLabel: String {
+        switch theme {
+        case "light": return "浅色"
+        case "dark": return "深色"
+        default: return "跟随系统"
+        }
+    }
+
+    private var themeIcon: String {
+        switch theme {
+        case "light": return "sun.max"
+        case "dark": return "moon.stars"
+        default: return "circle.lefthalf.filled"
+        }
+    }
+
+    private func cycleTheme() {
+        switch theme {
+        case "system": theme = "light"
+        case "light": theme = "dark"
+        default: theme = "system"
+        }
     }
 
     /// 清除流程：先 confirm → 本地 UserDefaults → Supabase 三表 → 通知 MainView 刷新 UI

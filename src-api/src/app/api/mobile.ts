@@ -14,11 +14,25 @@ import {
 import { getMobileDashboard } from '@/shared/services/mobile-dashboard';
 import { transcribeAudio, TranscriptionError } from '@/shared/services/transcribe';
 import { buildOrderDraft } from '@/shared/services/order-draft';
+import {
+  analyzeOrderIdea,
+  cachedOrderAnalysis,
+  mergeOrderAnalysisCache,
+} from '@/shared/services/order-analysis';
 import { analyzeIdea } from '@/shared/services/idea-analysis';
+import { upsertMobileDeviceToken } from '@/shared/services/mobile-device-tokens';
 import { getBrokerAdapter } from '@/shared/broker';
+import { MarketDataUnavailableError } from '@/shared/broker/market-data-error';
 import type { OrderType, TradeSide } from '@/shared/broker';
 
 export const mobileRoutes = new Hono();
+
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache, no-transform',
+  Connection: 'keep-alive',
+  'X-Accel-Buffering': 'no',
+};
 
 /**
  * 用户态上下文：从 localOnlyMiddleware 注入的 userId + Bearer JWT 派生出
@@ -45,6 +59,28 @@ mobileRoutes.get('/actions', async (c) => {
   const db = createUserScopedSupabase(ctx.accessToken);
   const actions = await listMobileActions(db, ctx.userId);
   return c.json({ ok: true, actions });
+});
+
+mobileRoutes.post('/device-token', async (c) => {
+  const ctx = userContext(c);
+  if (!ctx) return c.json({ ok: false, error: 'User authentication required' }, 401);
+
+  type DeviceTokenBody = Partial<{ token: string; platform: string; environment: string; appVersion: string }>;
+  const body = await c.req
+    .json<DeviceTokenBody>()
+    .catch((): DeviceTokenBody => ({}));
+  if (!body.token?.trim()) {
+    return c.json({ ok: false, error: 'token is required' }, 400);
+  }
+
+  const db = createUserScopedSupabase(ctx.accessToken);
+  await upsertMobileDeviceToken(db, ctx.userId, {
+    token: body.token,
+    platform: body.platform,
+    environment: body.environment,
+    appVersion: body.appVersion,
+  });
+  return c.json({ ok: true });
 });
 
 /**
@@ -159,6 +195,51 @@ mobileRoutes.post('/notes/:id/trigger', async (c) => {
 });
 
 /**
+ * 两步确认 Step1：流式生成「标的分析」。
+ * 过程会读取行情、模拟账户、华泰/机构研报和资讯，并持续返回进度事件。
+ */
+mobileRoutes.get('/notes/:id/order-analysis/stream', async (c) => {
+  const ctx = userContext(c);
+  if (!ctx) return c.json({ ok: false, error: 'User authentication required' }, 401);
+
+  const db = createUserScopedSupabase(ctx.accessToken);
+  const note = await getIdeaNote(db, ctx.userId, c.req.param('id'));
+  if (!note) return c.json({ ok: false, error: 'note not found' }, 404);
+
+  const encoder = new TextEncoder();
+  const readable = new ReadableStream({
+    async start(controller) {
+      const send = (event: Record<string, unknown>) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      };
+
+      try {
+        const cached = cachedOrderAnalysis(note);
+        if (cached) {
+          send({ type: 'progress', step: 'synthesizing', status: 'done', message: '已读取缓存的标的分析' });
+          send({ type: 'result', analysis: cached });
+          return;
+        }
+
+        const analysis = await analyzeOrderIdea(note, (progress) => {
+          send({ type: 'progress', ...progress });
+        });
+        await saveIdeaAnalysis(db, ctx.userId, note.id, mergeOrderAnalysisCache(note, analysis));
+        send({ type: 'result', analysis });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '标的分析失败';
+        send({ type: 'error', message });
+      } finally {
+        send({ type: 'done' });
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(readable, { headers: SSE_HEADERS });
+});
+
+/**
  * 两步确认 Step2：按想法卡（标的+意图）生成模拟盘订单草稿（富途语义）。
  * 返回 note + draft，iOS 据此渲染可调整的下单表单。
  */
@@ -170,8 +251,15 @@ mobileRoutes.get('/notes/:id/order-draft', async (c) => {
   const note = await getIdeaNote(db, ctx.userId, c.req.param('id'));
   if (!note) return c.json({ ok: false, error: 'note not found' }, 404);
 
-  const draft = await buildOrderDraft({ symbol: note.symbol, intent: note.intent });
-  return c.json({ ok: true, note, draft });
+  try {
+    const draft = await buildOrderDraft({ symbol: note.symbol, intent: note.intent });
+    return c.json({ ok: true, note, draft });
+  } catch (error) {
+    if (error instanceof MarketDataUnavailableError) {
+      return c.json({ ok: false, error: error.message }, 503);
+    }
+    throw error;
+  }
 });
 
 const TRADE_SIDES = new Set<TradeSide>(['BUY', 'SELL']);
@@ -213,26 +301,33 @@ mobileRoutes.post('/orders', async (c) => {
     return c.json({ ok: false, error: 'quantity must be greater than 0' }, 400);
   }
 
-  const order = await getBrokerAdapter().submitSimulatedOrder({
-    accountId: body.accountId,
-    code: body.code,
-    side: body.side,
-    orderType: body.orderType,
-    price: Number(body.price),
-    quantity: Number(body.quantity),
-    remark: body.noteId ? `note:${body.noteId}` : undefined,
-  });
+  try {
+    const order = await getBrokerAdapter().submitSimulatedOrder({
+      accountId: body.accountId,
+      code: body.code,
+      side: body.side,
+      orderType: body.orderType,
+      price: Number(body.price),
+      quantity: Number(body.quantity),
+      remark: body.noteId ? `note:${body.noteId}` : undefined,
+    });
 
-  const db = createUserScopedSupabase(ctx.accessToken);
-  const action = await recordOrderResult(db, ctx.userId, {
-    orderId: order.id,
-    noteId: body.noteId,
-    name: body.name?.trim() || body.code,
-    side: order.side,
-    quantity: order.quantity,
-    price: order.price,
-    status: order.status,
-  });
+    const db = createUserScopedSupabase(ctx.accessToken);
+    const action = await recordOrderResult(db, ctx.userId, {
+      orderId: order.id,
+      noteId: body.noteId,
+      name: body.name?.trim() || body.code,
+      side: order.side,
+      quantity: order.quantity,
+      price: order.dealtAvgPrice ?? order.price,
+      status: order.status,
+    });
 
-  return c.json({ ok: true, order, action }, 201);
+    return c.json({ ok: true, order, action }, 201);
+  } catch (error) {
+    if (error instanceof MarketDataUnavailableError) {
+      return c.json({ ok: false, error: error.message }, 503);
+    }
+    throw error;
+  }
 });

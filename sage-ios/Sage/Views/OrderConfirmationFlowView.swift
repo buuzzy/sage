@@ -18,6 +18,9 @@ final class OrderFlowViewModel: ObservableObject {
 
     @Published var note: IdeaNoteCardData?
     @Published var draft: OrderDraft?
+    @Published var orderAnalysis: OrderAnalysis?
+    @Published var analysisProgress: [OrderAnalysisProgress] = []
+    @Published var isAnalyzing = false
 
     @Published var side = "BUY"
     @Published var orderType = "NORMAL"
@@ -41,7 +44,9 @@ final class OrderFlowViewModel: ObservableObject {
 
     func load() async {
         isLoading = true
-        defer { isLoading = false }
+        errorMessage = nil
+        orderAnalysis = nil
+        analysisProgress = []
         do {
             let response = try await APIClient.shared.getOrderDraft(noteId: noteId)
             note = response.note
@@ -50,8 +55,42 @@ final class OrderFlowViewModel: ObservableObject {
             orderType = response.draft.orderType
             priceText = Self.formatPrice(response.draft.price)
             quantity = response.draft.quantity
+            isLoading = false
+            await loadOrderAnalysis()
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadOrderAnalysis() async {
+        isAnalyzing = true
+        defer { isAnalyzing = false }
+        do {
+            let stream = await APIClient.shared.streamOrderAnalysis(noteId: noteId)
+            for try await event in stream {
+                switch event.type {
+                case "progress":
+                    guard let step = event.step, let message = event.message else { continue }
+                    upsertProgress(OrderAnalysisProgress(step: step, message: message, status: event.status))
+                case "result":
+                    orderAnalysis = event.analysis
+                case "error":
+                    errorMessage = event.message ?? "标的分析失败"
+                default:
+                    continue
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func upsertProgress(_ progress: OrderAnalysisProgress) {
+        if let index = analysisProgress.firstIndex(where: { $0.step == progress.step }) {
+            analysisProgress[index] = progress
+        } else {
+            analysisProgress.append(progress)
         }
     }
 
@@ -106,6 +145,7 @@ final class OrderFlowViewModel: ObservableObject {
     static func formatPrice(_ value: Double) -> String {
         value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
     }
+
 }
 
 /// 两步确认流程视图：从「行动」Tab 的待确认想法卡进入。
@@ -172,7 +212,7 @@ struct OrderConfirmationFlowView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .lineSpacing(4)
                     HStack(spacing: 8) {
-                        if !note.symbol.isEmpty { FlowTag(text: note.symbol, tone: .green) }
+                        if !note.symbol.isEmpty { FlowTag(text: note.symbol, tone: .brand) }
                         if !note.intent.isEmpty { FlowTag(text: note.intent, tone: .brand) }
                     }
                 }
@@ -181,21 +221,23 @@ struct OrderConfirmationFlowView: View {
                 .sageGlassControl(cornerRadius: 22)
             }
 
+            targetAnalysisSection
+
             if let draft = viewModel.draft {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Sage 将据此准备的订单")
-                        .font(.system(size: 13))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("订单准备")
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(SageTheme.ColorToken.mutedText)
                     Text("\(draft.name) · \(sideText(draft.side)) · 约 \(draft.quantity) 股 @ \(OrderFlowViewModel.formatPrice(draft.price)) \(draft.currency)")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .background(SageTheme.ColorToken.surfaceSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(18)
+                .sageGlassControl(cornerRadius: 22)
             }
 
-            PrimaryButton(title: "确认这个判断", isLoading: viewModel.isWorking) {
+            PrimaryButton(title: "确认这个判断", isLoading: viewModel.isWorking || viewModel.isAnalyzing) {
                 Task { await viewModel.confirmLogic() }
             }
             Button("再想想") { dismiss() }
@@ -203,6 +245,79 @@ struct OrderConfirmationFlowView: View {
                 .foregroundColor(SageTheme.ColorToken.mutedText)
                 .frame(maxWidth: .infinity)
         }
+    }
+
+    private var targetAnalysisSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("标的分析")
+                .font(.system(size: 13))
+                .foregroundColor(SageTheme.ColorToken.mutedText)
+
+            if let analysis = viewModel.orderAnalysis {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(analysis.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text(analysis.summary)
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary)
+                        .lineSpacing(4)
+
+                    if !analysis.bullets.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(analysis.bullets, id: \.self) { item in
+                                Label(item, systemImage: "checkmark.circle")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    }
+
+                    if !analysis.risks.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("风险")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.primary)
+                            ForEach(analysis.risks, id: \.self) { item in
+                                Text("• \(item)")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(SageTheme.ColorToken.mutedText)
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        if !analysis.sources.isEmpty {
+                            Text("数据来源：\(analysis.sources.joined(separator: " / "))")
+                                .font(.system(size: 11))
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                        }
+                        Text("分析时间：\(analysisTimeLabel(analysis.generatedAt))")
+                            .font(.system(size: 11))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18)
+                .sageGlassControl(cornerRadius: 22)
+            } else {
+                AnalysisProgressCard(progress: viewModel.analysisProgress)
+            }
+        }
+    }
+
+    private func analysisTimeLabel(_ iso: String) -> String {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        guard let date = fractional.date(from: iso) ?? plain.date(from: iso) else {
+            return iso
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter.string(from: date)
     }
 
     // MARK: Step 2 — 订单参数
@@ -575,6 +690,12 @@ struct WatchDetailView: View {
         do {
             let response = try await APIClient.shared.triggerWatch(noteId: noteId)
             note = response.note
+            NotificationService.shared.sendPriceWatchTriggeredNotification(
+                noteId: noteId,
+                symbol: response.note.symbol,
+                conditionText: response.note.condition?.text,
+                intent: response.note.intent
+            )
             goToOrder = true
         } catch {
             errorMessage = error.localizedDescription
@@ -599,6 +720,61 @@ private struct StepBadge: View {
                 .foregroundColor(SageTheme.ColorToken.mutedText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct AnalysisProgressCard: View {
+    let progress: [OrderAnalysisProgress]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("正在生成标的分析")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(visibleProgress) { item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: icon(for: item.status))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(color(for: item.status))
+                            .frame(width: 16)
+                        Text(item.message)
+                            .font(.system(size: 13))
+                            .foregroundColor(SageTheme.ColorToken.mutedText)
+                            .lineSpacing(2)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .sageGlassControl(cornerRadius: 22)
+    }
+
+    private var visibleProgress: [OrderAnalysisProgress] {
+        if progress.isEmpty {
+            return [OrderAnalysisProgress(step: "starting", message: "正在准备分析上下文", status: "running")]
+        }
+        return progress
+    }
+
+    private func icon(for status: String?) -> String {
+        switch status {
+        case "done": return "checkmark.circle.fill"
+        case "skipped": return "minus.circle.fill"
+        default: return "circle.dotted"
+        }
+    }
+
+    private func color(for status: String?) -> Color {
+        switch status {
+        case "done": return .green
+        case "skipped": return SageTheme.ColorToken.mutedText
+        default: return SageTheme.ColorToken.brand
+        }
     }
 }
 
@@ -644,10 +820,7 @@ private struct FlowTag: View {
     }
 
     private var color: Color {
-        switch tone {
-        case .brand: return SageTheme.ColorToken.brand
-        case .green: return .green
-        }
+        SageTheme.ColorToken.brand
     }
 }
 
@@ -664,5 +837,127 @@ private struct DetailRow: View {
             Text(value)
                 .font(.system(size: 15, weight: .medium))
         }
+    }
+}
+
+// MARK: - 行动卡只读详情（已完成 / 成交回执 / 定时结果）
+
+/// 关联了想法卡的行动条目：加载 note 展示原话、状态与已缓存分析/条件。
+struct ActionNoteDetailView: View {
+    let noteId: String
+
+    @State private var note: IdeaNoteCardData?
+    @State private var quote: Double?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if isLoading {
+                    ProgressView("加载详情…")
+                        .frame(maxWidth: .infinity, minHeight: 240)
+                } else if let note {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(note.transcript)
+                            .font(.system(size: 17, weight: .semibold))
+                            .lineSpacing(4)
+                        HStack(spacing: 8) {
+                            if !note.symbol.isEmpty { FlowTag(text: note.symbol, tone: .green) }
+                            if !note.intent.isEmpty { FlowTag(text: note.intent, tone: .brand) }
+                            FlowTag(text: note.status, tone: .brand)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(18)
+                    .sageGlassControl(cornerRadius: 22)
+
+                    if let analysis = note.analysis {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Sage 的判断")
+                                .font(.system(size: 13))
+                                .foregroundColor(SageTheme.ColorToken.mutedText)
+                            Text(analysis.conclusion)
+                                .font(.system(size: 16, weight: .semibold))
+                                .lineSpacing(3)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(18)
+                        .sageSoftCard(cornerRadius: 18)
+                    }
+
+                    if note.taskType == "conditional", let condition = note.condition {
+                        VStack(spacing: 10) {
+                            DetailRow(label: "触发条件", value: "\(note.symbol) \(condition.text)")
+                            if let quote {
+                                DetailRow(label: "参考现价", value: formatPrice(quote))
+                            }
+                            if let watchStatus = note.watchStatus {
+                                DetailRow(label: "监控状态", value: watchStatus == "triggered" ? "已触发" : "监控中")
+                            }
+                        }
+                        .padding(18)
+                        .sageSoftCard(cornerRadius: 18)
+                    }
+                } else {
+                    Text(errorMessage ?? "详情暂不可用")
+                        .font(.system(size: 14))
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                        .frame(maxWidth: .infinity, minHeight: 240)
+                }
+            }
+            .padding(20)
+        }
+        .background(SageBackground().ignoresSafeArea())
+        .navigationTitle("行动详情")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+    }
+
+    private func formatPrice(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let response = try await APIClient.shared.getNoteDetail(noteId: noteId)
+            note = response.note
+            quote = response.quote
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+/// 无想法卡关联的条目（如定时任务结果）：展示标题与摘要。
+struct ActionSummaryView: View {
+    let action: InvestmentActionItem
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(action.title)
+                        .font(.system(size: 20, weight: .semibold))
+                    Text(action.subtitle)
+                        .font(.system(size: 15))
+                        .foregroundColor(SageTheme.ColorToken.mutedText)
+                        .lineSpacing(3)
+                    DetailRow(label: "状态", value: action.status)
+                    if let timeLabel = ActionTimeFormat.label(for: action.createdAt) {
+                        DetailRow(label: "时间", value: timeLabel)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18)
+                .sageGlassControl(cornerRadius: 22)
+            }
+            .padding(20)
+        }
+        .background(SageBackground().ignoresSafeArea())
+        .navigationTitle("行动详情")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -8,10 +8,17 @@ struct MobileDashboardResponse: Decodable {
 struct MobileDashboard: Decodable {
     let connected: Bool
     let account: BrokerAccount
+    let assetTrend: [AssetTrendPoint]
     let todayPoints: [TodayPoint]
     let positions: [HoldingSummary]
     let walkiePrompt: String
     let updatedAt: String
+}
+
+struct AssetTrendPoint: Decodable, Identifiable {
+    var id: String { time }
+    let time: String
+    let value: Double
 }
 
 struct BrokerAccount: Decodable {
@@ -35,6 +42,12 @@ struct TodayPoint: Decodable, Identifiable {
     let title: String
     let body: String
     let relatedCode: String?
+    let relatedName: String?
+    let newsTitle: String?
+    let newsSource: String?
+    let newsDate: String?
+    let newsSummary: String?
+    let newsUrl: String?
 }
 
 struct HoldingSummary: Decodable, Identifiable {
@@ -54,6 +67,12 @@ struct HoldingSummary: Decodable, Identifiable {
     let dayChange: Double
     let dayChangePercent: Double
     let attention: String
+    let detailPoints: [HoldingDetailPoint]
+}
+
+struct HoldingDetailPoint: Decodable {
+    let title: String
+    let body: String
 }
 
 struct MobileActionsResponse: Decodable {
@@ -67,9 +86,51 @@ struct InvestmentActionItem: Decodable, Identifiable {
     let title: String
     let subtitle: String
     let status: String
+    let statusCode: String?
+    let groupKey: String?
+    let groupTitle: String?
+    let groupOrder: Int?
     let priority: Int
     let createdAt: String?
     let noteId: String?
+}
+
+/// 行动卡时间展示：优先相对时间，跨天显示绝对时间。
+enum ActionTimeFormat {
+    static func label(for iso: String?) -> String? {
+        guard let iso, !iso.isEmpty, let date = parse(iso), date.timeIntervalSince1970 > 1_000_000_000 else {
+            return nil
+        }
+
+        let interval = Date().timeIntervalSince(date)
+        if interval < 60 { return "刚刚" }
+        if interval < 3600 { return "\(max(1, Int(interval / 60))) 分钟前" }
+
+        let calendar = Calendar.current
+        let clock = DateFormatter()
+        clock.locale = Locale(identifier: "zh_CN")
+
+        if calendar.isDateInToday(date) {
+            clock.dateFormat = "今天 HH:mm"
+            return clock.string(from: date)
+        }
+        if calendar.isDateInYesterday(date) {
+            clock.dateFormat = "昨天 HH:mm"
+            return clock.string(from: date)
+        }
+
+        clock.dateFormat = "MM-dd HH:mm"
+        return clock.string(from: date)
+    }
+
+    private static func parse(_ iso: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: iso) { return date }
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: iso)
+    }
 }
 
 struct BrokerKlineResponse: Decodable {
@@ -172,6 +233,30 @@ struct OrderDraftResponse: Decodable {
     let ok: Bool
     let note: IdeaNoteCardData
     let draft: OrderDraft
+}
+
+struct OrderAnalysisProgress: Decodable, Identifiable {
+    var id: String { step }
+    let step: String
+    let message: String
+    let status: String?
+}
+
+struct OrderAnalysis: Decodable {
+    let title: String
+    let summary: String
+    let bullets: [String]
+    let risks: [String]
+    let sources: [String]
+    let generatedAt: String
+}
+
+struct OrderAnalysisStreamEvent: Decodable {
+    let type: String
+    let step: String?
+    let message: String?
+    let status: String?
+    let analysis: OrderAnalysis?
 }
 
 struct SubmitOrderRequest: Encodable {

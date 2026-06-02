@@ -1,13 +1,13 @@
 /**
  * 订单草稿生成：把「标的名 + 操作意图」翻译成可提交的模拟盘订单草稿（富途 OpenAPI 语义）。
  *
- * 标的身份 + 报价统一由 broker adapter 提供（命中持仓优先，其次标的池，兜底占位）。
- * 草稿只是「建议」，用户在 Step2 可改方向/价格/数量。当前数据为富途语义 mock，
- * 接真实模拟盘时只需替换 broker adapter，本服务的 contract 不变。
+ * 标的身份由 mock 持仓 + westock 搜索解析；成交价用 westock 实时价。
+ * 草稿只是「建议」，用户在 Step2 可改方向/数量；提交时按最新 westock 价成交。
  */
 
 import { getBrokerAdapter } from '@/shared/broker';
-import type { BrokerMarket, OrderType, ResolvedInstrument, TradeSide } from '@/shared/broker';
+import { MarketDataUnavailableError } from '@/shared/broker/market-data-error';
+import type { BrokerMarket, OrderType, TradeSide } from '@/shared/broker';
 
 export interface OrderDraft {
   accountId: string;
@@ -33,30 +33,22 @@ function sideFromIntent(intent: string): TradeSide {
   return 'BUY';
 }
 
-/** broker 无法识别标的时的占位身份，保证下游表单仍可渲染并提示用户核对。 */
-function placeholderInstrument(symbol: string): ResolvedInstrument {
-  return {
-    code: 'CN.000000',
-    name: symbol.trim() || '待确认标的',
-    market: 'CN',
-    currency: 'CNY',
-    lastPrice: 100,
-    lotSize: 100,
-  };
-}
-
 export async function buildOrderDraft(input: { symbol: string; intent: string }): Promise<OrderDraft> {
   const adapter = getBrokerAdapter();
   const [account] = await adapter.listAccounts();
   const positions = await adapter.listPositions(account.id);
 
   const resolved = await adapter.resolveInstrument(input.symbol);
-  const instrument = resolved ?? placeholderInstrument(input.symbol);
-  const isPlaceholder = !resolved;
+  if (!resolved) {
+    throw new MarketDataUnavailableError(`无法识别标的「${input.symbol}」，请核对名称或代码`);
+  }
+  const instrument = resolved;
 
-  // 实时报价覆盖快照价（mock 下二者一致；接富途后取最新价）。
-  const quote = isPlaceholder ? null : await adapter.getQuote(instrument.code);
-  const price = quote ?? instrument.lastPrice;
+  const quote = await adapter.getQuote(instrument.code);
+  if (quote == null) {
+    throw new MarketDataUnavailableError(`无法获取 ${instrument.name} 的实时行情`);
+  }
+  const price = quote;
 
   const side = sideFromIntent(input.intent);
   const lot = instrument.lotSize;
@@ -77,11 +69,7 @@ export async function buildOrderDraft(input: { symbol: string; intent: string })
     const budget = account.cash * 0.1;
     const lots = Math.max(1, Math.floor(budget / (price * lot)));
     quantity = lots * lot;
-    rationale = `按约 10% 可用资金估算 ${quantity} 股，价格用最新价，可手动调整`;
-  }
-
-  if (isPlaceholder) {
-    rationale = '未匹配到行情，已用占位价 100，提交前请在富途核对标的与价格';
+    rationale = `按约 10% 模拟可用资金估算 ${quantity} 股，价格为 westock 实时价；提交时按最新价成交`;
   }
 
   return {

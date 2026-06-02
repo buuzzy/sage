@@ -1,7 +1,7 @@
 # Sage — TODO & Feature Roadmap
 
 > 本文件是项目唯一权威 TODO。只保留真实待解决项、明确产品规划和暂不做事项；已完成内容通过 git commit / release 记录追溯。
-> 最后更新：2026-06-01（iOS 投资对讲机：想法三类分流 + 两步下单 + 条件单监控落地，进入 D–H 验收与富途接入）
+> 最后更新：2026-06-02（iOS 投资对讲机：资讯真实展示 + 账户行情汇总 + 前台 5 分钟刷新，进入 D–H 验收与富途接入）
 
 ---
 
@@ -9,14 +9,16 @@
 
 > 完整状态与交接见 `docs/INVESTMENT_WALKIE_STATUS.md`；验收清单见桌面 `投资对讲机_验收清单.md`。
 
-**已完成（git 追溯）**：资产/行动/分身三 Tab、push-to-talk 语音(SenseVoice ASR)、想法分类（order/analysis/conditional）、分析任务（LLM 结合持仓）、条件单监控 + 后台 sweep cron、两步确认下单（富途语义 mock）、行动卡排序修复、日夜主题快速切换、按 user_id RLS 隔离落库。
+**已完成（git 追溯）**：资产/行动横向滑动分页、顶部资产/行动切换、分身归档到设置、点击式全局麦克风浮层、资产隐藏/显示、资产展示货币切换、基于持仓昨收/现价推导的 1 日资产趋势、资讯接口 `data.data[]` 解析修复、持仓资讯横滑卡 + 半屏详情弹框、账户总资产/今日盈亏按真实行情快照重新汇总、持仓涨跌幅按最新价与昨收计算、App 前台每 5 分钟刷新 dashboard/行情/资讯、资产卡按账户/总资产/今日盈亏简化、持仓摘要按 OKX 行情列表样式重做、行动卡白底重做、push-to-talk 语音(SenseVoice ASR) 已迁移为点击开始/结束、转写预览确认/取消（确认后才落库）、想法分类（order/analysis/conditional，DeepSeek V4 Flash）、分析任务（DeepSeek V4 Flash 结合持仓）、条件单监控 + 后台 sweep cron、模拟触发本地通知（点击直达确认下单）、两步确认下单（富途语义 mock）、行动卡生命周期分组（待处理 / 等你确认 / 进行中 / 异常 / 已完成）、westock quote/K线优先数据源 + mock 兜底、语音订单 Step1 标的分析（行情/账户/研报/资讯流式进度 + 结果缓存 + 通用 skill 命名）、日夜主题快速切换、按 user_id RLS 隔离落库。
 
 **待完成**：
 
-- **富途真实接入**：开户后用真实富途 OpenAPI 替换 `src-api/src/shared/broker` 的 mock adapter（`listAccounts/listPositions/getKline/getQuote/resolveInstrument/submitSimulatedOrder`），契约不变；先模拟盘后实盘。
+- **富途真实接入**：开户后用真实富途 OpenAPI 替换 `src-api/src/shared/broker` 的交易/账户 mock adapter（`listAccounts/listPositions/submitSimulatedOrder`），契约不变；行情/K线已优先使用 westock，富途接入后可按需要替换为券商实时行情。
 - **条件单真实自动触发**：当前 mock 行情稳定，靠手动「模拟触发」演示；接富途实时行情后 `sweepPriceWatches` 即真实生效。需评估轮询频率 / 推送方式。
-- **条件单触发推送（APNs）**：当前触发只更新行动卡，靠 iOS 前台轮询；要做真正的「行情到价提醒」需接 APNs 远程推送。
+- **正式 APNs 远程推送**：一期先用 iOS 本地通知覆盖模拟触发演示。后续接真实 APNs 需换成 Apple Developer 中启用 `Apple Push Notifications service (APNs)` 的 Auth Key，并设置 `SAGE_ENABLE_APNS_PUSH=true` 后再验收 Railway → APNs → iPhone 的后台到价提醒。
+- **标的解析仅港美股 + 跨市场消歧**：行情/搜索/持仓/下单接口只允许 HK/US，禁止默认落到 A 股。口述「比亚迪」等两地上市标的时，不能只存中文名；需解析为 `HK.01211` / `US.BYDD` 等唯一合约，或在多候选时让用户确认市场后再落库。
 - **D–H 验收**：标的解析准确性、方向/数量推断、分身/主题、资产/K线、鉴权隔离（详见验收清单）。
+- **ASR 能力升级评估**：当前 SenseVoice 对金融口语仍偏弱；后续对比火山引擎豆包 Seed-ASR 2.0（流式 + 二遍识别）/ 腾讯云 ASR 大模型版，并设计可切换 `SAGE_ASR_PROVIDER` adapter。
 - **分析深度增强**：分析任务目前仅基于持仓上下文 + LLM；可接 iwencai 技能 / 实时行情让结论更硬。
 - **看板自定义**：资产首页模块可编辑/重排（高级用户），与 AI 默认编排并存（老板原始需求，尚未做）。
 - **情绪干预**：AI 在情绪化交易（追高/割肉）时介入提醒（产品哲学要求，尚未做）。

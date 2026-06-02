@@ -20,8 +20,11 @@ export type {
   BrokerPosition,
   KlinePoint,
   OrderType,
+  QuoteSnapshot,
   ResolvedInstrument,
   SimulatedOrder,
   SubmitSimulatedOrderInput,
   TradeSide,
 } from './types';
+
+export { MarketDataUnavailableError } from './market-data-error';
